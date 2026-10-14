@@ -17,7 +17,7 @@ const server = createApp({
   accountPortalUrl: process.env.CLERK_ACCOUNT_PORTAL_URL!,
   webhookSigningSecret: process.env.CLERK_WEBHOOK_SIGNING_SECRET,
 }, { users }).listen(port, '0.0.0.0', () => console.log(`Shared Memory MCP listening on port ${port}`));
-void backfillUsers(users, createClerkClient({})).then(count => console.log(`Synced ${count} Clerk user profiles`)).catch(() => console.error('Clerk user backfill failed; retry by restarting the service'));
+void backfillUsers(users, createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY!, publishableKey: process.env.CLERK_PUBLISHABLE_KEY! })).then(count => console.log(`Synced ${count} Clerk user profiles`)).catch(() => console.error('Clerk user backfill failed; retry by restarting the service'));
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => {
   server.close(() => { void users.close().finally(() => process.exit(0)); });
   setTimeout(() => process.exit(1), 10_000).unref();

@@ -27,7 +27,8 @@ export async function connectUserStore(env: NodeJS.ProcessEnv = process.env): Pr
   db.on('error', () => console.error('FalkorDB connection error'));
   const graph = db.selectGraph(env.FALKORDB_GRAPH ?? 'shared_memory');
   try {
-    await graph.createNodeRangeIndex('User', 'clerkId');
+    try { await graph.createNodeRangeIndex('User', 'clerkId'); }
+    catch (error) { if (!(error instanceof Error) || !/already indexed/i.test(error.message)) throw error; }
     const constraints = await graph.roQuery<{ type: string; label: string; properties: string[]; status: string }>('CALL db.constraints()');
     if (!constraints.data?.some(c => c.type === 'UNIQUE' && c.label === 'User' && c.properties.length === 1 && c.properties[0] === 'clerkId')) {
       try { await graph.constraintCreate(ConstraintType.UNIQUE, EntityType.NODE, 'User', 'clerkId'); }
