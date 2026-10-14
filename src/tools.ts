@@ -100,7 +100,7 @@ export function memoryTools(store: MemoryStore, skill: string): Tool[] {
         "List shared spaces and your current read/contributor/owner permissions. Membership alone does not imply intent to share every memory.",
       schema: z.object({}),
       readOnly: true,
-      run: (a) => store.spaces(a),
+      run: async (a) => ({ spaces: await store.spaces(a) }),
     },
     {
       name: "share_memory",
