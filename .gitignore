@@ -41,3 +41,9 @@ yarn-error.log*
 .Trashes/
 Thumbs.db
 Desktop.ini
+
+# Build and provider-local metadata
+dist/
+.railway/
+.clerk/
+!.env.example
