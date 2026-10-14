@@ -1,13 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
-import {
-  ClerkProvider,
-  useAuth,
-  useUser,
-  SignInButton,
-  SignUpButton,
-  UserButton,
-} from "@clerk/react";
+import { ClerkProvider, useAuth, SignInButton, UserButton } from "@clerk/react";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import "./style.css";
@@ -138,131 +131,16 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
   );
 }
 function Brand() {
-  return (
-    <div className="brand">
-      <span className="brand-mark">
-        <Icon name="memory" size={24} />
-      </span>
-      <span>
-        shared memory<span className="brand-dot">.</span>
-      </span>
-    </div>
-  );
+  return <div className="brand">shared memory.</div>;
 }
-function Landing({ config }: { config: Config }) {
+function Landing() {
   return (
-    <div className="landing">
-      <a className="skip-link" href="#content">
-        Skip to content
-      </a>
-      <header>
-        <Brand />
-        <div className="landing-nav">
-          <a href="/privacy">Privacy</a>
-          <SignInButton mode="modal">
-            <button className="text-button">Sign in</button>
-          </SignInButton>
-          <SignUpButton mode="modal">
-            <button className="button small">
-              Get started <Icon name="arrow" size={16} />
-            </button>
-          </SignUpButton>
-        </div>
-      </header>
-      <main id="content">
-        <div className="hero-content">
-          <div className="eyebrow">PERSONAL CONTEXT, CONNECTED</div>
-          <h1>
-            Your assistants.
-            <br />
-            One memory.
-          </h1>
-          <p className="hero-copy">
-            Context that carries across conversations. Give your assistants a
-            shared understanding of your projects, preferences, and decisions.
-          </p>
-          <SignUpButton mode="modal">
-            <button className="button">
-              Create your memory <Icon name="arrow" size={18} />
-            </button>
-          </SignUpButton>
-          <div className="hero-note">
-            <Icon name="lock" size={14} /> Private by default. Yours to inspect
-            and correct.
-          </div>
-        </div>
-        <div
-          className="context-preview"
-          aria-label="Illustration of personal memory connections, not account data"
-        >
-          <div className="preview-header">
-            <span>
-              <Icon name="graph" size={16} /> Connected context
-            </span>
-            <span className="preview-tag">Illustration</span>
-          </div>
-          <div className="preview-graph">
-            <svg viewBox="0 0 480 280" aria-hidden="true">
-              <path d="M240 140 99 68M240 140 381 68M240 140 99 212M240 140 381 212" />
-            </svg>
-            <div className="context-node node-you">
-              <Icon name="memory" size={20} />
-              <strong>You</strong>
-            </div>
-            <div className="context-node node-preferences">
-              <span>01</span>Preferences
-            </div>
-            <div className="context-node node-projects">
-              <span>02</span>Projects
-            </div>
-            <div className="context-node node-people">
-              <span>03</span>People
-            </div>
-            <div className="context-node node-decisions">
-              <span>04</span>Decisions
-            </div>
-          </div>
-          <div className="preview-footer">
-            <Icon name="lock" size={14} /> Connected by context. Controlled by
-            you.
-          </div>
-        </div>
-      </main>
-      <section
-        className="landing-features"
-        aria-label="How Shared Memory works"
-      >
-        {[
-          [
-            "01",
-            "Remember across assistants",
-            "Useful context follows you, with an inspectable source for every memory.",
-          ],
-          [
-            "02",
-            "See the connections",
-            "Explore the people, projects, and decisions that give each memory meaning.",
-          ],
-          [
-            "03",
-            "Choose what to share",
-            "Bring selected context into shared spaces, with permissions you control.",
-          ],
-        ].map(([number, heading, copy]) => (
-          <article key={number}>
-            <span className="step">{number}</span>
-            <h2>{heading}</h2>
-            <p>{copy}</p>
-          </article>
-        ))}
-      </section>
-      <footer>
-        <span>Built around relationships, sources, and time.</span>
-        <a href="/skill">
-          Read the agent guide <Icon name="arrow" size={14} />
-        </a>
-      </footer>
-    </div>
+    <main className="landing">
+      <h1 className="landing-title">shared memory.</h1>
+      <SignInButton mode="modal">
+        <button className="button">Log in</button>
+      </SignInButton>
+    </main>
   );
 }
 function Graph({
@@ -405,7 +283,6 @@ function Graph({
 }
 function Dashboard({ config }: { config: Config }) {
   const { getToken } = useAuth();
-  const { user } = useUser();
   const [data, setData] = useState<Overview | null>(null),
     [section, setSection] = useState("memories"),
     [view, setView] = useState("list"),
@@ -492,7 +369,6 @@ function Dashboard({ config }: { config: Config }) {
   const memories = (results ?? data?.memories ?? []).filter(
     (m) => filter === "all" || m.kind === filter,
   );
-  const ownerSpaces = data?.spaces.filter((s) => s.role === "owner") ?? [];
   useEffect(() => {
     if (!detail && editing === undefined && !memberList) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -539,14 +415,6 @@ function Dashboard({ config }: { config: Config }) {
         Skip to content
       </a>
       <aside className="sidebar">
-        <Brand />
-        <div className="workspace">
-          <span className="avatar-initial">{user?.firstName?.[0] ?? "M"}</span>
-          <div>
-            <strong>{user?.firstName ?? "Your"}'s memory</strong>
-            <small>Personal workspace</small>
-          </div>
-        </div>
         <nav aria-label="Workspace navigation">
           {[
             ["memories", "memory", "Memories"],
@@ -558,13 +426,15 @@ function Dashboard({ config }: { config: Config }) {
               key={id}
               className={section === id ? "nav-item active" : "nav-item"}
               aria-current={section === id ? "page" : undefined}
+              aria-label={label}
+              title={label}
               onClick={() => {
                 setSection(id);
                 setDetail(null);
               }}
             >
               <Icon name={icon} />
-              {label}
+              <span className="nav-label">{label}</span>
               {id === "memories" && data ? (
                 <span className="nav-count">{data.memories.length}</span>
               ) : null}
@@ -572,42 +442,25 @@ function Dashboard({ config }: { config: Config }) {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="privacy-note">
-            <Icon name="lock" size={17} />
-            <p>
-              Private until you
-              <br />
-              choose to share.
-            </p>
-          </div>
-          <a href="/privacy">Privacy & data</a>
           <div className="account">
             <UserButton />
-            <span>{user?.fullName ?? "Your account"}</span>
-          </div>
-        </div>
-      </aside>
-      <main className="main">
-        <header className="topbar">
-          <div className="breadcrumb">
-            Your workspace <span>/</span>{" "}
-            {title(section === "spaces" ? "shared spaces" : section)}
-          </div>
-          <div className="topbar-right">
-            <span className="connection-status">
-              <span className="live-dot" />
-              {data ? "Memory online" : "Connecting"}
-            </span>
             <button
               className="icon-button"
               onClick={() => perform(reload, "Memory refreshed")}
               aria-label="Refresh"
+              title="Refresh"
+              disabled={busy}
             >
               <Icon name="refresh" size={18} />
             </button>
           </div>
-        </header>
+        </div>
+      </aside>
+      <main className="main">
         <div className="page-content" id="workspace-content">
+          <h1 className="sr-only">
+            {title(section === "spaces" ? "shared spaces" : section)}
+          </h1>
           {error && (
             <div role="alert" className="error-banner">
               {error}
@@ -648,38 +501,6 @@ function Dashboard({ config }: { config: Config }) {
           )}
           {section === "memories" && (
             <>
-              <div className="page-heading">
-                <div>
-                  <div className="eyebrow">YOUR PERSONAL CONTEXT</div>
-                  <h1>Memories</h1>
-                  <p>
-                    Facts, moments, and decisions. Connected across your
-                    assistants.
-                  </p>
-                </div>
-                <button className="button" onClick={() => setEditing(null)}>
-                  <Icon name="plus" size={17} />
-                  Add memory
-                </button>
-              </div>
-              <div className="stats-line">
-                <span>
-                  <strong>{data?.memories.length ?? "—"}</strong>
-                  <span>Memories</span>
-                </span>
-                <span>
-                  <strong>
-                    {data
-                      ? new Set(data.graph.map((e) => e.entityId)).size
-                      : "—"}
-                  </strong>{" "}
-                  <span>Connected entities</span>
-                </span>
-                <span>
-                  <strong>{data?.spaces.length ?? "—"}</strong>
-                  <span>Shared spaces</span>
-                </span>
-              </div>
               <div className="memory-toolbar">
                 <form className="search-box" onSubmit={search}>
                   <Icon name="search" size={18} />
@@ -693,23 +514,29 @@ function Dashboard({ config }: { config: Config }) {
                     Search
                   </button>
                 </form>
-                <div className="view-toggle">
-                  <button
-                    aria-label="List view"
-                    aria-pressed={view === "list"}
-                    className={view === "list" ? "selected" : ""}
-                    onClick={() => setView("list")}
-                  >
-                    List
-                  </button>
-                  <button
-                    aria-label="Graph view"
-                    aria-pressed={view === "graph"}
-                    className={view === "graph" ? "selected" : ""}
-                    onClick={() => setView("graph")}
-                  >
-                    <Icon name="graph" size={16} />
-                    Graph
+                <div className="memory-actions">
+                  <div className="view-toggle">
+                    <button
+                      aria-label="List view"
+                      aria-pressed={view === "list"}
+                      className={view === "list" ? "selected" : ""}
+                      onClick={() => setView("list")}
+                    >
+                      List
+                    </button>
+                    <button
+                      aria-label="Graph view"
+                      aria-pressed={view === "graph"}
+                      className={view === "graph" ? "selected" : ""}
+                      onClick={() => setView("graph")}
+                    >
+                      <Icon name="graph" size={16} />
+                      Graph
+                    </button>
+                  </div>
+                  <button className="button" onClick={() => setEditing(null)}>
+                    <Icon name="plus" size={17} />
+                    Add memory
                   </button>
                 </div>
               </div>
@@ -737,30 +564,19 @@ function Dashboard({ config }: { config: Config }) {
                 )}
               </div>
               {!data ? (
-                <div className="empty-state">Opening your memory…</div>
+                <div className="empty-state">Loading…</div>
               ) : data.memories.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">
                     <Icon name="memory" size={32} />
                   </div>
                   <h2>No memories yet</h2>
-                  <p>
-                    Connect an assistant and tell it something worth
-                    remembering.
-                    <br />
-                    Or add your first memory yourself.
-                  </p>
+                  <p>Add a memory or connect an assistant.</p>
                   <button
                     className="button"
                     onClick={() => setSection("connections")}
                   >
                     Connect your assistant <Icon name="arrow" size={16} />
-                  </button>
-                  <button
-                    className="text-button"
-                    onClick={() => setEditing(null)}
-                  >
-                    Add a memory manually
                   </button>
                 </div>
               ) : view === "graph" ? (
@@ -810,24 +626,10 @@ function Dashboard({ config }: { config: Config }) {
                   )}
                 </div>
               )}
-              <div className="page-footnote">
-                <Icon name="memory" size={14} /> Every memory has a source.
-                Every connection has context.
-              </div>
             </>
           )}
           {section === "connections" && (
             <>
-              <div className="page-heading">
-                <div>
-                  <div className="eyebrow">BRING YOUR ASSISTANTS</div>
-                  <h1>Connections</h1>
-                  <p>
-                    Connect your account once in each assistant, then give it
-                    the memory guide.
-                  </p>
-                </div>
-              </div>
               <div className="setup-grid">
                 <section className="panel">
                   <span className="step">01</span>
@@ -987,16 +789,6 @@ function Dashboard({ config }: { config: Config }) {
           )}
           {section === "spaces" && (
             <>
-              <div className="page-heading">
-                <div>
-                  <div className="eyebrow">CONTEXT YOU CHOOSE TO SHARE</div>
-                  <h1>Shared spaces</h1>
-                  <p>
-                    Invite people into a space. Your personal memory stays
-                    private.
-                  </p>
-                </div>
-              </div>
               <section className="panel create-space">
                 <h2>Create a shared space</h2>
                 <form
@@ -1190,24 +982,14 @@ function Dashboard({ config }: { config: Config }) {
               {data?.spaces.length === 0 && (
                 <div className="empty-state">
                   <Icon name="share" size={32} />
-                  <h2>A shared space, a shared understanding.</h2>
-                  <p>Create a space and invite a friend to get started.</p>
+                  <h2>No shared spaces</h2>
+                  <p>Create a space to invite someone.</p>
                 </div>
               )}
             </>
           )}
           {section === "activity" && (
             <>
-              <div className="page-heading">
-                <div>
-                  <div className="eyebrow">FOLLOW THE CONTEXT</div>
-                  <h1>Activity</h1>
-                  <p>
-                    Inspect webhook delivery without confusing receipt with an
-                    agent response.
-                  </p>
-                </div>
-              </div>
               <section className="panel">
                 <h2>Delivery activity</h2>
                 {data?.deliveries.length ? (
@@ -1260,7 +1042,9 @@ function Dashboard({ config }: { config: Config }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="drawer-top">
-              <span className="eyebrow">MEMORY DETAILS</span>
+              <span className={"kind-badge " + detail.memory.kind}>
+                {title(detail.memory.kind)}
+              </span>
               <button
                 className="icon-button"
                 aria-label="Close memory details"
@@ -1269,9 +1053,6 @@ function Dashboard({ config }: { config: Config }) {
                 <Icon name="close" />
               </button>
             </div>
-            <span className={"kind-badge " + detail.memory.kind}>
-              {title(detail.memory.kind)}
-            </span>
             <h2 id="memory-detail-title">{detail.memory.text}</h2>
             <div className="entity-tags">
               {detail.memory.entities.map((e: any, i: number) => (
@@ -1497,7 +1278,6 @@ function MemoryEditor({
       >
         <div className="drawer-top">
           <div>
-            <div className="eyebrow">YOUR CONTEXT</div>
             <h2 id="memory-editor-title">
               {memory ? "Correct a memory" : "Add a memory"}
             </h2>
@@ -1599,14 +1379,10 @@ function App({ config }: { config: Config }) {
     return (
       <div className="loading">
         <Brand />
-        <p>Opening your memory…</p>
+        <p>Loading…</p>
       </div>
     );
-  return isSignedIn ? (
-    <Dashboard config={config} />
-  ) : (
-    <Landing config={config} />
-  );
+  return isSignedIn ? <Dashboard config={config} /> : <Landing />;
 }
 const root = createRoot(document.getElementById("root")!);
 fetch("/api/config")

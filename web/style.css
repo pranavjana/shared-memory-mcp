@@ -83,12 +83,6 @@
   .brand {
     @apply flex items-center gap-2.5 whitespace-nowrap text-lg font-semibold tracking-[-0.7px];
   }
-  .brand-mark {
-    @apply flex text-ink;
-  }
-  .brand-dot {
-    @apply text-ink;
-  }
   .button {
     @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-md border-0 bg-ink px-4 py-2.5 text-sm font-medium whitespace-nowrap text-white transition-colors;
   }
@@ -110,10 +104,6 @@
   .icon-button:hover {
     @apply bg-[#f2f2f2] text-ink;
   }
-  .eyebrow {
-    @apply flex items-center gap-2 font-mono text-[10px] font-medium tracking-[0.06em] text-secondary;
-  }
-  .live-dot,
   .status-dot {
     @apply inline-block size-1.5 shrink-0 rounded-full bg-[#398e4a];
   }
@@ -137,122 +127,19 @@
   .loading p {
     @apply text-sm text-secondary;
   }
-
   .landing {
-    @apply min-h-screen bg-canvas;
+    @apply flex min-h-dvh flex-col items-center justify-center gap-6 bg-canvas px-6;
   }
-  .landing header {
-    @apply mx-auto flex h-20 max-w-[1280px] items-center justify-between gap-4 px-8;
-  }
-  .landing-nav {
-    @apply flex items-center gap-5 text-xs text-secondary;
-  }
-  .landing-nav > a:hover,
-  .landing footer a:hover {
-    @apply text-accent;
-  }
-  .landing main {
-    @apply mx-auto grid min-h-[600px] max-w-[1280px] grid-cols-2 items-center gap-16 px-8 py-20;
-  }
-  .hero-content {
-    @apply min-w-0;
-  }
-  .landing h1 {
-    @apply my-6 text-[60px] leading-[1.05] font-semibold tracking-[-2.8px];
-  }
-  .hero-copy {
-    @apply mb-8 max-w-[440px] text-base leading-7 text-secondary;
-  }
-  .hero-note {
-    @apply mt-4 flex items-center gap-2 text-xs text-secondary;
-  }
-  .context-preview {
-    @apply overflow-hidden rounded-xl bg-white shadow-floating;
-  }
-  .preview-header {
-    @apply flex items-center justify-between gap-3 px-5 py-4 text-xs;
-    box-shadow: 0 1px 0 #0000000a;
-  }
-  .preview-header > span:first-child {
-    @apply flex items-center gap-2 font-medium;
-  }
-  .preview-tag {
-    @apply rounded bg-canvas px-2 py-1 font-mono text-[10px] text-secondary shadow-line;
-  }
-  .preview-graph {
-    @apply relative h-[280px];
-  }
-  .preview-graph > svg {
-    @apply absolute inset-0 h-full w-full fill-none stroke-[#dedede];
-  }
-  .context-node {
-    @apply absolute flex h-10 -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-md bg-white px-3 text-xs shadow-panel;
-  }
-  .context-node > span {
-    @apply font-mono text-[9px] text-secondary;
-  }
-  .node-you {
-    @apply top-1/2 left-1/2 h-12 gap-3 bg-ink px-4 text-white;
-  }
-  .node-you strong {
-    @apply font-medium;
-  }
-  .node-preferences {
-    left: 20.625%;
-    top: 24.286%;
-  }
-  .node-projects {
-    left: 79.375%;
-    top: 24.286%;
-  }
-  .node-people {
-    left: 20.625%;
-    top: 75.714%;
-  }
-  .node-decisions {
-    left: 79.375%;
-    top: 75.714%;
-  }
-  .preview-footer {
-    @apply flex items-center gap-2 bg-canvas px-5 py-4 text-[11px] text-secondary;
-  }
-  .landing-features {
-    @apply mx-auto grid max-w-[1280px] grid-cols-3 gap-12 px-8 pb-20;
-  }
-  .landing-features h2 {
-    @apply mt-4 mb-3 text-sm font-medium;
-  }
-  .landing-features p {
-    @apply max-w-[320px] text-sm leading-6 text-secondary;
-  }
-  .landing footer {
-    @apply mx-auto flex max-w-[1280px] items-center justify-between gap-4 px-8 pb-8 text-xs text-secondary;
-  }
-  .landing footer a {
-    @apply flex items-center gap-2;
+  .landing-title {
+    @apply text-[32px] font-semibold tracking-[-1.2px];
   }
 
   .app-shell {
     @apply flex min-h-screen;
   }
   .sidebar {
-    @apply fixed inset-y-0 left-0 z-10 flex w-56 flex-col bg-white px-4 py-6;
+    @apply fixed inset-y-0 left-0 z-10 flex w-50 flex-col bg-white px-4 py-6;
     box-shadow: 1px 0 0 #00000014;
-  }
-  .sidebar .brand {
-    @apply px-2;
-  }
-  .workspace {
-    @apply my-7 flex items-center gap-3 rounded-md px-2 py-2;
-  }
-  .avatar-initial {
-    @apply grid size-8 shrink-0 place-items-center rounded-md bg-[#f2f2f2] text-xs font-medium shadow-line;
-  }
-  .workspace strong {
-    @apply block max-w-[140px] truncate text-xs font-medium;
-  }
-  .workspace small {
-    @apply mt-1 block text-[11px] text-secondary;
   }
   .sidebar nav {
     @apply flex flex-col gap-1;
@@ -273,72 +160,22 @@
     @apply ml-auto rounded bg-white px-1.5 py-0.5 font-mono text-[10px] shadow-line;
   }
   .sidebar-bottom {
-    @apply mt-auto pt-12;
-  }
-  .privacy-note {
-    @apply flex items-center gap-3 px-2 py-4 text-secondary;
-  }
-  .privacy-note p {
-    @apply text-[11px] leading-5;
-  }
-  .sidebar-bottom > a {
-    @apply px-2 text-[11px] text-secondary;
-  }
-  .sidebar-bottom > a:hover {
-    @apply text-accent;
+    @apply mt-auto pt-6;
   }
   .account {
-    @apply mt-6 flex items-center gap-3 px-2 pt-5 text-xs;
-    box-shadow: 0 -1px 0 #0000000a;
-  }
-  .account > span {
-    @apply min-w-0 truncate;
+    @apply flex items-center gap-3 px-2;
   }
   .main {
-    @apply ml-56 min-w-0 flex-1;
-  }
-  .topbar {
-    @apply flex h-16 items-center justify-between gap-4 bg-white px-10;
-    box-shadow: 0 1px 0 #00000014;
-  }
-  .breadcrumb {
-    @apply text-xs text-secondary;
-  }
-  .breadcrumb span {
-    @apply mx-3 text-[#a3a3a3];
-  }
-  .topbar-right {
-    @apply flex items-center gap-4;
-  }
-  .connection-status {
-    @apply flex items-center gap-2 text-[11px] text-secondary;
+    @apply ml-50 min-w-0 flex-1;
   }
   .page-content {
-    @apply mx-auto w-full max-w-[1280px] px-10 py-10;
-  }
-  .page-heading {
-    @apply mb-8 flex items-center justify-between gap-6;
-  }
-  .page-heading h1 {
-    @apply mt-3 mb-2 text-[32px] leading-10 font-semibold tracking-[-1.28px];
-  }
-  .page-heading p {
-    @apply max-w-[620px] text-sm leading-6 text-secondary;
-  }
-  .stats-line {
-    @apply mb-8 grid grid-cols-3 gap-4;
-  }
-  .stats-line > span {
-    @apply flex flex-col gap-2 rounded-lg bg-white px-5 py-4 shadow-line;
-  }
-  .stats-line strong {
-    @apply font-mono text-2xl leading-8 font-medium tracking-[-1px];
-  }
-  .stats-line > span > span {
-    @apply text-xs text-secondary;
+    @apply mx-auto w-full max-w-[1280px] px-10 py-6;
   }
   .memory-toolbar {
     @apply flex items-center gap-4;
+  }
+  .memory-actions {
+    @apply flex shrink-0 items-center gap-3;
   }
   .search-box {
     @apply flex min-w-0 flex-1 items-center gap-3 rounded-md bg-white px-3 text-secondary shadow-line;
@@ -427,9 +264,6 @@
   }
   .source-label {
     @apply flex shrink-0 items-center gap-1.5 text-[10px] text-secondary;
-  }
-  .page-footnote {
-    @apply mt-8 flex items-center justify-center gap-2 text-center text-[11px] leading-5 text-secondary;
   }
   .empty-state {
     @apply flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-lg bg-white p-8 text-center shadow-line;
@@ -593,7 +427,7 @@
     @apply mt-1 text-xs leading-5 text-secondary;
   }
   .toast {
-    @apply fixed bottom-6 left-[calc(50%+112px)] z-[100] flex max-w-[85vw] -translate-x-1/2 items-center gap-3 rounded-lg bg-ink px-5 py-3 text-xs leading-5 text-white shadow-floating;
+    @apply fixed bottom-6 left-[calc(50%+100px)] z-[100] flex max-w-[85vw] -translate-x-1/2 items-center gap-3 rounded-lg bg-ink px-5 py-3 text-xs leading-5 text-white shadow-floating;
   }
   .drawer-overlay,
   .modal-backdrop {
@@ -683,18 +517,8 @@
   }
 }
 @media (max-width: 1100px) {
-  .landing main {
-    gap: 32px;
-  }
-  .landing h1 {
-    font-size: 48px;
-    letter-spacing: -2.28px;
-  }
   .page-content {
     padding: 32px 24px;
-  }
-  .topbar {
-    padding-inline: 24px;
   }
   .memory-card-bottom {
     align-items: flex-start;
@@ -702,25 +526,6 @@
   }
 }
 @media (max-width: 800px) {
-  .landing main {
-    grid-template-columns: 1fr;
-    gap: 48px;
-    padding-block: 48px;
-  }
-  .hero-copy {
-    max-width: 520px;
-  }
-  .context-preview {
-    max-width: 560px;
-  }
-  .landing-features {
-    grid-template-columns: 1fr;
-    gap: 32px;
-    padding-bottom: 48px;
-  }
-  .landing-features p {
-    max-width: 520px;
-  }
   .app-shell {
     display: block;
   }
@@ -728,17 +533,13 @@
     position: sticky;
     inset: 0 0 auto;
     width: 100%;
-    padding: 16px;
+    padding: 12px 16px;
     box-shadow: 0 1px 0 #00000014;
-  }
-  .sidebar .brand {
-    padding: 0;
-    font-size: 17px;
   }
   .sidebar nav {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin-top: 16px;
+    padding-right: 88px;
     gap: 4px;
   }
   .nav-item {
@@ -753,9 +554,7 @@
     width: 16px;
     height: 16px;
   }
-  .workspace,
-  .privacy-note,
-  .sidebar-bottom > a,
+  .nav-label,
   .nav-count {
     display: none;
   }
@@ -771,63 +570,11 @@
     padding: 0;
     box-shadow: none;
   }
-  .account > span {
-    display: none;
-  }
   .main {
     margin-left: 0;
   }
-  .topbar {
-    height: 56px;
-    padding: 0 20px;
-  }
-  .topbar-right {
-    gap: 8px;
-  }
-  .breadcrumb {
-    font-size: 11px;
-  }
-  .breadcrumb span {
-    margin: 0 8px;
-  }
-  .connection-status {
-    font-size: 10px;
-  }
   .page-content {
-    padding: 28px 20px;
-  }
-  .page-heading {
-    align-items: flex-start;
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-  .page-heading h1 {
-    font-size: 28px;
-    line-height: 36px;
-    letter-spacing: -1px;
-  }
-  .page-heading p {
-    font-size: 12px;
-    line-height: 20px;
-  }
-  .page-heading > .button {
-    min-height: 36px;
-    padding: 8px 12px;
-    font-size: 12px;
-    margin-top: 28px;
-  }
-  .stats-line {
-    gap: 12px;
-    margin-bottom: 24px;
-  }
-  .stats-line > span {
-    padding: 14px 12px;
-  }
-  .stats-line strong {
-    font-size: 22px;
-  }
-  .stats-line > span > span {
-    font-size: 10px;
+    padding: 24px 20px;
   }
   .memory-list,
   .setup-grid {
@@ -844,53 +591,6 @@
   }
 }
 @media (max-width: 480px) {
-  .nav-item svg {
-    display: none;
-  }
-  .landing header {
-    height: 72px;
-    padding-inline: 20px;
-  }
-  .landing-nav {
-    gap: 8px;
-  }
-  .landing-nav > a {
-    display: none;
-  }
-  .landing main {
-    padding: 40px 20px;
-  }
-  .landing h1 {
-    font-size: 42px;
-    letter-spacing: -1.9px;
-  }
-  .landing-features {
-    padding-inline: 20px;
-  }
-  .landing footer {
-    align-items: flex-start;
-    flex-direction: column;
-    padding-inline: 20px;
-  }
-  .context-node {
-    gap: 5px;
-    padding-inline: 8px;
-    font-size: 10px;
-  }
-  .preview-graph {
-    height: 240px;
-  }
-  .context-node > span {
-    font-size: 8px;
-  }
-  .node-you {
-    gap: 8px;
-  }
-  .preview-header,
-  .preview-footer {
-    padding-inline: 16px;
-    font-size: 10px;
-  }
   .memory-toolbar {
     flex-wrap: wrap;
     gap: 12px;
@@ -898,17 +598,16 @@
   .search-box {
     flex-basis: 100%;
   }
-  .view-toggle {
-    margin-left: auto;
+  .memory-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .memory-actions .button {
+    font-size: 12px;
+    padding-inline: 12px;
   }
   .memory-card-bottom {
     flex-direction: column;
-  }
-  .stats-line {
-    gap: 8px;
-  }
-  .stats-line > span {
-    padding: 12px 10px;
   }
   .record-row {
     flex-wrap: wrap;
