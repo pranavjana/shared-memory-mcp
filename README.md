@@ -46,6 +46,8 @@ Reference: https://developers.openai.com/plugins/build/mcp-events
 
 ## Local development
 
+The dashboard uses Vite, React, TypeScript, and Tailwind's official Vite plugin. `web/style.css` defines the monochrome design tokens and reusable Tailwind component styles; Geist Sans and Geist Mono are bundled locally. Screen layouts adapt for phones, tablets, and desktops, with keyboard focus rings and dialog focus handling.
+
 Use Node 24. Copy `.env.example` to `.env.local` and supply the dedicated personal Clerk application's keys. Start FalkorDB locally with password authentication and set `FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_PASSWORD`, `FALKORDB_GRAPH` (profiles) and `FALKORDB_MEMORY_GRAPH` (application graph).
 
 Run `npm ci`, `npm run build` and `npm run dev`. For frontend development run `npm run dev:web` in a second terminal; Vite forwards API requests to port 3000. Set `PUBLIC_URL` to the actual browser origin so Clerk authorized-party checks match. Production serves the built frontend from Express.

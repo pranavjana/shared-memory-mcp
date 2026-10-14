@@ -51,3 +51,6 @@ dist/
 # Generated dashboard assets
 public/assets/
 public/index.html
+
+# Browser review proof
+artifacts/frontend-review/

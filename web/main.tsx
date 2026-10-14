@@ -8,8 +8,8 @@ import {
   SignUpButton,
   UserButton,
 } from "@clerk/react";
-import "@fontsource-variable/manrope";
-import "@fontsource-variable/dm-sans";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import "./style.css";
 type Config = {
   publishableKey: string;
@@ -97,6 +97,9 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
     activity: <path d="M3 12h4l3-8 4 16 3-8h4" />,
     arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
     plus: <path d="M12 5v14M5 12h14" />,
+    refresh: (
+      <path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 11-2l3 4M4 15l3 4a7 7 0 0 0 11-2" />
+    ),
     search: (
       <>
         <circle cx="10" cy="10" r="6" />
@@ -149,6 +152,9 @@ function Brand() {
 function Landing({ config }: { config: Config }) {
   return (
     <div className="landing">
+      <a className="skip-link" href="#content">
+        Skip to content
+      </a>
       <header>
         <Brand />
         <div className="landing-nav">
@@ -163,61 +169,93 @@ function Landing({ config }: { config: Config }) {
           </SignUpButton>
         </div>
       </header>
-      <main>
-        <div className="eyebrow">
-          <span className="live-dot" /> CONTEXT THAT STAYS WITH YOU
-        </div>
-        <h1>
-          Your assistants.
-          <br />
-          One connected
-          <br />
-          <em>memory.</em>
-        </h1>
-        <p className="hero-copy">
-          Keep the things that matter across conversations.
-          <br />
-          Let your assistants remember, connect the dots,
-          <br />
-          and share only what you choose.
-        </p>
-        <SignUpButton mode="modal">
-          <button className="button">
-            Create your memory <Icon name="arrow" size={18} />
-          </button>
-        </SignUpButton>
-        <div className="hero-note">
-          <Icon name="lock" size={14} /> Private by default. Yours to inspect
-          and correct.
+      <main id="content">
+        <div className="hero-content">
+          <div className="eyebrow">PERSONAL CONTEXT, CONNECTED</div>
+          <h1>
+            Your assistants.
+            <br />
+            One memory.
+          </h1>
+          <p className="hero-copy">
+            Context that carries across conversations. Give your assistants a
+            shared understanding of your projects, preferences, and decisions.
+          </p>
+          <SignUpButton mode="modal">
+            <button className="button">
+              Create your memory <Icon name="arrow" size={18} />
+            </button>
+          </SignUpButton>
+          <div className="hero-note">
+            <Icon name="lock" size={14} /> Private by default. Yours to inspect
+            and correct.
+          </div>
         </div>
         <div
-          className="hero-visual"
-          aria-label="Illustration of connected personal context"
+          className="context-preview"
+          aria-label="Illustration of personal memory connections, not account data"
         >
-          <div className="orb orb-you">
-            You<span>Your context</span>
+          <div className="preview-header">
+            <span>
+              <Icon name="graph" size={16} /> Connected context
+            </span>
+            <span className="preview-tag">Illustration</span>
           </div>
-          <div className="orb orb-a">
-            Preferences<span>How you work</span>
+          <div className="preview-graph">
+            <svg viewBox="0 0 480 280" aria-hidden="true">
+              <path d="M240 140 99 68M240 140 381 68M240 140 99 212M240 140 381 212" />
+            </svg>
+            <div className="context-node node-you">
+              <Icon name="memory" size={20} />
+              <strong>You</strong>
+            </div>
+            <div className="context-node node-preferences">
+              <span>01</span>Preferences
+            </div>
+            <div className="context-node node-projects">
+              <span>02</span>Projects
+            </div>
+            <div className="context-node node-people">
+              <span>03</span>People
+            </div>
+            <div className="context-node node-decisions">
+              <span>04</span>Decisions
+            </div>
           </div>
-          <div className="orb orb-b">
-            Projects<span>What you're building</span>
-          </div>
-          <div className="orb orb-c">
-            People<span>Who you work with</span>
-          </div>
-          <div className="orb orb-d">
-            Decisions<span>Why it matters</span>
-          </div>
-          <svg viewBox="0 0 600 560">
-            <path d="M300 280 140 110M300 280 490 190M300 280 135 420M300 280 450 450" />
-          </svg>
-          <div className="visual-label">
-            A little context.
-            <br />A much clearer picture.
+          <div className="preview-footer">
+            <Icon name="lock" size={14} /> Connected by context. Controlled by
+            you.
           </div>
         </div>
       </main>
+      <section
+        className="landing-features"
+        aria-label="How Shared Memory works"
+      >
+        {[
+          [
+            "01",
+            "Remember across assistants",
+            "Useful context follows you, with an inspectable source for every memory.",
+          ],
+          [
+            "02",
+            "See the connections",
+            "Explore the people, projects, and decisions that give each memory meaning.",
+          ],
+          [
+            "03",
+            "Choose what to share",
+            "Bring selected context into shared spaces, with permissions you control.",
+          ],
+        ].map(([number, heading, copy]) => (
+          <article key={number}>
+            <span className="step">{number}</span>
+            <h2>{heading}</h2>
+            <p>{copy}</p>
+          </article>
+        ))}
+      </section>
       <footer>
         <span>Built around relationships, sources, and time.</span>
         <a href="/skill">
@@ -256,10 +294,15 @@ function Graph({
     });
   });
   return (
-    <div className="graph-wrap">
+    <div
+      className="graph-wrap"
+      role="region"
+      aria-label="Scrollable memory relationship graph"
+      tabIndex={0}
+    >
       <svg
         viewBox="0 0 720 475"
-        role="img"
+        role="group"
         aria-label="Your memories connected through people, projects and topics"
       >
         {edges.map((e, i) => {
@@ -272,7 +315,7 @@ function Graph({
               y1={a.y}
               x2={b.x}
               y2={b.y}
-              stroke="#d2d9cf"
+              stroke="#d4d4d4"
             />
           ) : null;
         })}
@@ -284,8 +327,8 @@ function Graph({
                 cx={p.x}
                 cy={p.y}
                 r="25"
-                fill="#e1e9dd"
-                stroke="#b0bfa8"
+                fill="#f5f5f5"
+                stroke="#d4d4d4"
               />
               <text
                 x={p.x}
@@ -300,7 +343,7 @@ function Graph({
                 y={p.y + 5}
                 textAnchor="middle"
                 fontSize="11"
-                fill="#42593b"
+                fill="#171717"
               >
                 {e.entityType.slice(0, 1).toUpperCase()}
               </text>
@@ -317,12 +360,22 @@ function Graph({
               aria-label={m.memoryText}
               onClick={() => onSelect(m.memoryId)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") onSelect(m.memoryId);
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelect(m.memoryId);
+                }
               }}
               className="graph-memory"
             >
               <title>{m.memoryText}</title>
-              <circle cx={p.x} cy={p.y} r="7" fill="#647e58" />
+              <circle cx={p.x} cy={p.y} r="25" fill="transparent" />
+              <circle
+                className="graph-node"
+                cx={p.x}
+                cy={p.y}
+                r="7"
+                fill="#171717"
+              />
               <text
                 x={p.x}
                 y={p.y + 23}
@@ -345,7 +398,7 @@ function Graph({
           <i />
           Memories
         </span>
-        <span>Click a memory to inspect its source</span>
+        <span>Scroll to explore. Select a memory to inspect its source.</span>
       </div>
     </div>
   );
@@ -440,8 +493,51 @@ function Dashboard({ config }: { config: Config }) {
     (m) => filter === "all" || m.kind === filter,
   );
   const ownerSpaces = data?.spaces.filter((s) => s.role === "owner") ?? [];
+  useEffect(() => {
+    if (!detail && editing === undefined && !memberList) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const dialogs = document.querySelectorAll<HTMLElement>("[data-dialog]");
+    const dialog = dialogs[dialogs.length - 1];
+    const focusable = () =>
+      Array.from(
+        dialog?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]',
+        ) ?? [],
+      );
+    if (!dialog?.contains(document.activeElement))
+      (
+        dialog?.querySelector<HTMLTextAreaElement>("textarea") ?? focusable()[0]
+      )?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (editing !== undefined) setEditing(undefined);
+        else if (memberList) setMemberList(null);
+        else setDetail(null);
+      }
+      if (event.key === "Tab") {
+        const nodes = focusable(),
+          first = nodes[0],
+          last = nodes.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      previous?.focus();
+    };
+  }, [detail, editing, memberList]);
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#workspace-content">
+        Skip to content
+      </a>
       <aside className="sidebar">
         <Brand />
         <div className="workspace">
@@ -451,7 +547,7 @@ function Dashboard({ config }: { config: Config }) {
             <small>Personal workspace</small>
           </div>
         </div>
-        <nav>
+        <nav aria-label="Workspace navigation">
           {[
             ["memories", "memory", "Memories"],
             ["connections", "graph", "Connections"],
@@ -461,6 +557,7 @@ function Dashboard({ config }: { config: Config }) {
             <button
               key={id}
               className={section === id ? "nav-item active" : "nav-item"}
+              aria-current={section === id ? "page" : undefined}
               onClick={() => {
                 setSection(id);
                 setDetail(null);
@@ -506,11 +603,11 @@ function Dashboard({ config }: { config: Config }) {
               onClick={() => perform(reload, "Memory refreshed")}
               aria-label="Refresh"
             >
-              ↻
+              <Icon name="refresh" size={18} />
             </button>
           </div>
         </header>
-        <div className="page-content">
+        <div className="page-content" id="workspace-content">
           {error && (
             <div role="alert" className="error-banner">
               {error}
@@ -554,7 +651,7 @@ function Dashboard({ config }: { config: Config }) {
               <div className="page-heading">
                 <div>
                   <div className="eyebrow">YOUR PERSONAL CONTEXT</div>
-                  <h1>A little more remembered.</h1>
+                  <h1>Memories</h1>
                   <p>
                     Facts, moments, and decisions. Connected across your
                     assistants.
@@ -567,17 +664,20 @@ function Dashboard({ config }: { config: Config }) {
               </div>
               <div className="stats-line">
                 <span>
-                  <strong>{data?.memories.length ?? "—"}</strong> memories in
-                  view
+                  <strong>{data?.memories.length ?? "—"}</strong>
+                  <span>Memories</span>
                 </span>
                 <span>
                   <strong>
-                    {new Set(data?.graph.map((e) => e.entityId)).size || "—"}
+                    {data
+                      ? new Set(data.graph.map((e) => e.entityId)).size
+                      : "—"}
                   </strong>{" "}
-                  connected entities
+                  <span>Connected entities</span>
                 </span>
                 <span>
-                  <strong>{data?.spaces.length ?? "—"}</strong> shared spaces
+                  <strong>{data?.spaces.length ?? "—"}</strong>
+                  <span>Shared spaces</span>
                 </span>
               </div>
               <div className="memory-toolbar">
@@ -596,6 +696,7 @@ function Dashboard({ config }: { config: Config }) {
                 <div className="view-toggle">
                   <button
                     aria-label="List view"
+                    aria-pressed={view === "list"}
                     className={view === "list" ? "selected" : ""}
                     onClick={() => setView("list")}
                   >
@@ -603,6 +704,7 @@ function Dashboard({ config }: { config: Config }) {
                   </button>
                   <button
                     aria-label="Graph view"
+                    aria-pressed={view === "graph"}
                     className={view === "graph" ? "selected" : ""}
                     onClick={() => setView("graph")}
                   >
@@ -616,6 +718,7 @@ function Dashboard({ config }: { config: Config }) {
                   <button
                     key={k}
                     className={filter === k ? "chip selected" : "chip"}
+                    aria-pressed={filter === k}
                     onClick={() => setFilter(k)}
                   >
                     {title(k)}
@@ -640,7 +743,7 @@ function Dashboard({ config }: { config: Config }) {
                   <div className="empty-icon">
                     <Icon name="memory" size={32} />
                   </div>
-                  <h2>Your story starts here.</h2>
+                  <h2>No memories yet</h2>
                   <p>
                     Connect an assistant and tell it something worth
                     remembering.
@@ -718,7 +821,7 @@ function Dashboard({ config }: { config: Config }) {
               <div className="page-heading">
                 <div>
                   <div className="eyebrow">BRING YOUR ASSISTANTS</div>
-                  <h1>Same you. Every conversation.</h1>
+                  <h1>Connections</h1>
                   <p>
                     Connect your account once in each assistant, then give it
                     the memory guide.
@@ -887,7 +990,7 @@ function Dashboard({ config }: { config: Config }) {
               <div className="page-heading">
                 <div>
                   <div className="eyebrow">CONTEXT YOU CHOOSE TO SHARE</div>
-                  <h1>Stay on the same page.</h1>
+                  <h1>Shared spaces</h1>
                   <p>
                     Invite people into a space. Your personal memory stays
                     private.
@@ -1098,7 +1201,7 @@ function Dashboard({ config }: { config: Config }) {
               <div className="page-heading">
                 <div>
                   <div className="eyebrow">FOLLOW THE CONTEXT</div>
-                  <h1>From memory to message.</h1>
+                  <h1>Activity</h1>
                   <p>
                     Inspect webhook delivery without confusing receipt with an
                     agent response.
@@ -1148,7 +1251,14 @@ function Dashboard({ config }: { config: Config }) {
       </main>
       {detail && (
         <div className="drawer-overlay" onClick={() => setDetail(null)}>
-          <aside className="detail-drawer" onClick={(e) => e.stopPropagation()}>
+          <aside
+            className="detail-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="memory-detail-title"
+            data-dialog
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="drawer-top">
               <span className="eyebrow">MEMORY DETAILS</span>
               <button
@@ -1162,7 +1272,7 @@ function Dashboard({ config }: { config: Config }) {
             <span className={"kind-badge " + detail.memory.kind}>
               {title(detail.memory.kind)}
             </span>
-            <h2>{detail.memory.text}</h2>
+            <h2 id="memory-detail-title">{detail.memory.text}</h2>
             <div className="entity-tags">
               {detail.memory.entities.map((e: any, i: number) => (
                 <span key={i}>
@@ -1314,9 +1424,16 @@ function Dashboard({ config }: { config: Config }) {
       )}
       {memberList && (
         <div className="modal-backdrop" onClick={() => setMemberList(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="space-members-title"
+            data-dialog
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="drawer-top">
-              <h2>{memberList.space.name}</h2>
+              <h2 id="space-members-title">{memberList.space.name}</h2>
               <button
                 className="icon-button"
                 aria-label="Close members"
@@ -1370,12 +1487,19 @@ function MemoryEditor({
 }) {
   return (
     <div className="modal-backdrop" onClick={close}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="memory-editor-title"
+        data-dialog
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="drawer-top">
           <div>
             <div className="eyebrow">YOUR CONTEXT</div>
-            <h2>
-              {memory ? "Correct a memory" : "Something worth remembering."}
+            <h2 id="memory-editor-title">
+              {memory ? "Correct a memory" : "Add a memory"}
             </h2>
           </div>
           <button
@@ -1418,7 +1542,6 @@ function MemoryEditor({
               defaultValue={memory?.text}
               rows={4}
               placeholder="What would you like your assistants to remember?"
-              autoFocus
             />
           </label>
           <label>
@@ -1494,6 +1617,24 @@ fetch("/api/config")
       <React.StrictMode>
         <ClerkProvider
           publishableKey={config.publishableKey}
+          appearance={{
+            variables: {
+              colorPrimary: "#171717",
+              colorForeground: "#171717",
+              colorBackground: "#ffffff",
+              colorMutedForeground: "#666666",
+              colorRing: "#0072f5",
+              borderRadius: "6px",
+              fontFamily: '"Geist Variable", sans-serif',
+              fontFamilyMono: '"Geist Mono Variable", monospace',
+              fontWeight: {
+                normal: 400,
+                medium: 500,
+                semibold: 600,
+                bold: 600,
+              },
+            },
+          }}
           signInFallbackRedirectUrl="/dashboard"
           signUpFallbackRedirectUrl="/dashboard"
         >
