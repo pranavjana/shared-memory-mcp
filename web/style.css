@@ -317,8 +317,83 @@
   .graph-legend i.legend-entity {
     @apply size-2.5 bg-[#f2f2f2] shadow-line;
   }
-  .setup-grid {
-    @apply grid grid-cols-2 gap-5;
+  .connections-page {
+    @apply max-w-[720px];
+  }
+  .connection-list {
+    @apply overflow-hidden rounded-lg bg-white shadow-line;
+  }
+  .connection-row {
+    @apply flex min-h-[72px] items-center justify-between gap-3 px-5 py-3;
+  }
+  .connection-row + .connection-row {
+    box-shadow: 0 -1px 0 #0000000a;
+  }
+  .connection-identity {
+    @apply flex min-w-0 items-center gap-3;
+  }
+  .assistant-logo {
+    @apply flex size-9 shrink-0 items-center justify-center text-secondary;
+  }
+  .assistant-logo img {
+    filter: brightness(0);
+  }
+  .connection-identity strong {
+    @apply truncate text-sm font-medium;
+  }
+  .connection-identity small {
+    @apply text-xs text-secondary;
+  }
+  .connection-state {
+    @apply size-1.5 shrink-0 rounded-full bg-[#b3b3b3];
+  }
+  .connection-state.active {
+    @apply bg-[#398e4a];
+  }
+  .connection-action {
+    @apply shrink-0;
+  }
+  .connections-empty {
+    @apply m-0 px-5 py-6 text-sm text-secondary;
+  }
+  .setup-steps {
+    @apply mt-10 mb-0 list-none p-0;
+  }
+  .setup-steps > li {
+    @apply relative grid min-w-0 grid-cols-[28px_minmax(0,1fr)] gap-4 pb-9;
+  }
+  .setup-steps > li:not(:last-child)::before {
+    content: "";
+    @apply absolute top-7 bottom-0 left-[13px] w-px bg-[#e5e5e5];
+  }
+  .setup-steps > li:last-child {
+    @apply pb-0;
+  }
+  .setup-node {
+    @apply relative z-[1] flex size-7 items-center justify-center rounded-full bg-white font-mono text-xs text-secondary shadow-line;
+  }
+  .setup-content h2 {
+    @apply mt-0.5 mb-2 text-sm leading-6 font-medium;
+  }
+  .setup-content p,
+  .connection-help p {
+    @apply my-2 text-sm leading-6 text-secondary;
+  }
+  .setup-content p.setup-note {
+    @apply text-xs;
+  }
+  .setup-help {
+    @apply mt-5 text-xs text-secondary;
+  }
+  .setup-help summary,
+  .connection-help summary {
+    @apply w-fit cursor-pointer rounded-sm leading-6 hover:text-ink;
+  }
+  .setup-help blockquote {
+    @apply mx-0 my-3 border-l-2 border-[#e5e5e5] pl-4 text-sm leading-6;
+  }
+  .connection-help {
+    @apply mt-8 ml-11 text-xs text-secondary;
   }
   .panel {
     @apply min-w-0 rounded-lg bg-white p-6 shadow-line;
@@ -328,9 +403,6 @@
   }
   .panel p {
     @apply my-3 text-sm leading-6 text-secondary;
-  }
-  .step {
-    @apply font-mono text-[11px] text-secondary;
   }
   .code-copy {
     @apply my-4 flex items-center gap-3 rounded-md bg-canvas px-3 py-2 shadow-line;
@@ -576,8 +648,7 @@
   .page-content {
     padding: 24px 20px;
   }
-  .memory-list,
-  .setup-grid {
+  .memory-list {
     grid-template-columns: 1fr;
   }
   .memory-card-bottom {

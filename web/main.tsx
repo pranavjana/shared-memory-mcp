@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { ClerkProvider, useAuth, SignInButton, UserButton } from "@clerk/react";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
+import codexLogo from "./assets/codex.png";
 import "./style.css";
 type Config = {
   publishableKey: string;
@@ -25,6 +26,12 @@ type Memory = {
   entities: { type: string; name: string }[];
 };
 type Space = { id: string; name: string; role: string; owner: string };
+type Connection = {
+  id: string;
+  clientId: string;
+  enabled: boolean;
+  lastSeen: number;
+};
 type Overview = {
   actor: { id: string; name: string };
   memories: Memory[];
@@ -39,7 +46,7 @@ type Overview = {
   }[];
   deliveries: any[];
   subscriptions: any[];
-  connections?: any[];
+  connections?: Connection[];
   rules?: any[];
 };
 const kinds = [
@@ -59,6 +66,21 @@ const date = (n: number) =>
     minute: "2-digit",
   });
 const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+function assistantIdentity(clientId: string) {
+  // Identity and logo published by Codex's OAuth client metadata.
+  if (clientId === "https://chatgpt.com/oauth/codex/client.json") {
+    return { name: "Codex", logo: codexLogo };
+  }
+  try {
+    const url = new URL(clientId);
+    if (url.protocol === "https:" || url.protocol === "http:") {
+      return { name: url.hostname, logo: undefined };
+    }
+  } catch {
+    // Opaque OAuth IDs do not provide a verified assistant name.
+  }
+  return { name: "Assistant", logo: undefined };
+}
 function Icon({ name, size = 20 }: { name: string; size?: number }) {
   const paths: Record<string, React.ReactNode> = {
     memory: (
@@ -629,133 +651,168 @@ function Dashboard({ config }: { config: Config }) {
             </>
           )}
           {section === "connections" && (
-            <>
-              <div className="setup-grid">
-                <section className="panel">
-                  <span className="step">01</span>
-                  <h2>Connect the MCP</h2>
-                  <p>
-                    Add a custom MCP in your assistant. Choose Streamable HTTP
-                    and OAuth, then sign in with this account.
-                  </p>
-                  <div className="code-copy">
-                    <code>{config.mcpUrl}</code>
-                    <button
-                      className="icon-button"
-                      aria-label="Copy MCP URL"
-                      onClick={() => {
-                        navigator.clipboard.writeText(config.mcpUrl);
-                        setNotice("MCP URL copied");
-                      }}
-                    >
-                      <Icon name="copy" size={17} />
-                    </button>
-                  </div>
-                  <p className="muted">
-                    Automatic client registration: leave client ID and client
-                    secret blank. Each account stays separate.
-                  </p>
-                </section>
-                <section className="panel">
-                  <span className="step">02</span>
-                  <h2>Give it the guide</h2>
-                  <p>
-                    The guide explains when to recall, what to save, and how to
-                    acknowledge a successful save. Add it as a skill or
-                    persistent assistant instructions.
-                  </p>
-                  <div className="button-row">
-                    <a className="button small" href="/skill/SKILL.md">
-                      Download agent skill
-                    </a>
-                    <button
-                      className="text-button"
-                      onClick={() =>
-                        perform(async () => {
-                          await navigator.clipboard.writeText(
-                            await fetch("/skill").then((r) => r.text()),
-                          );
-                        }, "Agent guide copied")
-                      }
-                    >
-                      Copy instructions
-                    </button>
-                  </div>
-                </section>
-                <section className="panel">
-                  <span className="step">03</span>
-                  <h2>Try remembering something</h2>
-                  <blockquote>
-                    “Remember that I prefer concise project updates. Use Shared
-                    Memory to save this preference.”
-                  </blockquote>
-                  <p>
-                    Ask another connected assistant to recall it. Saved memories
-                    and their sources will appear here.
-                  </p>
-                </section>
-                <section className="panel">
-                  <span className="step">04</span>
-                  <h2>Let your dot watch a space</h2>
-                  <p>
-                    After joining a shared space, ask your dot to monitor{" "}
-                    <code>memory.changed</code> for that space ID and tell you
-                    when someone shares an update.
-                  </p>
-                  <p className="muted">
-                    A connected tool and an active event subscription are
-                    separate. Check Activity for actual webhook receipt; it does
-                    not confirm the dot has sent a message.
-                  </p>
-                </section>
-              </div>
-              <section className="panel spaced">
-                <h2>Connected assistants</h2>
-                <p>
-                  Connecting an assistant grants access to your personal memory
-                  tools. Revoke a connection to stop tool access and its event
-                  subscriptions.
-                </p>
+            <div className="connections-page">
+              <section
+                aria-label="Connected assistants"
+                className="connection-list"
+              >
                 {data?.connections?.length ? (
-                  data.connections.map((c) => (
-                    <div className="record-row" key={c.id}>
-                      <div>
-                        <strong>{c.clientId}</strong>
-                        <small>
-                          {c.enabled ? "Connected" : "Revoked"} · Last used{" "}
-                          {date(c.lastSeen)}
-                        </small>
-                      </div>
-                      <button
-                        className={"text-button " + (c.enabled ? "danger" : "")}
-                        onClick={() =>
-                          perform(
-                            () =>
-                              action("set_connection", {
-                                id: c.id,
-                                enabled: !c.enabled,
-                              }),
+                  data.connections.map((c) => {
+                    const assistant = assistantIdentity(c.clientId);
+                    return (
+                      <div className="connection-row" key={c.id}>
+                        <div className="connection-identity" title={c.clientId}>
+                          <span className="assistant-logo" aria-hidden="true">
+                            {assistant.logo ? (
+                              <img
+                                src={assistant.logo}
+                                alt=""
+                                width="24"
+                                height="24"
+                              />
+                            ) : (
+                              <Icon name="memory" size={22} />
+                            )}
+                          </span>
+                          <strong>{assistant.name}</strong>
+                          <span
+                            className={
+                              "connection-state " + (c.enabled ? "active" : "")
+                            }
+                            title={`${c.enabled ? "Connected" : "Revoked"} · Last used ${date(c.lastSeen)}`}
+                          >
+                            <span className="sr-only">
+                              {c.enabled ? "Connected" : "Revoked"}. Last used{" "}
+                              {date(c.lastSeen)}
+                            </span>
+                          </span>
+                          {!c.enabled && <small>Revoked</small>}
+                        </div>
+                        <button
+                          className="text-button connection-action"
+                          disabled={busy}
+                          aria-label={`${c.enabled ? "Revoke" : "Enable"} ${assistant.name}`}
+                          title={
                             c.enabled
-                              ? "Agent access revoked"
-                              : "Agent connection enabled",
-                          )
-                        }
-                      >
-                        {c.enabled ? "Revoke" : "Enable"}
-                      </button>
-                    </div>
-                  ))
+                              ? "Stop memory access and event subscriptions"
+                              : "Allow memory access"
+                          }
+                          onClick={() =>
+                            perform(
+                              () =>
+                                action("set_connection", {
+                                  id: c.id,
+                                  enabled: !c.enabled,
+                                }),
+                              c.enabled
+                                ? "Agent access revoked"
+                                : "Agent connection enabled",
+                            )
+                          }
+                        >
+                          {c.enabled ? "Revoke" : "Enable"}
+                        </button>
+                      </div>
+                    );
+                  })
                 ) : (
-                  <p className="muted">
-                    Connected assistants appear after their first authenticated
-                    MCP request.
+                  <p className="connections-empty">
+                    No assistants connected yet.
                   </p>
                 )}
               </section>
-              <section className="panel spaced">
-                <h2>Active event subscriptions</h2>
-                {data?.subscriptions.length ? (
-                  data.subscriptions.map((s) => (
+
+              <ol className="setup-steps" aria-label="Assistant setup">
+                <li>
+                  <span className="setup-node" aria-hidden="true">
+                    1
+                  </span>
+                  <div className="setup-content">
+                    <h2>Connect your assistant</h2>
+                    <p>
+                      Add a custom MCP. Select Streamable HTTP and OAuth, then
+                      sign in.
+                    </p>
+                    <div className="code-copy">
+                      <code>{config.mcpUrl}</code>
+                      <button
+                        className="icon-button"
+                        disabled={busy}
+                        aria-label="Copy MCP URL"
+                        onClick={() =>
+                          perform(async () => {
+                            await navigator.clipboard.writeText(config.mcpUrl);
+                          }, "MCP URL copied")
+                        }
+                      >
+                        <Icon name="copy" size={17} />
+                      </button>
+                    </div>
+                    <p className="setup-note">
+                      Leave client ID and client secret blank.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span className="setup-node" aria-hidden="true">
+                    2
+                  </span>
+                  <div className="setup-content">
+                    <h2>Add the memory guide</h2>
+                    <p>
+                      Install the skill or paste the instructions into your
+                      assistant.
+                    </p>
+                    <div className="button-row">
+                      <a className="button small" href="/skill/SKILL.md">
+                        Download skill
+                      </a>
+                      <button
+                        className="text-button"
+                        disabled={busy}
+                        onClick={() =>
+                          perform(async () => {
+                            const response = await fetch("/skill");
+                            if (!response.ok)
+                              throw new Error("Could not load the agent guide");
+                            await navigator.clipboard.writeText(
+                              await response.text(),
+                            );
+                          }, "Agent guide copied")
+                        }
+                      >
+                        Copy instructions
+                      </button>
+                    </div>
+                    <details className="setup-help">
+                      <summary>Try a memory</summary>
+                      <blockquote>
+                        Remember that I prefer concise project updates. Use
+                        Shared Memory to save this preference.
+                      </blockquote>
+                      <p>Ask another connected assistant to recall it.</p>
+                    </details>
+                  </div>
+                </li>
+              </ol>
+
+              <details className="connection-help">
+                <summary>Shared-space notifications</summary>
+                <p>
+                  After joining a shared space, ask your dot to monitor{" "}
+                  <code>memory.changed</code> for that space ID and notify you
+                  about shared updates.
+                </p>
+                <p>
+                  A connection alone does not start monitoring. Activity shows
+                  webhook receipt; it does not confirm that your dot sent a
+                  message.
+                </p>
+              </details>
+              {!!data?.subscriptions.length && (
+                <section className="panel spaced">
+                  <h2>Active event subscriptions</h2>
+                  {data.subscriptions.map((s) => (
                     <div className="record-row" key={s.id}>
                       <div>
                         <strong>
@@ -777,15 +834,10 @@ function Dashboard({ config }: { config: Config }) {
                         Stop
                       </button>
                     </div>
-                  ))
-                ) : (
-                  <p className="muted">
-                    No subscriptions yet. Ask your dot to monitor a shared
-                    space.
-                  </p>
-                )}
-              </section>
-            </>
+                  ))}
+                </section>
+              )}
+            </div>
           )}
           {section === "spaces" && (
             <>
