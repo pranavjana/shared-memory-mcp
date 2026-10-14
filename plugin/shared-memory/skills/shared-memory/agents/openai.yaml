@@ -1,0 +1,6 @@
+interface:
+  display_name: Shared Memory
+  short_description: Remember context across assistants
+  default_prompt: Use Shared Memory to retrieve relevant context and remember useful explicit statements, acknowledging successful saves naturally.
+policy:
+  allow_implicit_invocation: true

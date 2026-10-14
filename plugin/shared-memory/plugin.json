@@ -1,0 +1,27 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "shared-memory",
+  "version": "0.2.0",
+  "description": "Private personal memory across assistants, with source history and permissioned sharing.",
+  "author": { "name": "Pranav Janakiraman" },
+  "homepage": "https://shared-memory-mcp-production.up.railway.app",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Shared Memory",
+        "shortDescription": "Memory across your assistants",
+        "longDescription": "Remember explicit facts, preferences, events, goals, tasks, and decisions across connected assistants. Inspect sources and relationships in your dashboard. Share selected memories in authorized spaces. Supported event hosts can monitor shared spaces and notify their own user when another member shares an update.",
+        "developerName": "Pranav Janakiraman",
+        "category": "Productivity",
+        "capabilities": [],
+        "logo": "./assets/logo.svg",
+        "composerIcon": "./assets/logo.svg",
+        "defaultPrompt": [
+          "Recall relevant context about my current projects.",
+          "Help me connect my personal memory across assistants.",
+          "Show my shared spaces and help me choose one to monitor."
+        ]
+      }
+    }
+  }
+}

@@ -22,6 +22,10 @@ Retain the existing 2025 MCP endpoint and add the stateless 2026-07-28 discovery
 
 Test two isolated users; save and recall across authenticated clients; retrieve related context through entity edges; correct with history; reject stale revisions and foreign writes; deduplicate replayed requests; accept scoped invitations; share and retract references; revoke membership; prevent unauthorized or duplicate event deliveries; reject private-network callbacks; recover subscriptions and records after restart. Verify a real dot run separately from simulated callback acceptance.
 
+The private personal plugin is `plugins_6ad00b37b7148191a76953dc3d1bcad0`, release `pluginrel_6ad00b389b148191a823835aaba6f081`, version `0.2.0`. Its stored MCP configuration and operating skill were inspected after creation. Installation, OAuth connection, and live event discovery remain host acceptance steps; account creation alone does not establish them.
+
+For the real host test, install/connect the plugin and rescan until the memory tools and `memory.changed` event appear. Create an explicitly shared space in the dashboard and have each member connect their own account. In the receiving member's dot or cloud Work chat, request: "Monitor memory.changed for space SPACE_ID. When another member shares an update, retrieve the current memory and tell me who shared it and what changed. Do not message the sender or share my private context." Confirm an active subscription in Connections before publishing a selected synthetic update from the sender's account. Verify both an accepted delivery in Activity and the recipient's actual message, then stop monitoring and confirm the subscription stops. Do not claim the recipient agent ran from a webhook receipt alone.
+
 ## Later proactive memory management
 
 Background reconciliation, inferred patterns, contradiction detection, confidence calibration, and memory aging follow V1. V1 does not promote model guesses into facts or silently widen sharing permissions.

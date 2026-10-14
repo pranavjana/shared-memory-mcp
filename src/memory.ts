@@ -564,6 +564,23 @@ export class MemoryStore {
     if (sub.spaceId !== change.spaceId || sub.owner === change.actorId)
       return false;
     try {
+      const active = await this.query(
+        `MATCH (s:Subscription {id:$id}) WHERE s.active=true AND s.expiresAt>$now AND s.owner=$owner AND s.clientId=$client AND s.spaceId=$space AND s.url=$url RETURN s.id AS id`,
+        {
+          id: sub.id,
+          now: Date.now(),
+          owner: sub.owner,
+          client: sub.clientId,
+          space: sub.spaceId,
+          url: sub.url,
+        },
+        true,
+      );
+      if (
+        !active.length ||
+        !(await this.clientEnabled(sub.owner, sub.clientId))
+      )
+        return false;
       await this.requireSpace(
         { userId: sub.owner, clientId: sub.clientId },
         sub.spaceId,

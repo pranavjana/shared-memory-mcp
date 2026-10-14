@@ -268,6 +268,46 @@ test("real graph: signed subscriptions, stable retry IDs, no origin echo, revoca
       failed.payload.eventId,
       "Retry preserves event ID",
     );
+    for (const stop of ["unsubscribe", "expire"] as const) {
+      await events.subscribe(bob, params);
+      const memory = (
+        await s.remember(
+          alice,
+          input(`stop-in-flight-${stop}`, "Queued update"),
+        )
+      ).memory;
+      await s.share(alice, memory.id, space.id);
+      const before = requests.filter((r) => !r.payload.type).length;
+      const claimDelivery = s.claimDelivery.bind(s);
+      s.claimDelivery = async (subscription, change) => {
+        const claim = await claimDelivery(subscription, change);
+        if (subscription.owner === bob.userId) {
+          if (stop === "unsubscribe")
+            await s.unsubscribe(bob.userId, subscription.id);
+          else
+            await s.query("MATCH (s:Subscription {id:$id}) SET s.expiresAt=0", {
+              id: subscription.id,
+            });
+        }
+        return claim;
+      };
+      try {
+        await events.tick();
+      } finally {
+        s.claimDelivery = claimDelivery;
+      }
+      assert.equal(
+        requests.filter((r) => !r.payload.type).length,
+        before,
+        `${stop} after leasing prevents delivery from a stale subscription snapshot`,
+      );
+      assert.equal(
+        (await s.deliveries(bob)).some(
+          (d) => d.status === "revoked" && d.memoryId === memory.id,
+        ),
+        true,
+      );
+    }
     const countBeforeRevoke = requests.filter((r) => !r.payload.type).length;
     await s.revoke(alice, space.id, bob.userId);
     await s.revise(

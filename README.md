@@ -8,6 +8,8 @@ MCP: https://shared-memory-mcp-production.up.railway.app/mcp
 
 ## Connect an assistant
 
+For ChatGPT, install the private [Shared Memory plugin](https://chatgpt.com/plugins/plugins_6ad00b37b7148191a76953dc3d1bcad0), then connect its MCP server using your personal Shared Memory account. The plugin bundles the operating skill and the existing Railway endpoint with OAuth dynamic client registration. Saving the plugin to the account does not install it or authorize its server. Its package source is in `plugin/shared-memory/`; `skills/shared-memory/SKILL.md` remains the canonical guide and must be copied into the package when updating it.
+
 Create an account in the dashboard. Add the MCP URL to your assistant using Streamable HTTP and OAuth. Automatic client registration is enabled; no manually entered client ID or secret is needed. Sign in with the same account. Connecting grants the client access to that account's memory tools; individual clients can be revoked in Connections.
 
 Install `skills/shared-memory/SKILL.md` as an assistant skill or use its content as persistent instructions. The dashboard provides a download and copy button; the MCP initialization instructions and `memory_instructions` tool also expose the operating guidance. A host must actually invoke tools; connecting does not expose entire chats or guarantee automatic saves.
@@ -58,7 +60,7 @@ The dedicated personal Clerk application is `app_3KhaoAVxRR0XFfeOzTL2AqaNZoF`. I
 
 Start an isolated FalkorDB on `127.0.0.1:16379` with password `local-verification`. Then run `npm run test:graph` and `node --import tsx --test test/api.integration.ts`. Tests create unique synthetic graphs and delete them afterward. Graph tests accept `FALKORDB_TEST_HOST`, `FALKORDB_TEST_PORT`, and `FALKORDB_TEST_PASSWORD` overrides.
 
-The checks cover concurrent deduplication, stale revisions, private retrieval, relationship expansion, invitations, sharing/retraction, rules, client revocation, encrypted subscriptions, callback retries, origin echo suppression, and both MCP protocol paths. Clerk dashboard sessions additionally require a valid session token, matching browser origin and an active provider session.
+The checks cover concurrent deduplication, stale revisions, private retrieval, relationship expansion, invitations, sharing/retraction, rules, client revocation, encrypted subscriptions, callback retries, origin echo suppression, and both MCP protocol paths. They also stop or expire a subscription after a delivery lease is acquired, verifying that the worker rechecks current subscription state before sending. Clerk dashboard sessions additionally require a valid session token, matching browser origin and an active provider session.
 
 ## Railway
 
