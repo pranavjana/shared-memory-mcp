@@ -1,57 +1,69 @@
-# Shared Memory MCP
+# Shared Memory
 
-An OAuth-protected MCP server for shared personal memory across assistants. This release establishes Clerk user accounts, a persistent FalkorDB user store, and the ChatGPT connector connection. Memory storage and notifications are future milestones.
+A personal ontology memory service for connected assistants, with a Clerk-authenticated dashboard and FalkorDB persistence. Assistants can save explicit statements and observed outcomes, recall related context, correct memories with history, and share selected references into permissioned spaces.
 
-## Connect
+Dashboard: https://shared-memory-mcp-production.up.railway.app/dashboard
 
-MCP endpoint: `https://shared-memory-mcp-production.up.railway.app/mcp`
+MCP: https://shared-memory-mcp-production.up.railway.app/mcp
 
-In ChatGPT, enable developer mode in settings if needed, create a custom app with the endpoint above, and choose OAuth. Use automatic client registration with no manually entered client ID or secret. Sign in through Clerk and approve the requested profile and email access. Then ask ChatGPT to call `get_connection_status`.
+## Connect an assistant
 
-The only tool in this release is `get_connection_status`. It returns the authorized user's ID, name, primary email, and connection capabilities. It accepts no user ID input. It does not read chats, store memories, or run external actions.
+Create an account in the dashboard. Add the MCP URL to your assistant using Streamable HTTP and OAuth. Automatic client registration is enabled; no manually entered client ID or secret is needed. Sign in with the same account. Connecting grants the client access to that account's memory tools; individual clients can be revoked in Connections.
 
-## Authentication
+Install `skills/shared-memory/SKILL.md` as an assistant skill or use its content as persistent instructions. The dashboard provides a download and copy button; the MCP initialization instructions and `memory_instructions` tool also expose the operating guidance. A host must actually invoke tools; connecting does not expose entire chats or guarantee automatic saves.
 
-Clerk hosts account creation, sign-in, user management, and OAuth consent. The dedicated personal Clerk application is `app_3KhaoAVxRR0XFfeOzTL2AqaNZoF`; its development instance is used for this connection preview. A production Clerk instance requires its own domain setup before a broader launch.
+Ask the assistant to remember a stated preference, then ask another connected assistant to recall it. A successful save returns a receipt. The assistant can acknowledge it conversationally; the dashboard contains source details, entity connections and revisions.
 
-- Authorization code flow requires PKCE S256.
-- Both CIMD and dynamic client registration are enabled for MCP clients.
-- Default scopes are `openid profile email`; Clerk also supports refresh tokens through `offline_access`.
-- Access tokens are audience-bound to the `/mcp` resource.
-- Opaque access tokens are used so revoking the grant immediately blocks subsequent requests; JWT access tokens are disabled.
-- Every MCP request is verified through this Clerk instance's token introspection, checking audience, revocation, expiry, subject, and required scopes.
-- Each request creates its own MCP server and transport, so users do not share session state.
-- Missing or invalid credentials return a 401 challenge pointing to public protected-resource metadata.
-- Secret keys stay in ignored `.env.local` and Railway variables. They are excluded from Docker builds.
+## Memory and graph model
 
-Discovery endpoints:
+`Person -[:AUTHORED]-> Memory -[:HAS_REVISION]-> Revision` tracks ownership and changes. `Memory -[:ABOUT]-> Entity` connects people, projects, organizations, places and topics. Memory kinds are fact, preference, event, goal, task, decision and relationship. Evidence excerpts and authenticated client attribution are retained; an agent-reported outcome is not independently verified by this service. Event time and recorded time are separate.
 
-- `/.well-known/oauth-protected-resource/mcp`
-- `/.well-known/oauth-protected-resource`
-- `/.well-known/oauth-authorization-server` (legacy discovery compatibility; issuer remains Clerk)
+Retrieval combines authorized keyword/entity matches with native graph expansion through shared entities and shared spaces. Related context can be returned even without keyword overlap. V1 does not generate embeddings or promote inferred guesses into established facts. Background inference, reconciliation and memory aging are later milestones.
 
-## User profiles
+Writes use parameterized Cypher, unique constraints, deterministic retry IDs and compare-and-swap revisions. Author-only revision history prevents private historic versions leaking through a newly shared reference. Forgetting removes text, evidence and revision contents, withdraws shares and removes orphan entity records; minimal IDs and operational delivery metadata remain.
 
-Clerk remains the source of truth for accounts and authentication. FalkorDB stores one `User` node per Clerk ID (the equivalent of a basic users table), with a unique indexed `clerkId`, primary `email`, `firstName`, `lastName`, `imageUrl`, and provider `createdAt` / `updatedAt` plus `syncedAt` timestamps.
+## Shared spaces and permissions
 
-Signed Clerk webhooks at `/webhooks/clerk` sync `user.created`, `user.updated`, and `user.deleted`. Existing users are backfilled on startup, and authenticated connection checks refresh the caller's profile. Upserts are parameterized and reject older updates. Deletion removes profile fields and retains an ID/timestamp tombstone so delayed events cannot restore the profile. Private Clerk metadata, credentials, chats, and memories are not copied.
+A space owner creates a reader or contributor invitation addressed to a verified primary email. The invited person accepts while signed in with that email. Contributors can share their own memories; they cannot edit somebody else's source memory. Owners can revoke members. Existing accepted invitation links cannot reactivate revoked access; a new invitation is required.
 
-The Railway `falkordb` service is password protected and accessible only on the private network. Append-only persistence uses a volume mounted at `/var/lib/falkordb/data`. `/health` checks database connectivity.
+A shared reference uses `Memory -[:SHARED_IN {active:true}]-> Space <-[:MEMBER_OF {active:true}]- Person`. Each read, graph expansion and webhook delivery checks current access. Source corrections appear on the next read. Retraction stops future retrieval; content already received by another host cannot be recalled.
+
+Sharing happens on an explicit request or through a dashboard-enabled rule matching a memory kind and optional entity name. Rules apply to future saves, do not backfill existing memories, and stop when disabled or permission is lost. Stopping a rule does not retract earlier shares.
+
+## Proactive events
+
+The same authenticated endpoint implements stateless `2026-07-28` discovery and tools alongside legacy MCP `2025-11-25` support. `events/list`, `events/subscribe` and `events/unsubscribe` expose `memory.changed`, filtered by `space_id`.
+
+Ask a supported OpenAI dot or cloud Work chat to monitor an authorized space and notify its own user. The intended flow is: Pranav shares an update; Roshan's subscribed agent retrieves current context and messages Roshan. No automatic response to Pranav is required.
+
+Subscriptions persist in FalkorDB and expire no later than their authorizing access token; the host must refresh them. Signing secrets and authorizing tokens are encrypted using AES-256-GCM. The worker rechecks client revocation, OAuth authorization and space access. It verifies signed callback challenges and pins validated public DNS addresses for each HTTPS connection. Private destinations and redirects are blocked. Stable event IDs survive retries; transient failures use bounded exponential backoff. Sender echoes are suppressed. `accepted` means the receiver acknowledged the webhook, not that an agent ran or sent a message. The dashboard distinguishes those states.
+
+The protocol does not offer historical replay (`cursor: null`). Subscribe before generating updates. Real dot subscription, automatic tool invocation, and event-to-user-message behavior need host acceptance testing; simulated webhook receipt alone does not verify them. Muse compatibility is a separate integration milestone.
+
+Reference: https://developers.openai.com/plugins/build/mcp-events
 
 ## Local development
 
-Use Node.js 24. Install dependencies with `npm ci`, copy `.env.example` to `.env.local`, and supply keys from the dedicated Clerk application. `CLERK_ACCOUNT_PORTAL_URL` is the hosted account portal URL from Clerk. Set `PUBLIC_URL=http://localhost:3000` for local use; hosted OAuth clients require a public HTTPS endpoint.
+Use Node 24. Copy `.env.example` to `.env.local` and supply the dedicated personal Clerk application's keys. Start FalkorDB locally with password authentication and set `FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_PASSWORD`, `FALKORDB_GRAPH` (profiles) and `FALKORDB_MEMORY_GRAPH` (application graph).
 
-Start a local FalkorDB server and set `FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_PASSWORD`, and `FALKORDB_GRAPH` from `.env.example`. Run `npm run dev`. Verify with `npm test` and `npm run build`. `node test/users.integration.mjs` checks the actual database in an isolated graph and deletes that test graph afterward; run it with the database variables available.
+Run `npm ci`, `npm run build` and `npm run dev`. For frontend development run `npm run dev:web` in a second terminal; Vite forwards API requests to port 3000. Set `PUBLIC_URL` to the actual browser origin so Clerk authorized-party checks match. Production serves the built frontend from Express.
 
-For webhook development, forward Clerk events to `/webhooks/clerk` using a public HTTPS development tunnel and set `CLERK_WEBHOOK_SIGNING_SECRET` to that endpoint's signing secret. Never reuse the hosted endpoint's secret for a different endpoint.
+Generate `EVENT_ENCRYPTION_KEY` once as 32 random bytes encoded in base64. Preserve it across restarts; losing it makes existing event credentials unreadable. If absent, event subscriptions are not advertised. Never expose it to frontend code or commit environment files.
 
-For a complete browser OAuth check, run `node --env-file=.env.local test/live-oauth.mjs` and open the printed localhost test URL. This creates an isolated synthetic user and OAuth client, checks registration, PKCE, audience rejection, an authenticated MCP tool call, refresh, and revocation, and removes both test resources afterward. The deployed preview passed this flow.
+The dedicated personal Clerk application is `app_3KhaoAVxRR0XFfeOzTL2AqaNZoF`. Its development instance is used for this preview. A production Clerk instance needs domain configuration for a broader launch. Never use another application's keys.
+
+## Verification
+
+`npm run build`, `npm run check:web` and `npm test` check compilation, frontend types, OAuth isolation and signed Clerk webhooks.
+
+Start an isolated FalkorDB on `127.0.0.1:16379` with password `local-verification`. Then run `npm run test:graph` and `node --import tsx --test test/api.integration.ts`. Tests create unique synthetic graphs and delete them afterward. Graph tests accept `FALKORDB_TEST_HOST`, `FALKORDB_TEST_PORT`, and `FALKORDB_TEST_PASSWORD` overrides.
+
+The checks cover concurrent deduplication, stale revisions, private retrieval, relationship expansion, invitations, sharing/retraction, rules, client revocation, encrypted subscriptions, callback retries, origin echo suppression, and both MCP protocol paths. Clerk dashboard sessions additionally require a valid session token, matching browser origin and an active provider session.
 
 ## Railway
 
-The dedicated project is `e13f89d3-e41a-4e89-96b8-dbdc0b1f87cd`, service `shared-memory-mcp`, in the personal Hobby workspace. Railway builds the Dockerfile and checks `/health`. The server binds to `0.0.0.0` and honors `PORT`.
+Project `e13f89d3-e41a-4e89-96b8-dbdc0b1f87cd` is in Pranav's personal Hobby workspace. `shared-memory-mcp` builds the Dockerfile; `falkordb` runs the official server image privately. The API binds to `0.0.0.0` and honors Railway's `PORT`.
 
-Set `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_ACCOUNT_PORTAL_URL`, `CLERK_WEBHOOK_SIGNING_SECRET`, and `PUBLIC_URL` as service variables. Set `FALKORDB_HOST` to `${{falkordb.RAILWAY_PRIVATE_DOMAIN}}` and `FALKORDB_PASSWORD` to `${{falkordb.FALKORDB_PASSWORD}}`. The secret key must come from the dedicated personal Clerk app. Never use another app's keys.
+Database variables reference `${{falkordb.RAILWAY_PRIVATE_DOMAIN}}` and `${{falkordb.FALKORDB_PASSWORD}}`. A volume at `/var/lib/falkordb/data` and append-only persistence preserve records. `/health` checks database connectivity. The API worker uses durable leases so overlapping deployments do not routinely send the same delivery twice; delivery remains at-least-once, with stable IDs for receiver deduplication.
 
-The PRD's graph-backed remember/recall/update operations, history, deduplication, notification worker, dashboard, and two-client acceptance demo have not been implemented yet.
+The approved scope and acceptance plan are in `docs/implementation-plan.md`. The original broader notification adapters and proactive inference engine are not represented as completed host integrations.

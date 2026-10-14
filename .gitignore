@@ -47,3 +47,7 @@ dist/
 .railway/
 .clerk/
 !.env.example
+
+# Generated dashboard assets
+public/assets/
+public/index.html

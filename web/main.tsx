@@ -1,0 +1,1512 @@
+import React, { useState, useEffect, useCallback } from "react";
+import { createRoot } from "react-dom/client";
+import {
+  ClerkProvider,
+  useAuth,
+  useUser,
+  SignInButton,
+  SignUpButton,
+  UserButton,
+} from "@clerk/react";
+import "@fontsource-variable/manrope";
+import "@fontsource-variable/dm-sans";
+import "./style.css";
+type Config = {
+  publishableKey: string;
+  mcpUrl: string;
+  accountPortalUrl: string;
+};
+type Memory = {
+  id: string;
+  owner: string;
+  authorName: string;
+  kind: string;
+  text: string;
+  basis: string;
+  evidence: string;
+  sourceClient: string;
+  revision: number;
+  createdAt: number;
+  updatedAt: number;
+  eventAt: string | null;
+  entities: { type: string; name: string }[];
+};
+type Space = { id: string; name: string; role: string; owner: string };
+type Overview = {
+  actor: { id: string; name: string };
+  memories: Memory[];
+  related: Memory[];
+  spaces: Space[];
+  graph: {
+    memoryId: string;
+    memoryText: string;
+    entityId: string;
+    entityName: string;
+    entityType: string;
+  }[];
+  deliveries: any[];
+  subscriptions: any[];
+  connections?: any[];
+  rules?: any[];
+};
+const kinds = [
+  "fact",
+  "preference",
+  "event",
+  "goal",
+  "task",
+  "decision",
+  "relationship",
+];
+const date = (n: number) =>
+  new Date(n).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+function Icon({ name, size = 20 }: { name: string; size?: number }) {
+  const paths: Record<string, React.ReactNode> = {
+    memory: (
+      <>
+        <circle cx="7" cy="7" r="3" />
+        <circle cx="17" cy="6" r="2" />
+        <circle cx="16" cy="17" r="4" />
+        <path d="m9 9 4 5M10 7l5-1" />
+      </>
+    ),
+    graph: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <circle cx="4" cy="5" r="2" />
+        <circle cx="20" cy="5" r="2" />
+        <circle cx="5" cy="20" r="2" />
+        <circle cx="21" cy="19" r="2" />
+        <path d="m6 7 4 3m4 0 4-3M7 18l3-4m5 0 4 4" />
+      </>
+    ),
+    share: (
+      <>
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <path d="m9 11 6-4m-6 6 6 4" />
+      </>
+    ),
+    activity: <path d="M3 12h4l3-8 4 16 3-8h4" />,
+    arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
+    plus: <path d="M12 5v14M5 12h14" />,
+    search: (
+      <>
+        <circle cx="10" cy="10" r="6" />
+        <path d="m15 15 5 5" />
+      </>
+    ),
+    close: <path d="m6 6 12 12M18 6 6 18" />,
+    check: <path d="m5 12 4 4L19 6" />,
+    copy: (
+      <>
+        <rect x="8" y="8" width="12" height="13" rx="2" />
+        <path d="M16 8V3H3v13h5" />
+      </>
+    ),
+    lock: (
+      <>
+        <rect x="5" y="10" width="14" height="11" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </>
+    ),
+  };
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name] ?? paths.memory}
+    </svg>
+  );
+}
+function Brand() {
+  return (
+    <div className="brand">
+      <span className="brand-mark">
+        <Icon name="memory" size={24} />
+      </span>
+      <span>
+        shared memory<span className="brand-dot">.</span>
+      </span>
+    </div>
+  );
+}
+function Landing({ config }: { config: Config }) {
+  return (
+    <div className="landing">
+      <header>
+        <Brand />
+        <div className="landing-nav">
+          <a href="/privacy">Privacy</a>
+          <SignInButton mode="modal">
+            <button className="text-button">Sign in</button>
+          </SignInButton>
+          <SignUpButton mode="modal">
+            <button className="button small">
+              Get started <Icon name="arrow" size={16} />
+            </button>
+          </SignUpButton>
+        </div>
+      </header>
+      <main>
+        <div className="eyebrow">
+          <span className="live-dot" /> CONTEXT THAT STAYS WITH YOU
+        </div>
+        <h1>
+          Your assistants.
+          <br />
+          One connected
+          <br />
+          <em>memory.</em>
+        </h1>
+        <p className="hero-copy">
+          Keep the things that matter across conversations.
+          <br />
+          Let your assistants remember, connect the dots,
+          <br />
+          and share only what you choose.
+        </p>
+        <SignUpButton mode="modal">
+          <button className="button">
+            Create your memory <Icon name="arrow" size={18} />
+          </button>
+        </SignUpButton>
+        <div className="hero-note">
+          <Icon name="lock" size={14} /> Private by default. Yours to inspect
+          and correct.
+        </div>
+        <div
+          className="hero-visual"
+          aria-label="Illustration of connected personal context"
+        >
+          <div className="orb orb-you">
+            You<span>Your context</span>
+          </div>
+          <div className="orb orb-a">
+            Preferences<span>How you work</span>
+          </div>
+          <div className="orb orb-b">
+            Projects<span>What you're building</span>
+          </div>
+          <div className="orb orb-c">
+            People<span>Who you work with</span>
+          </div>
+          <div className="orb orb-d">
+            Decisions<span>Why it matters</span>
+          </div>
+          <svg viewBox="0 0 600 560">
+            <path d="M300 280 140 110M300 280 490 190M300 280 135 420M300 280 450 450" />
+          </svg>
+          <div className="visual-label">
+            A little context.
+            <br />A much clearer picture.
+          </div>
+        </div>
+      </main>
+      <footer>
+        <span>Built around relationships, sources, and time.</span>
+        <a href="/skill">
+          Read the agent guide <Icon name="arrow" size={14} />
+        </a>
+      </footer>
+    </div>
+  );
+}
+function Graph({
+  edges,
+  onSelect,
+}: {
+  edges: Overview["graph"];
+  onSelect: (id: string) => void;
+}) {
+  const entities = [
+    ...new Map(edges.map((e) => [e.entityId, e])).values(),
+  ].slice(0, 12);
+  const memories = [
+    ...new Map(edges.map((e) => [e.memoryId, e])).values(),
+  ].slice(0, 24);
+  const positions = new Map<string, { x: number; y: number }>();
+  entities.forEach((e, i) => {
+    const t = (i / Math.max(1, entities.length)) * Math.PI * 2;
+    positions.set(e.entityId, {
+      x: 360 + Math.cos(t) * 150,
+      y: 235 + Math.sin(t) * 140,
+    });
+  });
+  memories.forEach((m, i) => {
+    const t = (i / Math.max(1, memories.length)) * Math.PI * 2 + 0.2;
+    positions.set(m.memoryId, {
+      x: 360 + Math.cos(t) * 275,
+      y: 235 + Math.sin(t) * 200,
+    });
+  });
+  return (
+    <div className="graph-wrap">
+      <svg
+        viewBox="0 0 720 475"
+        role="img"
+        aria-label="Your memories connected through people, projects and topics"
+      >
+        {edges.map((e, i) => {
+          const a = positions.get(e.entityId),
+            b = positions.get(e.memoryId);
+          return a && b ? (
+            <line
+              key={i}
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              stroke="#d2d9cf"
+            />
+          ) : null;
+        })}
+        {entities.map((e) => {
+          const p = positions.get(e.entityId)!;
+          return (
+            <g key={e.entityId}>
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r="25"
+                fill="#e1e9dd"
+                stroke="#b0bfa8"
+              />
+              <text
+                x={p.x}
+                y={p.y + 44}
+                textAnchor="middle"
+                className="entity-label"
+              >
+                {e.entityName.slice(0, 25)}
+              </text>
+              <text
+                x={p.x}
+                y={p.y + 5}
+                textAnchor="middle"
+                fontSize="11"
+                fill="#42593b"
+              >
+                {e.entityType.slice(0, 1).toUpperCase()}
+              </text>
+            </g>
+          );
+        })}
+        {memories.map((m) => {
+          const p = positions.get(m.memoryId)!;
+          return (
+            <g
+              key={m.memoryId}
+              tabIndex={0}
+              role="button"
+              aria-label={m.memoryText}
+              onClick={() => onSelect(m.memoryId)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onSelect(m.memoryId);
+              }}
+              className="graph-memory"
+            >
+              <title>{m.memoryText}</title>
+              <circle cx={p.x} cy={p.y} r="7" fill="#647e58" />
+              <text
+                x={p.x}
+                y={p.y + 23}
+                textAnchor="middle"
+                className="memory-label"
+              >
+                {m.memoryText.slice(0, 24)}
+                {m.memoryText.length > 24 ? "…" : ""}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="graph-legend">
+        <span>
+          <i className="legend-entity" />
+          Entities
+        </span>
+        <span>
+          <i />
+          Memories
+        </span>
+        <span>Click a memory to inspect its source</span>
+      </div>
+    </div>
+  );
+}
+function Dashboard({ config }: { config: Config }) {
+  const { getToken } = useAuth();
+  const { user } = useUser();
+  const [data, setData] = useState<Overview | null>(null),
+    [section, setSection] = useState("memories"),
+    [view, setView] = useState("list"),
+    [filter, setFilter] = useState("all"),
+    [query, setQuery] = useState(""),
+    [results, setResults] = useState<Memory[] | null>(null),
+    [detail, setDetail] = useState<any>(null),
+    [editing, setEditing] = useState<Memory | null | undefined>(undefined),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [spaceName, setSpaceName] = useState(""),
+    [invite, setInvite] = useState(""),
+    [memberList, setMemberList] = useState<{
+      space: Space;
+      members: any[];
+    } | null>(null);
+  const request = useCallback(
+    async (path: string, body?: unknown) => {
+      const token = await getToken();
+      if (!token) throw new Error("Sign in to continue");
+      const r = await fetch("/api/" + path, {
+        method: body ? "POST" : "GET",
+        headers: {
+          Authorization: "Bearer " + token,
+          ...(body ? { "Content-Type": "application/json" } : {}),
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      const result = await r.json();
+      if (!r.ok) throw new Error(result.error ?? "Something went wrong");
+      return result;
+    },
+    [getToken],
+  );
+  const reload = useCallback(async () => {
+    setData(await request("overview"));
+  }, [request]);
+  useEffect(() => {
+    reload().catch((e) => setError(e.message));
+  }, [reload]);
+  const action = async (name: string, input: unknown) =>
+    request("action", { action: name, input });
+  const perform = async (fn: () => Promise<unknown>, message?: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await fn();
+      if (message) setNotice(message);
+      await reload();
+      return r;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Operation failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(""), 5000);
+    return () => clearTimeout(t);
+  }, [notice]);
+  useEffect(() => {
+    const token = new URLSearchParams(location.search).get("invite");
+    if (!token || !data) return;
+    setInvite(token);
+  }, [!!data]);
+  async function select(id: string) {
+    await perform(async () => {
+      setDetail(await action("explain_memory", { id }));
+    });
+  }
+  async function search(e: React.FormEvent) {
+    e.preventDefault();
+    await perform(async () => {
+      if (!query.trim()) {
+        setResults(null);
+        return;
+      }
+      const r = await action("recall", { query, limit: 30 });
+      setResults([...r.memories, ...r.related]);
+    });
+  }
+  const memories = (results ?? data?.memories ?? []).filter(
+    (m) => filter === "all" || m.kind === filter,
+  );
+  const ownerSpaces = data?.spaces.filter((s) => s.role === "owner") ?? [];
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <Brand />
+        <div className="workspace">
+          <span className="avatar-initial">{user?.firstName?.[0] ?? "M"}</span>
+          <div>
+            <strong>{user?.firstName ?? "Your"}'s memory</strong>
+            <small>Personal workspace</small>
+          </div>
+        </div>
+        <nav>
+          {[
+            ["memories", "memory", "Memories"],
+            ["connections", "graph", "Connections"],
+            ["spaces", "share", "Shared spaces"],
+            ["activity", "activity", "Activity"],
+          ].map(([id, icon, label]) => (
+            <button
+              key={id}
+              className={section === id ? "nav-item active" : "nav-item"}
+              onClick={() => {
+                setSection(id);
+                setDetail(null);
+              }}
+            >
+              <Icon name={icon} />
+              {label}
+              {id === "memories" && data ? (
+                <span className="nav-count">{data.memories.length}</span>
+              ) : null}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="privacy-note">
+            <Icon name="lock" size={17} />
+            <p>
+              Private until you
+              <br />
+              choose to share.
+            </p>
+          </div>
+          <a href="/privacy">Privacy & data</a>
+          <div className="account">
+            <UserButton />
+            <span>{user?.fullName ?? "Your account"}</span>
+          </div>
+        </div>
+      </aside>
+      <main className="main">
+        <header className="topbar">
+          <div className="breadcrumb">
+            Your workspace <span>/</span>{" "}
+            {title(section === "spaces" ? "shared spaces" : section)}
+          </div>
+          <div className="topbar-right">
+            <span className="connection-status">
+              <span className="live-dot" />
+              {data ? "Memory online" : "Connecting"}
+            </span>
+            <button
+              className="icon-button"
+              onClick={() => perform(reload, "Memory refreshed")}
+              aria-label="Refresh"
+            >
+              ↻
+            </button>
+          </div>
+        </header>
+        <div className="page-content">
+          {error && (
+            <div role="alert" className="error-banner">
+              {error}
+              <button onClick={() => setError("")} aria-label="Dismiss error">
+                ×
+              </button>
+            </div>
+          )}
+          {notice && (
+            <div role="status" className="toast">
+              <Icon name="check" size={17} />
+              {notice}
+            </div>
+          )}
+          {invite && (
+            <div className="invite-banner">
+              <div>
+                <strong>You have a shared space invitation.</strong>
+                <p>
+                  Accept with the verified email the invitation was addressed
+                  to.
+                </p>
+              </div>
+              <button
+                className="button small"
+                disabled={busy}
+                onClick={() =>
+                  perform(async () => {
+                    await action("accept_invitation", { token: invite });
+                    setInvite("");
+                    history.replaceState({}, "", "/dashboard");
+                  }, "Joined shared space")
+                }
+              >
+                Accept invitation
+              </button>
+            </div>
+          )}
+          {section === "memories" && (
+            <>
+              <div className="page-heading">
+                <div>
+                  <div className="eyebrow">YOUR PERSONAL CONTEXT</div>
+                  <h1>A little more remembered.</h1>
+                  <p>
+                    Facts, moments, and decisions. Connected across your
+                    assistants.
+                  </p>
+                </div>
+                <button className="button" onClick={() => setEditing(null)}>
+                  <Icon name="plus" size={17} />
+                  Add memory
+                </button>
+              </div>
+              <div className="stats-line">
+                <span>
+                  <strong>{data?.memories.length ?? "—"}</strong> memories in
+                  view
+                </span>
+                <span>
+                  <strong>
+                    {new Set(data?.graph.map((e) => e.entityId)).size || "—"}
+                  </strong>{" "}
+                  connected entities
+                </span>
+                <span>
+                  <strong>{data?.spaces.length ?? "—"}</strong> shared spaces
+                </span>
+              </div>
+              <div className="memory-toolbar">
+                <form className="search-box" onSubmit={search}>
+                  <Icon name="search" size={18} />
+                  <input
+                    aria-label="Search memories"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Find a memory, person, or project…"
+                  />
+                  <button type="submit" className="text-button">
+                    Search
+                  </button>
+                </form>
+                <div className="view-toggle">
+                  <button
+                    aria-label="List view"
+                    className={view === "list" ? "selected" : ""}
+                    onClick={() => setView("list")}
+                  >
+                    List
+                  </button>
+                  <button
+                    aria-label="Graph view"
+                    className={view === "graph" ? "selected" : ""}
+                    onClick={() => setView("graph")}
+                  >
+                    <Icon name="graph" size={16} />
+                    Graph
+                  </button>
+                </div>
+              </div>
+              <div className="filters">
+                {["all", ...kinds].map((k) => (
+                  <button
+                    key={k}
+                    className={filter === k ? "chip selected" : "chip"}
+                    onClick={() => setFilter(k)}
+                  >
+                    {title(k)}
+                  </button>
+                ))}
+                {results && (
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setResults(null);
+                      setQuery("");
+                    }}
+                  >
+                    Clear search
+                  </button>
+                )}
+              </div>
+              {!data ? (
+                <div className="empty-state">Opening your memory…</div>
+              ) : data.memories.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">
+                    <Icon name="memory" size={32} />
+                  </div>
+                  <h2>Your story starts here.</h2>
+                  <p>
+                    Connect an assistant and tell it something worth
+                    remembering.
+                    <br />
+                    Or add your first memory yourself.
+                  </p>
+                  <button
+                    className="button"
+                    onClick={() => setSection("connections")}
+                  >
+                    Connect your assistant <Icon name="arrow" size={16} />
+                  </button>
+                  <button
+                    className="text-button"
+                    onClick={() => setEditing(null)}
+                  >
+                    Add a memory manually
+                  </button>
+                </div>
+              ) : view === "graph" ? (
+                <Graph edges={data.graph} onSelect={select} />
+              ) : (
+                <div className="memory-list">
+                  {memories.map((m) => (
+                    <button
+                      key={m.id}
+                      className="memory-card"
+                      onClick={() => select(m.id)}
+                    >
+                      <div className="memory-card-top">
+                        <span className={"kind-badge " + m.kind}>
+                          {title(m.kind)}
+                        </span>
+                        <span className="subtle">{date(m.updatedAt)}</span>
+                      </div>
+                      <p>{m.text}</p>
+                      <div className="memory-card-bottom">
+                        <div className="entity-tags">
+                          {m.entities.slice(0, 3).map((e, i) => (
+                            <span key={i}>
+                              {e.type === "person" ? "@" : "#"} {e.name}
+                            </span>
+                          ))}
+                        </div>
+                        <span className="source-label">
+                          {m.owner === data.actor.id ? (
+                            <>
+                              <Icon name="lock" size={12} />
+                              Yours
+                            </>
+                          ) : (
+                            <>From {m.authorName}</>
+                          )}
+                          <Icon name="arrow" size={15} />
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                  {memories.length === 0 && (
+                    <div className="empty-state">
+                      <h2>No memories found.</h2>
+                      <p>Try a different search or memory type.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="page-footnote">
+                <Icon name="memory" size={14} /> Every memory has a source.
+                Every connection has context.
+              </div>
+            </>
+          )}
+          {section === "connections" && (
+            <>
+              <div className="page-heading">
+                <div>
+                  <div className="eyebrow">BRING YOUR ASSISTANTS</div>
+                  <h1>Same you. Every conversation.</h1>
+                  <p>
+                    Connect your account once in each assistant, then give it
+                    the memory guide.
+                  </p>
+                </div>
+              </div>
+              <div className="setup-grid">
+                <section className="panel">
+                  <span className="step">01</span>
+                  <h2>Connect the MCP</h2>
+                  <p>
+                    Add a custom MCP in your assistant. Choose Streamable HTTP
+                    and OAuth, then sign in with this account.
+                  </p>
+                  <div className="code-copy">
+                    <code>{config.mcpUrl}</code>
+                    <button
+                      className="icon-button"
+                      aria-label="Copy MCP URL"
+                      onClick={() => {
+                        navigator.clipboard.writeText(config.mcpUrl);
+                        setNotice("MCP URL copied");
+                      }}
+                    >
+                      <Icon name="copy" size={17} />
+                    </button>
+                  </div>
+                  <p className="muted">
+                    Automatic client registration: leave client ID and client
+                    secret blank. Each account stays separate.
+                  </p>
+                </section>
+                <section className="panel">
+                  <span className="step">02</span>
+                  <h2>Give it the guide</h2>
+                  <p>
+                    The guide explains when to recall, what to save, and how to
+                    acknowledge a successful save. Add it as a skill or
+                    persistent assistant instructions.
+                  </p>
+                  <div className="button-row">
+                    <a className="button small" href="/skill/SKILL.md">
+                      Download agent skill
+                    </a>
+                    <button
+                      className="text-button"
+                      onClick={() =>
+                        perform(async () => {
+                          await navigator.clipboard.writeText(
+                            await fetch("/skill").then((r) => r.text()),
+                          );
+                        }, "Agent guide copied")
+                      }
+                    >
+                      Copy instructions
+                    </button>
+                  </div>
+                </section>
+                <section className="panel">
+                  <span className="step">03</span>
+                  <h2>Try remembering something</h2>
+                  <blockquote>
+                    “Remember that I prefer concise project updates. Use Shared
+                    Memory to save this preference.”
+                  </blockquote>
+                  <p>
+                    Ask another connected assistant to recall it. Saved memories
+                    and their sources will appear here.
+                  </p>
+                </section>
+                <section className="panel">
+                  <span className="step">04</span>
+                  <h2>Let your dot watch a space</h2>
+                  <p>
+                    After joining a shared space, ask your dot to monitor{" "}
+                    <code>memory.changed</code> for that space ID and tell you
+                    when someone shares an update.
+                  </p>
+                  <p className="muted">
+                    A connected tool and an active event subscription are
+                    separate. Check Activity for actual webhook receipt; it does
+                    not confirm the dot has sent a message.
+                  </p>
+                </section>
+              </div>
+              <section className="panel spaced">
+                <h2>Connected assistants</h2>
+                <p>
+                  Connecting an assistant grants access to your personal memory
+                  tools. Revoke a connection to stop tool access and its event
+                  subscriptions.
+                </p>
+                {data?.connections?.length ? (
+                  data.connections.map((c) => (
+                    <div className="record-row" key={c.id}>
+                      <div>
+                        <strong>{c.clientId}</strong>
+                        <small>
+                          {c.enabled ? "Connected" : "Revoked"} · Last used{" "}
+                          {date(c.lastSeen)}
+                        </small>
+                      </div>
+                      <button
+                        className={"text-button " + (c.enabled ? "danger" : "")}
+                        onClick={() =>
+                          perform(
+                            () =>
+                              action("set_connection", {
+                                id: c.id,
+                                enabled: !c.enabled,
+                              }),
+                            c.enabled
+                              ? "Agent access revoked"
+                              : "Agent connection enabled",
+                          )
+                        }
+                      >
+                        {c.enabled ? "Revoke" : "Enable"}
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="muted">
+                    Connected assistants appear after their first authenticated
+                    MCP request.
+                  </p>
+                )}
+              </section>
+              <section className="panel spaced">
+                <h2>Active event subscriptions</h2>
+                {data?.subscriptions.length ? (
+                  data.subscriptions.map((s) => (
+                    <div className="record-row" key={s.id}>
+                      <div>
+                        <strong>
+                          {data.spaces.find((p) => p.id === s.spaceId)?.name ??
+                            s.spaceId}
+                        </strong>
+                        <small>Expires {date(s.expiresAt)}</small>
+                      </div>
+                      <button
+                        className="text-button danger"
+                        disabled={busy}
+                        onClick={() =>
+                          perform(
+                            () => action("unsubscribe", { id: s.id }),
+                            "Subscription stopped",
+                          )
+                        }
+                      >
+                        Stop
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="muted">
+                    No subscriptions yet. Ask your dot to monitor a shared
+                    space.
+                  </p>
+                )}
+              </section>
+            </>
+          )}
+          {section === "spaces" && (
+            <>
+              <div className="page-heading">
+                <div>
+                  <div className="eyebrow">CONTEXT YOU CHOOSE TO SHARE</div>
+                  <h1>Stay on the same page.</h1>
+                  <p>
+                    Invite people into a space. Your personal memory stays
+                    private.
+                  </p>
+                </div>
+              </div>
+              <section className="panel create-space">
+                <h2>Create a shared space</h2>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    perform(async () => {
+                      await action("create_space", { name: spaceName });
+                      setSpaceName("");
+                    }, "Shared space created");
+                  }}
+                >
+                  <input
+                    required
+                    maxLength={100}
+                    value={spaceName}
+                    onChange={(e) => setSpaceName(e.target.value)}
+                    placeholder="A project, a plan, a shared interest…"
+                    aria-label="Space name"
+                  />
+                  <button className="button small" disabled={busy}>
+                    Create space
+                  </button>
+                </form>
+              </section>
+              <div className="setup-grid">
+                {data?.spaces.map((s) => (
+                  <section className="panel" key={s.id}>
+                    <div className="panel-title">
+                      <Icon name="share" />
+                      <span className="chip">{s.role}</span>
+                    </div>
+                    <h2>{s.name}</h2>
+                    <div className="space-id">
+                      <code>{s.id}</code>
+                      <button
+                        className="icon-button"
+                        aria-label="Copy space ID"
+                        onClick={() => {
+                          navigator.clipboard.writeText(s.id);
+                          setNotice("Space ID copied");
+                        }}
+                      >
+                        <Icon name="copy" size={14} />
+                      </button>
+                    </div>
+                    <button
+                      className="text-button"
+                      onClick={() =>
+                        perform(async () =>
+                          setMemberList({
+                            space: s,
+                            members: await action("members", { spaceId: s.id }),
+                          }),
+                        )
+                      }
+                    >
+                      View members <Icon name="arrow" size={14} />
+                    </button>
+                    {s.role === "owner" && (
+                      <form
+                        className="invite-form"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const f = new FormData(e.currentTarget);
+                          perform(async () => {
+                            const r = await action("invite", {
+                              spaceId: s.id,
+                              email: f.get("email"),
+                              role: f.get("role"),
+                            });
+                            await navigator.clipboard.writeText(r.url);
+                          }, "Invitation link copied. Share it with the invited person.");
+                        }}
+                      >
+                        <label>
+                          Invite by verified account email
+                          <input
+                            type="email"
+                            name="email"
+                            required
+                            placeholder="friend@example.com"
+                          />
+                        </label>
+                        <div className="form-inline">
+                          <select name="role" aria-label="Invitation role">
+                            <option value="reader">Can read</option>
+                            <option value="contributor">
+                              Can read and share
+                            </option>
+                          </select>
+                          <button className="button small" disabled={busy}>
+                            Create invite link
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </section>
+                ))}
+              </div>
+              <section className="panel spaced">
+                <h2>Automatic sharing rules</h2>
+                <p>
+                  Explicitly enable a rule to share future matching memories
+                  into a space. Existing memories are not backfilled. Stopping a
+                  rule stops future automatic shares; retract existing
+                  references separately.
+                </p>
+                <form
+                  className="invite-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const f = new FormData(e.currentTarget);
+                    perform(
+                      () =>
+                        action("add_sharing_rule", {
+                          spaceId: f.get("spaceId"),
+                          kind: f.get("kind"),
+                          entityName: f.get("entityName"),
+                        }),
+                      "Automatic sharing rule enabled",
+                    );
+                  }}
+                >
+                  <div className="form-inline">
+                    <select
+                      name="spaceId"
+                      required
+                      aria-label="Rule shared space"
+                    >
+                      {data?.spaces
+                        .filter((s) => s.role !== "reader")
+                        .map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                    </select>
+                    <select name="kind" aria-label="Rule memory type">
+                      {kinds.map((k) => (
+                        <option key={k} value={k}>
+                          {title(k)}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      name="entityName"
+                      placeholder="Entity name filter (optional)"
+                      maxLength={120}
+                      aria-label="Rule entity name filter"
+                    />
+                    <button
+                      className="button small"
+                      disabled={
+                        busy || !data?.spaces.some((s) => s.role !== "reader")
+                      }
+                    >
+                      Enable rule
+                    </button>
+                  </div>
+                </form>
+                {data?.rules
+                  ?.filter((r) => r.active)
+                  .map((r) => (
+                    <div className="record-row" key={r.id}>
+                      <div>
+                        <strong>
+                          {title(r.kind)} →{" "}
+                          {data.spaces.find((s) => s.id === r.spaceId)?.name ??
+                            r.spaceId}
+                        </strong>
+                        <small>
+                          {r.entityName
+                            ? "Connected to " + r.entityName
+                            : "All future memories of this type"}
+                        </small>
+                      </div>
+                      <button
+                        className="text-button danger"
+                        onClick={() =>
+                          perform(
+                            () => action("disable_sharing_rule", { id: r.id }),
+                            "Sharing rule stopped",
+                          )
+                        }
+                      >
+                        Stop rule
+                      </button>
+                    </div>
+                  ))}
+              </section>
+              {data?.spaces.length === 0 && (
+                <div className="empty-state">
+                  <Icon name="share" size={32} />
+                  <h2>A shared space, a shared understanding.</h2>
+                  <p>Create a space and invite a friend to get started.</p>
+                </div>
+              )}
+            </>
+          )}
+          {section === "activity" && (
+            <>
+              <div className="page-heading">
+                <div>
+                  <div className="eyebrow">FOLLOW THE CONTEXT</div>
+                  <h1>From memory to message.</h1>
+                  <p>
+                    Inspect webhook delivery without confusing receipt with an
+                    agent response.
+                  </p>
+                </div>
+              </div>
+              <section className="panel">
+                <h2>Delivery activity</h2>
+                {data?.deliveries.length ? (
+                  <div className="activity-list">
+                    {data.deliveries.map((d) => (
+                      <div className="record-row" key={d.id}>
+                        <span className={"status-dot " + d.status} />
+                        <div>
+                          <strong>
+                            {d.status === "accepted"
+                              ? "Webhook received"
+                              : title(d.status)}
+                          </strong>
+                          <small>
+                            {d.memoryId} · {d.attempts} attempt
+                            {d.attempts === 1 ? "" : "s"} · HTTP{" "}
+                            {d.httpStatus ?? "—"}
+                          </small>
+                        </div>
+                        <span className="subtle">
+                          {date(d.updatedAt ?? d.createdAt)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state compact">
+                    <Icon name="activity" size={28} />
+                    <h2>No deliveries yet.</h2>
+                    <p>
+                      When someone shares a memory in a subscribed space,
+                      <br />
+                      its delivery trace appears here.
+                    </p>
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+        </div>
+      </main>
+      {detail && (
+        <div className="drawer-overlay" onClick={() => setDetail(null)}>
+          <aside className="detail-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="drawer-top">
+              <span className="eyebrow">MEMORY DETAILS</span>
+              <button
+                className="icon-button"
+                aria-label="Close memory details"
+                onClick={() => setDetail(null)}
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+            <span className={"kind-badge " + detail.memory.kind}>
+              {title(detail.memory.kind)}
+            </span>
+            <h2>{detail.memory.text}</h2>
+            <div className="entity-tags">
+              {detail.memory.entities.map((e: any, i: number) => (
+                <span key={i}>
+                  {e.type} · {e.name}
+                </span>
+              ))}
+            </div>
+            <dl>
+              <dt>Recorded by</dt>
+              <dd>{detail.memory.authorName}</dd>
+              <dt>Source</dt>
+              <dd>
+                {detail.memory.sourceClient === "dashboard"
+                  ? "Added in dashboard"
+                  : detail.memory.sourceClient}
+              </dd>
+              <dt>Basis</dt>
+              <dd>
+                {detail.memory.basis === "user_statement"
+                  ? "User statement"
+                  : "Agent-reported observation"}
+              </dd>
+              <dt>Recorded</dt>
+              <dd>{date(detail.memory.createdAt)}</dd>
+              <dt>Current revision</dt>
+              <dd>{detail.memory.revision}</dd>
+              {detail.memory.eventAt && (
+                <>
+                  <dt>Event time</dt>
+                  <dd>{new Date(detail.memory.eventAt).toLocaleString()}</dd>
+                </>
+              )}
+            </dl>
+            <h3>Source evidence</h3>
+            <blockquote>{detail.memory.evidence}</blockquote>
+            {detail.memory.owner === data?.actor.id && (
+              <>
+                <div className="button-row">
+                  <button
+                    className="button small"
+                    onClick={() => setEditing(detail.memory)}
+                  >
+                    Correct memory
+                  </button>
+                  <button
+                    className="text-button danger"
+                    disabled={busy}
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "Forget this memory, its evidence, and revision content? Shared references will be withdrawn.",
+                        )
+                      )
+                        perform(async () => {
+                          await action("forget_memory", {
+                            id: detail.memory.id,
+                          });
+                          setDetail(null);
+                        }, "Memory forgotten");
+                    }}
+                  >
+                    Forget
+                  </button>
+                </div>
+                <h3>Share a reference</h3>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const f = new FormData(e.currentTarget);
+                    perform(
+                      () =>
+                        action("share_memory", {
+                          id: detail.memory.id,
+                          spaceId: f.get("spaceId"),
+                          enabled: f.get("mode") === "share",
+                          userRequested: true,
+                          idempotencyKey: crypto.randomUUID(),
+                        }),
+                      "Sharing updated",
+                    );
+                  }}
+                >
+                  <div className="form-inline">
+                    <select name="spaceId" required aria-label="Shared space">
+                      {data?.spaces
+                        .filter((s) => s.role !== "reader")
+                        .map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                    </select>
+                    <select name="mode" aria-label="Sharing action">
+                      <option value="share">Share</option>
+                      <option value="retract">Retract</option>
+                    </select>
+                    <button
+                      className="button small"
+                      disabled={
+                        busy || !data?.spaces.some((s) => s.role !== "reader")
+                      }
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </form>
+                <h3>Revision history</h3>
+                {detail.history.map((r: any) => (
+                  <div className="history-entry" key={r.id}>
+                    <small>
+                      Revision {r.revision} · {date(r.createdAt)}
+                    </small>
+                    <p>{r.text}</p>
+                  </div>
+                ))}
+              </>
+            )}
+          </aside>
+        </div>
+      )}
+      {editing !== undefined && (
+        <MemoryEditor
+          memory={editing}
+          close={() => setEditing(undefined)}
+          busy={busy}
+          save={async (input) => {
+            await perform(
+              async () => {
+                const r = await action(
+                  editing ? "revise_memory" : "remember",
+                  editing
+                    ? {
+                        id: editing.id,
+                        expectedRevision: editing.revision,
+                        memory: input,
+                      }
+                    : input,
+                );
+                setEditing(undefined);
+                if (detail)
+                  setDetail(
+                    await action("explain_memory", { id: r.memory.id }),
+                  );
+              },
+              editing ? "Memory corrected" : "Memory saved",
+            );
+          }}
+        />
+      )}
+      {memberList && (
+        <div className="modal-backdrop" onClick={() => setMemberList(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="drawer-top">
+              <h2>{memberList.space.name}</h2>
+              <button
+                className="icon-button"
+                aria-label="Close members"
+                onClick={() => setMemberList(null)}
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+            {memberList.members.map((m) => (
+              <div className="record-row" key={m.id}>
+                <div>
+                  <strong>
+                    {m.id === data?.actor.id ? "You" : (m.name ?? "Member")}
+                  </strong>
+                  <small>{m.role}</small>
+                </div>
+                {memberList.space.role === "owner" && m.role !== "owner" && (
+                  <button
+                    className="text-button danger"
+                    onClick={() =>
+                      perform(async () => {
+                        await action("revoke_member", {
+                          spaceId: memberList.space.id,
+                          userId: m.id,
+                        });
+                        setMemberList(null);
+                      }, "Access revoked")
+                    }
+                  >
+                    Revoke access
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+function MemoryEditor({
+  memory,
+  close,
+  save,
+  busy,
+}: {
+  memory: Memory | null;
+  close: () => void;
+  save: (i: any) => Promise<void>;
+  busy: boolean;
+}) {
+  return (
+    <div className="modal-backdrop" onClick={close}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="drawer-top">
+          <div>
+            <div className="eyebrow">YOUR CONTEXT</div>
+            <h2>
+              {memory ? "Correct a memory" : "Something worth remembering."}
+            </h2>
+          </div>
+          <button
+            className="icon-button"
+            aria-label="Close editor"
+            onClick={close}
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            const text = String(f.get("text"));
+            await save({
+              text,
+              kind: f.get("kind"),
+              basis: "user_statement",
+              entities: [
+                ...(memory?.entities.filter((e) => e.type !== "project") ?? []),
+                ...String(f.get("entities"))
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                  .map((name) => ({ type: "project", name })),
+              ],
+              ...(memory?.eventAt ? { eventAt: memory.eventAt } : {}),
+              evidence: String(f.get("evidence") || text),
+              idempotencyKey: crypto.randomUUID(),
+            });
+          }}
+        >
+          <label>
+            Memory
+            <textarea
+              name="text"
+              required
+              maxLength={6000}
+              defaultValue={memory?.text}
+              rows={4}
+              placeholder="What would you like your assistants to remember?"
+              autoFocus
+            />
+          </label>
+          <label>
+            Type
+            <select name="kind" defaultValue={memory?.kind ?? "fact"}>
+              {kinds.map((k) => (
+                <option key={k} value={k}>
+                  {title(k)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Connected projects{" "}
+            <span className="muted">optional, separated by commas</span>
+            <input
+              name="entities"
+              defaultValue={memory?.entities
+                .filter((e) => e.type === "project")
+                .map((e) => e.name)
+                .join(", ")}
+              placeholder="Atlas, Weekend plans"
+            />
+          </label>
+          <label>
+            Source evidence{" "}
+            <span className="muted">optional; defaults to your statement</span>
+            <textarea
+              name="evidence"
+              rows={2}
+              maxLength={6000}
+              defaultValue={memory?.evidence}
+            />
+          </label>
+          <p className="muted">
+            Private by default. You can share a reference after saving.
+          </p>
+          <div className="modal-actions">
+            <button type="button" className="text-button" onClick={close}>
+              Cancel
+            </button>
+            <button className="button" disabled={busy}>
+              {busy ? "Saving…" : memory ? "Save correction" : "Save memory"}
+              <Icon name="arrow" size={16} />
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+function App({ config }: { config: Config }) {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (!isLoaded)
+    return (
+      <div className="loading">
+        <Brand />
+        <p>Opening your memory…</p>
+      </div>
+    );
+  return isSignedIn ? (
+    <Dashboard config={config} />
+  ) : (
+    <Landing config={config} />
+  );
+}
+const root = createRoot(document.getElementById("root")!);
+fetch("/api/config")
+  .then(async (r) => {
+    if (!r.ok) throw new Error();
+    const config: Config = await r.json();
+    root.render(
+      <React.StrictMode>
+        <ClerkProvider
+          publishableKey={config.publishableKey}
+          signInFallbackRedirectUrl="/dashboard"
+          signUpFallbackRedirectUrl="/dashboard"
+        >
+          <App config={config} />
+        </ClerkProvider>
+      </React.StrictMode>,
+    );
+  })
+  .catch(() =>
+    root.render(
+      <div className="loading">
+        <Brand />
+        <p>We couldn’t connect. Please refresh to try again.</p>
+      </div>,
+    ),
+  );
