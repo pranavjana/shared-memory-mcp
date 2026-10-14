@@ -1,0 +1,43 @@
+# Environment files and local configuration
+.env
+.env.*
+*.env
+.envrc
+.direnv/
+
+# Secrets and credentials
+secrets/
+.secrets/
+credentials/
+.credentials/
+*credentials*.json
+*secret*.json
+*.pem
+*.key
+*.p12
+*.pfx
+.aws/
+
+# Dependencies and virtual environments
+node_modules/
+vendor/
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Operating system files
+.DS_Store
+._*
+.Spotlight-V100/
+.Trashes/
+Thumbs.db
+Desktop.ini
