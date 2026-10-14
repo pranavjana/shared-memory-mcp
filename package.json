@@ -19,6 +19,7 @@
     "cors": "^2.8.6",
     "express": "^5.3.0",
     "express-rate-limit": "^8.7.1",
+    "falkordb": "^6.8.0",
     "helmet": "^8.3.0",
     "zod": "^4.6.7"
   },
@@ -26,6 +27,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.5",
+    "svix": "^2.8.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
