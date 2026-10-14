@@ -18,6 +18,7 @@ Clerk hosts account creation, sign-in, user management, and OAuth consent. The d
 - Both CIMD and dynamic client registration are enabled for MCP clients.
 - Default scopes are `openid profile email`; Clerk also supports refresh tokens through `offline_access`.
 - Access tokens are audience-bound to the `/mcp` resource.
+- Opaque access tokens are used so revoking the grant immediately blocks subsequent requests; JWT access tokens are disabled.
 - Every MCP request is verified through this Clerk instance's token introspection, checking audience, revocation, expiry, subject, and required scopes.
 - Each request creates its own MCP server and transport, so users do not share session state.
 - Missing or invalid credentials return a 401 challenge pointing to public protected-resource metadata.
@@ -34,6 +35,8 @@ Discovery endpoints:
 Use Node.js 24. Install dependencies with `npm ci`, copy `.env.example` to `.env.local`, and supply keys from the dedicated Clerk application. `CLERK_ACCOUNT_PORTAL_URL` is the hosted account portal URL from Clerk. Set `PUBLIC_URL=http://localhost:3000` for local use; hosted OAuth clients require a public HTTPS endpoint.
 
 Run `npm run dev`. Verify with `npm test` and `npm run build`.
+
+For a complete browser OAuth check, run `node --env-file=.env.local test/live-oauth.mjs` and open the printed localhost test URL. This creates an isolated synthetic user and OAuth client, checks registration, PKCE, audience rejection, an authenticated MCP tool call, refresh, and revocation, and removes both test resources afterward. The deployed preview passed this flow.
 
 ## Railway
 
