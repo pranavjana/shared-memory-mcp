@@ -4,6 +4,19 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 export const requiredScopes = ['profile', 'email'];
 export type TokenVerifier = (token: string) => Promise<AuthInfo | undefined>;
 
+/** Canonical MCP resource URL (RFC 8707). Always derived from the public origin. */
+export function mcpResourceFromPublicUrl(publicUrl: string): string {
+  return `${new URL(publicUrl).origin}/mcp`;
+}
+
+/** True when the token's aud claim includes the expected MCP resource. */
+export function tokenAudienceMatches(
+  aud: string[] | undefined,
+  resource: string,
+): boolean {
+  return Array.isArray(aud) && aud.includes(resource);
+}
+
 export function createClerkVerifier(secretKey: string, publishableKey: string, resource: string): TokenVerifier {
   const clerk = createClerkClient({ secretKey, publishableKey });
   return async (token) => {
@@ -13,7 +26,8 @@ export function createClerkVerifier(secretKey: string, publishableKey: string, r
       const verified = await clerk.idPOAuthAccessToken.verify(token, { audience: resource });
       if (verified.revoked || verified.expired || !verified.subject.startsWith('user_') ||
           !verified.expiration || verified.expiration <= Date.now() / 1000 ||
-          !requiredScopes.every(scope => verified.scopes.includes(scope))) return;
+          !requiredScopes.every(scope => verified.scopes.includes(scope)) ||
+          !tokenAudienceMatches(verified.aud, resource)) return;
       return {
         token,
         clientId: verified.clientId,

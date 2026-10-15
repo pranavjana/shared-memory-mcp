@@ -823,7 +823,10 @@ function Dashboard({ config }: { config: Config }) {
                       </button>
                     </div>
                     <p className="setup-note">
-                      Leave client ID and client secret blank.
+                      Leave client ID and client secret blank when the host
+                      supports automatic registration. OAuth clients must send
+                      this MCP URL as <code>resource</code> on authorize and
+                      token requests.
                     </p>
                     <details className="setup-help chatgpt-setup">
                       <summary>Using ChatGPT?</summary>
@@ -842,7 +845,8 @@ function Dashboard({ config }: { config: Config }) {
                         <li>
                           Name it Shared Memory, paste the URL above, and choose
                           OAuth. Leave client credentials blank for automatic
-                          registration.
+                          registration when offered. The host must pass the MCP
+                          URL as the OAuth resource (RFC 8707).
                         </li>
                         <li>
                           Create and install the plugin, then sign in with your

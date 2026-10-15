@@ -8,7 +8,18 @@ MCP: https://shared-memory-mcp-production.up.railway.app/mcp
 
 ## Connect an assistant
 
-Create an account in the dashboard. In Connections, add the MCP URL to your assistant using Streamable HTTP and OAuth, then sign in with the same account. Automatic client registration is enabled; no manually entered client ID or secret is needed. OAuth clients must include the MCP URL as `resource` in both authorization and token requests. Connecting grants the client access to that account's memory tools; individual clients can be revoked in Connections.
+Create an account in the dashboard. In Connections, add the MCP URL to your assistant using Streamable HTTP and OAuth, then sign in with the same account. Connecting grants the client access to that account's memory tools; individual clients can be revoked in Connections.
+
+OAuth requirements (do not weaken these):
+
+- Resource (RFC 8707) must be exactly `https://shared-memory-mcp-production.up.railway.app/mcp`. Clients must send `resource=` with that value in **both** the authorization request and the token request, and retain it on refresh. Tokens issued for another audience are rejected.
+- Required scopes: `profile email`.
+- Public clients use PKCE (`S256`) with `token_endpoint_auth_method=none`. Never paste access tokens or client secrets into chat.
+
+Client registration:
+
+- Prefer the host's automatic flow when Clerk advertises it: Dynamic Client Registration (`registration_endpoint` on `/.well-known/oauth-authorization-server`) and/or Client ID Metadata Documents (`client_id_metadata_document_supported`). Leave manually entered client ID and secret blank for that flow.
+- If the host cannot use DCR/CIMD, register a **public** OAuth application in the Clerk Dashboard (see below) and configure the host with that client ID only (no secret).
 
 For ChatGPT users, open [ChatGPT Plugins](https://chatgpt.com/plugins), choose **+ → Add custom MCP server**, enter the endpoint and OAuth settings, create and install the plugin, then authorize the connection. Availability depends on the host's workspace permissions. Select the installed plugin with `@` in a chat.
 
@@ -63,6 +74,35 @@ Run `npm ci`, `npm run build` and `npm run dev`. For frontend development run `n
 Generate `EVENT_ENCRYPTION_KEY` once as 32 random bytes encoded in base64. Preserve it across restarts; losing it makes existing event credentials unreadable. If absent, event subscriptions are not advertised. Never expose it to frontend code or commit environment files.
 
 The dedicated personal Clerk application is `app_3KhaoAVxRR0XFfeOzTL2AqaNZoF`. Its development instance is used for this preview. A production Clerk instance needs domain configuration for a broader launch. Never use another application's keys.
+
+## Clerk OAuth dashboard (MCP)
+
+Clerk instance: `https://organic-buck-9271.clerk.accounts.dev` (application `app_3KhaoAVxRR0XFfeOzTL2AqaNZoF`).
+
+On **OAuth applications → Settings**:
+
+1. **Client onboarding** — enable **Publish DCR support** for hosts that dynamically register; enable **Publish CIMD support** for clients that use a metadata-document `client_id`. Set **Default scopes for dynamic clients** to at least `profile` and `email` (add `openid` / `offline_access` only if a host needs them).
+2. **Authorization security** — enable **Require PKCE** so public clients must use `S256`.
+3. Do not disable audience / resource binding on the MCP server. The API verifies Clerk tokens with `audience` set to the MCP URL and rejects mismatches.
+
+Manual public client (when DCR/CIMD is unavailable):
+
+1. **OAuth applications → Applications → Add application**.
+2. Enable **Public** (no client secret) and **Require PKCE**.
+3. Add exact **Redirect URIs** for the host (examples: ChatGPT / Codex callback URLs from that product's docs; for the local verifier use `http://127.0.0.1:<port>/callback` or the `REDIRECT_URI` you pass to the script).
+4. Scopes: allow `profile` and `email`.
+5. Give the host only the **Client ID**. Leave client secret blank.
+
+## Local OAuth + MCP verification
+
+Interactive public-client check (authorization code + PKCE, `resource=` on authorize and token, then MCP `initialize` / `tools/list` / `get_connection_status`):
+
+```bash
+pip install requests
+python3 scripts/verify_oauth_mcp.py
+```
+
+Optional env: `MCP_URL` (default production `/mcp`), `CLIENT_ID` (skip DCR), `REDIRECT_URI`, `OAUTH_SCOPES` (default `profile email`). The script opens a browser for human login and never hardcodes secrets.
 
 ## Verification
 

@@ -2,7 +2,35 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 import { createApp } from "../src/app.js";
+import {
+  mcpResourceFromPublicUrl,
+  tokenAudienceMatches,
+} from "../src/auth.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+
+test("mcp resource URL is origin-stable and trailing-slash safe", () => {
+  assert.equal(
+    mcpResourceFromPublicUrl("https://memory.example.com"),
+    "https://memory.example.com/mcp",
+  );
+  assert.equal(
+    mcpResourceFromPublicUrl("https://memory.example.com/"),
+    "https://memory.example.com/mcp",
+  );
+  assert.equal(
+    mcpResourceFromPublicUrl("https://memory.example.com/dashboard"),
+    "https://memory.example.com/mcp",
+  );
+});
+
+test("token audience must include the MCP resource", () => {
+  const resource = "https://memory.example.com/mcp";
+  assert.equal(tokenAudienceMatches([resource], resource), true);
+  assert.equal(tokenAudienceMatches(["https://other.example/mcp"], resource), false);
+  assert.equal(tokenAudienceMatches([], resource), false);
+  assert.equal(tokenAudienceMatches(undefined, resource), false);
+});
+
 
 const origin = "https://memory.example.com";
 const config = {

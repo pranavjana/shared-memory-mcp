@@ -21,6 +21,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import {
   createClerkVerifier,
+  mcpResourceFromPublicUrl,
   requiredScopes,
   type TokenVerifier,
 } from "./auth.js";
@@ -60,7 +61,7 @@ const escapeHtml = (value: string) =>
 export function createApp(config: Config, dependencies: Dependencies = {}) {
   const app = express();
   const origin = new URL(config.publicUrl).origin;
-  const resource = `${origin}/mcp`;
+  const resource = mcpResourceFromPublicUrl(config.publicUrl);
   const metadataUrl = `${origin}/.well-known/oauth-protected-resource/mcp`;
   const clerk = createClerkClient({
     secretKey: config.secretKey,
