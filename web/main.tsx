@@ -4,6 +4,7 @@ import { ClerkProvider, useAuth, SignInButton, UserButton } from "@clerk/react";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import codexLogo from "./assets/codex.png";
+import museLogo from "./assets/muse.svg";
 import "./style.css";
 type Config = {
   publishableKey: string;
@@ -66,10 +67,20 @@ const date = (n: number) =>
     minute: "2-digit",
   });
 const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+// Muse registrations in our Clerk instance; opaque IDs carry no app name.
+const museClientIds = new Set([
+  "Mz1lRFME372kmUIB",
+  "AxgqrHF5QB08oV37",
+  "nGyKi3rPUIuFKH76",
+  "AqmpDhak10k9TtSl",
+]);
 function assistantIdentity(clientId: string) {
   // Identity and logo published by Codex's OAuth client metadata.
   if (clientId === "https://chatgpt.com/oauth/codex/client.json") {
     return { name: "Codex", logo: codexLogo };
+  }
+  if (museClientIds.has(clientId)) {
+    return { name: "Muse", logo: museLogo };
   }
   try {
     const url = new URL(clientId);
