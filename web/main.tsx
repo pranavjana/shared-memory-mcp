@@ -327,6 +327,7 @@ function Dashboard({ config }: { config: Config }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
+    [setupPromptText, setSetupPromptText] = useState(""),
     [spaceName, setSpaceName] = useState(""),
     [invite, setInvite] = useState(""),
     [memberList, setMemberList] = useState<{
@@ -357,6 +358,26 @@ function Dashboard({ config }: { config: Config }) {
   useEffect(() => {
     reload().catch((e) => setError(e.message));
   }, [reload]);
+  const loadSetupPrompt = useCallback(async () => {
+    const response = await fetch("/setup/prompt");
+    if (!response.ok)
+      throw new Error("Could not load the MCP install prompt. Try again.");
+    return response.text();
+  }, []);
+  useEffect(() => {
+    if (section !== "connections" || setupPromptText) return;
+    let current = true;
+    loadSetupPrompt()
+      .then((text) => {
+        if (current) setSetupPromptText(text);
+      })
+      .catch((e) => {
+        if (current) setError(e.message);
+      });
+    return () => {
+      current = false;
+    };
+  }, [section, setupPromptText, loadSetupPrompt]);
   const action = async (name: string, input: unknown) =>
     request("action", { action: name, input });
   const perform = async (fn: () => Promise<unknown>, message?: string) => {
@@ -741,9 +762,38 @@ function Dashboard({ config }: { config: Config }) {
                   <div className="setup-content">
                     <h2>Connect your assistant</h2>
                     <p>
-                      Add a custom MCP. Select Streamable HTTP and OAuth, then
-                      sign in.
+                      Give your agent this prompt to install and verify the MCP
+                      connection.
                     </p>
+                    <div className="button-row">
+                      <button
+                        className="button small"
+                        disabled={busy}
+                        onClick={() =>
+                          perform(async () => {
+                            const text =
+                              setupPromptText || (await loadSetupPrompt());
+                            setSetupPromptText(text);
+                            await navigator.clipboard.writeText(text);
+                          }, "MCP install prompt copied")
+                        }
+                      >
+                        <Icon name="copy" size={15} />
+                        Copy MCP install prompt
+                      </button>
+                    </div>
+                    <details className="setup-help setup-prompt">
+                      <summary>View install prompt</summary>
+                      {setupPromptText ? (
+                        <pre tabIndex={0} aria-label="MCP install prompt">
+                          {setupPromptText}
+                        </pre>
+                      ) : (
+                        <p>
+                          Use Copy MCP install prompt to load it and try again.
+                        </p>
+                      )}
+                    </details>
                     <div className="code-copy">
                       <code>{config.mcpUrl}</code>
                       <button
@@ -762,6 +812,45 @@ function Dashboard({ config }: { config: Config }) {
                     <p className="setup-note">
                       Leave client ID and client secret blank.
                     </p>
+                    <details className="setup-help chatgpt-setup">
+                      <summary>Using ChatGPT?</summary>
+                      <ol>
+                        <li>
+                          Open{" "}
+                          <a
+                            href="https://chatgpt.com/plugins"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            ChatGPT Plugins <Icon name="arrow" size={13} />
+                          </a>
+                          , select +, then Add custom MCP server.
+                        </li>
+                        <li>
+                          Name it Shared Memory, paste the URL above, and choose
+                          OAuth. Leave client credentials blank for automatic
+                          registration.
+                        </li>
+                        <li>
+                          Create and install the plugin, then sign in with your
+                          Shared Memory account. Select it with @ in your chat.
+                          Install the memory skill separately in step 2.
+                        </li>
+                      </ol>
+                      <p className="setup-note">
+                        A bundled plugin includes the guide. Our current bundle
+                        is private; public installation requires directory
+                        review.
+                      </p>
+                      <a
+                        className="text-button"
+                        href="https://developers.openai.com/api/docs/guides/custom-mcp-server#how-to-use"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        ChatGPT setup docs <Icon name="arrow" size={13} />
+                      </a>
+                    </details>
                   </div>
                 </li>
                 <li>
@@ -769,10 +858,10 @@ function Dashboard({ config }: { config: Config }) {
                     2
                   </span>
                   <div className="setup-content">
-                    <h2>Add the memory guide</h2>
+                    <h2>Install the memory skill</h2>
                     <p>
-                      Install the skill or paste the instructions into your
-                      assistant.
+                      Add the skill separately to teach your assistant when to
+                      save, recall, correct, and share memories.
                     </p>
                     <div className="button-row">
                       <a className="button small" href="/skill/SKILL.md">
@@ -785,16 +874,23 @@ function Dashboard({ config }: { config: Config }) {
                           perform(async () => {
                             const response = await fetch("/skill");
                             if (!response.ok)
-                              throw new Error("Could not load the agent guide");
+                              throw new Error(
+                                "Could not load the memory skill. Try again.",
+                              );
                             await navigator.clipboard.writeText(
                               await response.text(),
                             );
-                          }, "Agent guide copied")
+                          }, "Memory skill instructions copied")
                         }
                       >
-                        Copy instructions
+                        Copy skill instructions
                       </button>
                     </div>
+                    <p className="setup-note">
+                      Install it through your assistant’s skill support, or save
+                      the guide in persistent instructions. A chat paste applies
+                      to that chat only.
+                    </p>
                     <details className="setup-help">
                       <summary>Try a memory</summary>
                       <blockquote>

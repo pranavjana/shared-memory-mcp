@@ -1,9 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "shared-memory",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Private personal memory across assistants, with source history and permissioned sharing.",
-  "author": { "name": "Pranav Janakiraman" },
+  "author": {
+    "name": "Pranav Janakiraman",
+    "email": "pranavjana2003@gmail.com"
+  },
   "homepage": "https://shared-memory-mcp-production.up.railway.app",
   "extensions": {
     "com.openai": {

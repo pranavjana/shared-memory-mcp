@@ -6,6 +6,7 @@ import { MemoryStore, DomainError, type Actor } from "./memory.js";
 import { EventService, eventDefinition } from "./events.js";
 import { memoryTools, operatingInstructions, runTool } from "./tools.js";
 import { dashboardApi } from "./api.js";
+import { mcpInstallPrompt } from "./onboarding.js";
 import cors from "cors";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
@@ -177,6 +178,9 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     }),
   );
   app.get("/skill", (_req, res) => res.type("text/plain").send(skill));
+  app.get("/setup/prompt", (_req, res) =>
+    res.type("text/plain").send(mcpInstallPrompt(resource)),
+  );
   app.get("/skill/SKILL.md", (_req, res) =>
     res.attachment("SKILL.md").type("text/plain").send(skill),
   );
@@ -314,12 +318,10 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
       dependencies.memory &&
       !(await dependencies.memory.authorizeClient(actor))
     ) {
-      res
-        .status(403)
-        .json({
-          error:
-            "This agent connection was revoked. Re-enable it in your dashboard.",
-        });
+      res.status(403).json({
+        error:
+          "This agent connection was revoked. Re-enable it in your dashboard.",
+      });
       return;
     }
     if (
@@ -332,13 +334,11 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         req.body?.jsonrpc !== "2.0" ||
         !["string", "number"].includes(typeof id)
       ) {
-        res
-          .status(400)
-          .json({
-            jsonrpc: "2.0",
-            id: null,
-            error: { code: -32600, message: "Invalid request" },
-          });
+        res.status(400).json({
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32600, message: "Invalid request" },
+        });
         return;
       }
       try {
@@ -560,15 +560,13 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         return;
       }
       if (error instanceof z.ZodError) {
-        res
-          .status(400)
-          .json({
-            error: "Invalid input",
-            details: error.issues.map((i) => ({
-              path: i.path,
-              message: i.message,
-            })),
-          });
+        res.status(400).json({
+          error: "Invalid input",
+          details: error.issues.map((i) => ({
+            path: i.path,
+            message: i.message,
+          })),
+        });
         return;
       }
       const status =

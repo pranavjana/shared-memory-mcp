@@ -10,6 +10,7 @@ export default defineConfig({
     proxy: {
       "/api": "http://127.0.0.1:3000",
       "/skill": "http://127.0.0.1:3000",
+      "/setup": "http://127.0.0.1:3000",
     },
   },
 });

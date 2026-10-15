@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "shared-memory": {
+      "type": "streamable-http",
+      "url": "https://shared-memory-mcp-production.up.railway.app/mcp",
+      "headers": {},
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": {
+              "mode": "dcr"
+            },
+            "baseScopes": [
+              "profile",
+              "email"
+            ],
+            "defaultScopes": [
+              "openid",
+              "profile",
+              "email",
+              "offline_access"
+            ],
+            "oidcEnabled": true
+          }
+        }
+      }
+    }
+  }
+}
