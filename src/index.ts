@@ -3,7 +3,7 @@ import { createClerkClient } from "@clerk/express";
 import { connectUserStore } from "./users.js";
 import { connectMemoryStore } from "./memory.js";
 import { EventService } from "./events.js";
-import { createClerkVerifier } from "./auth.js";
+import { createClerkVerifier, mcpResourceFromPublicUrl } from "./auth.js";
 import { backfillUsers } from "./clerk-users.js";
 
 for (const key of [
@@ -24,10 +24,11 @@ if (process.env.NODE_ENV === "production" && !publicUrl.startsWith("https://"))
 const port = Number(process.env.PORT ?? 3000);
 const users = await connectUserStore();
 const memory = await connectMemoryStore();
+const mcpResource = mcpResourceFromPublicUrl(publicUrl);
 const verifyGrant = createClerkVerifier(
   process.env.CLERK_SECRET_KEY!,
   process.env.CLERK_PUBLISHABLE_KEY!,
-  publicUrl + "/mcp",
+  mcpResource,
 );
 const events = process.env.EVENT_ENCRYPTION_KEY
   ? new EventService(
@@ -36,8 +37,12 @@ const events = process.env.EVENT_ENCRYPTION_KEY
       publicUrl,
       undefined,
       async (token, owner, clientId) => {
-        const auth = await verifyGrant(token);
-        return auth?.extra?.userId === owner && auth.clientId === clientId;
+        const result = await verifyGrant(token);
+        return (
+          result.ok &&
+          result.auth.extra?.userId === owner &&
+          result.auth.clientId === clientId
+        );
       },
     )
   : undefined;

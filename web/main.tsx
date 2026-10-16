@@ -826,7 +826,13 @@ function Dashboard({ config }: { config: Config }) {
                       </button>
                     </div>
                     <p className="setup-note">
-                      Leave client ID and client secret blank.
+                      Prefer DCR (Clerk{" "}
+                      <code>…/oauth/register</code> from authorization-server
+                      metadata — OIDC discovery may omit it). Public clients:
+                      PKCE, no secret. Send this MCP URL as{" "}
+                      <code>resource</code> on authorize and token. Minimum
+                      scopes <code>profile email</code>; some hosts also need{" "}
+                      <code>openid</code> / <code>offline_access</code>.
                     </p>
                     <details className="setup-help chatgpt-setup">
                       <summary>Using ChatGPT?</summary>
@@ -844,8 +850,11 @@ function Dashboard({ config }: { config: Config }) {
                         </li>
                         <li>
                           Name it Shared Memory, paste the URL above, and choose
-                          OAuth. Leave client credentials blank for automatic
-                          registration.
+                          OAuth. Use DCR / leave credentials blank when offered.
+                          The host must pass the MCP URL as{" "}
+                          <code>resource</code> on authorize and token (RFC
+                          8707); a 401 audience mismatch means that step was
+                          skipped, not a workspace policy block.
                         </li>
                         <li>
                           Create and install the plugin, then sign in with your
