@@ -11,7 +11,9 @@
             "client": { "mode": "dcr" },
             "baseScopes": ["profile", "email"],
             "defaultScopes": ["openid", "profile", "email", "offline_access"],
-            "oidcEnabled": true
+            "oidcEnabled": true,
+            "oidcScopesSupported": ["openid", "profile", "email", "offline_access"],
+            "resource": "https://shared-memory-mcp-sandbox.up.railway.app/mcp"
           }
         }
       }
