@@ -14,7 +14,8 @@
     "build:server": "tsc",
     "dev:web": "vite",
     "check:web": "tsc -p tsconfig.web.json",
-    "test:graph": "node --import tsx --test test/memory.integration.ts"
+    "test:graph": "node --import tsx --test test/memory.integration.ts",
+    "sandbox:seed": "node scripts/sandbox-seed.mjs"
   },
   "dependencies": {
     "@clerk/express": "^2.1.78",
