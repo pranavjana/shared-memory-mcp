@@ -2,7 +2,26 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 // The deployed operator script is JavaScript and deliberately has no production fallback.
 // @ts-ignore JavaScript operator entrypoint.
-import { assertSandbox } from "../scripts/sandbox-seed.mjs";
+import { assertSandbox, parseSeedArgs } from "../scripts/sandbox-seed.mjs";
+
+test("fixture operator defaults to the real owner's sandbox account and read-only planning", () => {
+  const defaults = parseSeedArgs([]);
+  assert.equal(defaults.ownerEmail, "pranavjana2003@gmail.com");
+  assert.equal(defaults.apply, false);
+  assert.equal(defaults.restoreDemoMembership, false);
+  assert.equal(
+    parseSeedArgs(["--owner-email", "OTHER@example.com"]).ownerEmail,
+    "other@example.com",
+  );
+  assert.equal(
+    parseSeedArgs(["--demo-update", "demo-progress-001"]).apply,
+    false,
+  );
+  assert.throws(() => parseSeedArgs(["--reset"]));
+  assert.throws(() => parseSeedArgs(["--owner-email"]));
+  assert.throws(() => parseSeedArgs(["--owner-email", "not-an-email"]));
+  assert.throws(() => parseSeedArgs(["--demo-update", "short"]));
+});
 
 test("sandbox operator refuses production and mixed environment targets before connecting", () => {
   const sandbox = {

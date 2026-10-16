@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID, randomBytes } from "node:crypto";
 import { connectMemoryStore, DomainError, type Actor } from "../src/memory.js";
+// @ts-ignore JavaScript sandbox operator helpers; no CLI execution on import.
+import { seedWorkspace, FixtureStateError } from "../scripts/sandbox-seed.mjs";
 import {
   EventService,
   publicAddress,
@@ -40,6 +42,136 @@ const input = (key: string, text = "Authentication finished") => ({
   evidence: "Observed successful build",
   entities: [{ type: "project", name: "Atlas" }],
   idempotencyKey: key,
+});
+
+test("own-account demo fixtures preserve privacy, retries, retractions and explicit revocation", async () => {
+  const s = await connectMemoryStore({
+    ...env,
+    FALKORDB_MEMORY_GRAPH: env.FALKORDB_MEMORY_GRAPH + "_own_account",
+  });
+  const owner: Actor = {
+    userId: "user_own_account",
+    clientId: "sandbox-fixtures",
+    name: "Real Sandbox User",
+    email: "owner@example.com",
+  };
+  const demo: Actor = {
+    userId: "user_demo_teammate",
+    clientId: "sandbox-fixtures",
+    name: "Demo Teammate",
+    email: "demo+clerk_test@example.com",
+  };
+  try {
+    const first = await seedWorkspace(s, owner, demo);
+    assert.equal(first.demoSharedIds.length, 2);
+    const feed = await s.spaceMemories(owner, first.space.id, 1);
+    assert.equal(feed.memories.length, 1);
+    assert.ok(feed.nextCursor);
+    const page2 = await s.spaceMemories(
+      owner,
+      first.space.id,
+      1,
+      feed.nextCursor!,
+    );
+    assert.equal(page2.memories.length, 1);
+    assert.equal(page2.nextCursor, null);
+    assert.notEqual(feed.memories[0].id, page2.memories[0].id);
+    assert.deepEqual(
+      new Set([...feed.memories, ...page2.memories].map((m) => m.id)),
+      new Set(first.demoSharedIds),
+    );
+    const emptySpace = await s.createSpace(owner, "Unrelated private space");
+    assert.deepEqual(
+      (await s.spaceMemories(owner, emptySpace.id)).memories,
+      [],
+    );
+    await assert.rejects(
+      s.spaceMemories(
+        { userId: "user_outsider", clientId: "test" },
+        first.space.id,
+      ),
+      (e: any) => e.status === 403,
+    );
+    assert.equal((await s.spaces(owner))[0].role, "owner");
+    assert.equal(
+      (await s.get(owner, first.demoSharedIds[0])).owner,
+      demo.userId,
+    );
+    await assert.rejects(
+      s.get(owner, first.demoPrivateId),
+      (e: any) => e.status === 404,
+    );
+    await assert.rejects(
+      s.get(demo, first.ownPrivateId),
+      (e: any) => e.status === 404,
+    );
+    const again = await seedWorkspace(s, owner, demo);
+    assert.deepEqual(again, first, "Reruns reuse the space and memory IDs");
+    const update = await seedWorkspace(s, owner, demo, {
+      demoUpdate: "test-progress-001",
+    });
+    const retry = await seedWorkspace(s, owner, demo, {
+      demoUpdate: "test-progress-001",
+    });
+    assert.equal(update.demoUpdateId, retry.demoUpdateId);
+    await assert.rejects(
+      s.revise(owner, update.demoUpdateId, 1, input("foreign-demo-edit")),
+      (e: any) => e.status === 403,
+    );
+    await s.share(
+      demo,
+      first.demoSharedIds[0],
+      first.space.id,
+      false,
+      "explicit-retraction",
+    );
+    const afterRetraction = await seedWorkspace(s, owner, demo);
+    assert.deepEqual(afterRetraction.demoRetractedIds, [
+      first.demoSharedIds[0],
+    ]);
+    await assert.rejects(s.get(owner, first.demoSharedIds[0]));
+    assert.ok(
+      !(await s.spaceMemories(owner, first.space.id)).memories.some(
+        (m) => m.id === first.demoSharedIds[0],
+      ),
+    );
+    const fresh = await seedWorkspace(s, owner, demo, {
+      demoUpdate: "test-progress-002",
+    });
+    assert.ok(await s.get(owner, fresh.demoUpdateId));
+    await s.share(
+      owner,
+      first.ownPrivateId,
+      first.space.id,
+      true,
+      "owner-chooses-to-share",
+    );
+    const afterExplicitShare = await seedWorkspace(s, owner, demo, {
+      demoUpdate: "after-owner-share-001",
+    });
+    assert.equal(
+      afterExplicitShare.ownPrivateShared,
+      true,
+      "Demo updates still work after the user explicitly shares their seeded note",
+    );
+    assert.ok(await s.get(demo, first.ownPrivateId));
+    await s.revoke(owner, first.space.id, demo.userId);
+    await assert.rejects(
+      s.spaceMemories(demo, first.space.id),
+      (e: any) => e.status === 403,
+    );
+    await assert.rejects(seedWorkspace(s, owner, demo), FixtureStateError);
+    assert.equal(
+      (await s.spaces(demo)).length,
+      0,
+      "Seeding must not restore a manually revoked member",
+    );
+    await seedWorkspace(s, owner, demo, { restoreDemoMembership: true });
+    assert.equal((await s.spaces(demo))[0].role, "contributor");
+  } finally {
+    await s.graph.delete();
+    await s.close();
+  }
 });
 
 test("real graph: ownership, relationships, retries, revisions, sharing and revocation", async () => {

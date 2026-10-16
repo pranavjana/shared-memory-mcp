@@ -133,6 +133,22 @@ export function dashboardApi(
         result = await store.members(actor, i.spaceId);
         break;
       }
+      case "space_memories": {
+        const i = z
+          .object({
+            spaceId: z.string().min(1),
+            limit: z.number().int().min(1).max(100).default(30),
+            cursor: z
+              .object({
+                updatedAt: z.number().int().nonnegative(),
+                id: z.string().min(1),
+              })
+              .optional(),
+          })
+          .parse(input);
+        result = await store.spaceMemories(actor, i.spaceId, i.limit, i.cursor);
+        break;
+      }
       case "revoke_member": {
         const i = z
           .object({ spaceId: z.string(), userId: z.string() })

@@ -1,5 +1,108 @@
 @import "tailwindcss";
 
+@layer components {
+  .space-card-name {
+    @apply flex w-full items-center justify-between gap-4 text-left;
+  }
+  .space-heading {
+    @apply mb-6 flex flex-wrap items-center justify-between gap-4;
+  }
+  .space-heading h2 {
+    @apply mt-3 text-xl font-medium tracking-tight;
+  }
+  .space-layout {
+    @apply grid items-start gap-6;
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+  .space-layout > section {
+    @apply min-w-0;
+  }
+  .space-feed {
+    @apply grid gap-4;
+  }
+  .space-feed .memory-card {
+    @apply min-h-0;
+  }
+  .space-memory-open {
+    @apply w-full text-left;
+  }
+  .space-feed .memory-card-bottom {
+    @apply pt-3;
+  }
+  .space-people h3 {
+    @apply text-sm font-medium;
+  }
+  .space-people select {
+    @apply my-3 w-full;
+  }
+  .space-people .record-row {
+    @apply gap-2;
+  }
+  .space-people .record-row > button {
+    @apply text-xs;
+  }
+  .space-invite-result {
+    @apply mt-5;
+  }
+  .space-invite-result label {
+    @apply text-xs text-secondary;
+  }
+  .space-invite-result input {
+    @apply my-2 w-full;
+  }
+  .space-invite-result p {
+    @apply mt-2 text-xs leading-5;
+  }
+  .space-notice {
+    @apply mb-4 text-sm text-secondary;
+  }
+  .space-load-more {
+    @apply mt-5;
+  }
+  .space-picker {
+    @apply m-auto w-[calc(100%-2rem)] max-w-xl overflow-y-auto rounded-xl border-0 bg-white p-6 text-ink shadow-lg;
+    max-height: 85vh;
+  }
+  .space-picker::backdrop {
+    background: #0006;
+  }
+  .space-picker > p {
+    @apply mb-4 text-sm;
+  }
+  .space-picker .form-inline input {
+    @apply min-w-0 flex-1;
+  }
+  .space-picker-list {
+    @apply my-4 grid max-h-80 gap-2 overflow-y-auto;
+  }
+  .space-picker-option {
+    @apply flex cursor-pointer items-start gap-3 rounded-lg p-3 shadow-line;
+  }
+  .space-picker-option > input {
+    @apply mt-1 shrink-0;
+  }
+  .space-picker-option > span {
+    @apply grid min-w-0 gap-2 text-sm leading-6;
+    overflow-wrap: anywhere;
+  }
+  .space-picker-option small {
+    @apply font-mono text-[10px] text-secondary;
+  }
+  @media (max-width: 1000px) {
+    .space-layout {
+      @apply grid-cols-1;
+    }
+  }
+  @media (max-width: 600px) {
+    .space-picker .button-row {
+      @apply flex-col items-stretch;
+    }
+    .space-heading .button-row {
+      @apply w-full justify-between;
+    }
+  }
+}
+
 @theme {
   --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, monospace;
