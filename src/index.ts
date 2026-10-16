@@ -37,8 +37,12 @@ const events = process.env.EVENT_ENCRYPTION_KEY
       publicUrl,
       undefined,
       async (token, owner, clientId) => {
-        const auth = await verifyGrant(token);
-        return auth?.extra?.userId === owner && auth.clientId === clientId;
+        const result = await verifyGrant(token);
+        return (
+          result.ok &&
+          result.auth.extra?.userId === owner &&
+          result.auth.clientId === clientId
+        );
       },
     )
   : undefined;

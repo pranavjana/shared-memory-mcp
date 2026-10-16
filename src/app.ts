@@ -20,6 +20,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import {
+  audienceMismatchMessage,
   createClerkVerifier,
   mcpResourceFromPublicUrl,
   requiredScopes,
@@ -273,38 +274,68 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
   app.use("/mcp", async (req, res, next) => {
     res.set("Cache-Control", "no-store");
     const match = /^Bearer ([^\s]+)$/i.exec(req.get("authorization") ?? "");
-    const unauthorized = (error?: string) =>
-      res
-        .status(401)
-        .set(
-          "WWW-Authenticate",
-          `Bearer resource_metadata="${metadataUrl}", scope="${requiredScopes.join(" ")}"${error ? `, error="${error}"` : ""}`,
-        )
-        .json({
-          error: "unauthorized",
-          message: "Connect your account using OAuth.",
-        });
+    const quoteParam = (value: string) =>
+      `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    const unauthorized = (opts?: {
+      error?: string;
+      description?: string;
+      message?: string;
+    }) => {
+      const error = opts?.error;
+      const description = opts?.description;
+      let www = `Bearer resource_metadata=${quoteParam(metadataUrl)}, scope=${quoteParam(requiredScopes.join(" "))}`;
+      if (error) www += `, error=${quoteParam(error)}`;
+      if (description) www += `, error_description=${quoteParam(description)}`;
+      res.status(401).set("WWW-Authenticate", www).json({
+        error: error ?? "unauthorized",
+        message:
+          opts?.message ??
+          description ??
+          "Connect your account using OAuth.",
+        ...(description ? { detail: description } : {}),
+      });
+    };
     if (!match) {
       unauthorized();
       return;
     }
     try {
-      const auth = await verifyToken(match[1]);
+      const result = await verifyToken(match[1]);
+      if (!result.ok) {
+        if (result.code === "audience_mismatch") {
+          unauthorized({
+            error: "invalid_token",
+            description: result.message,
+            message: result.message,
+          });
+          return;
+        }
+        unauthorized({ error: "invalid_token" });
+        return;
+      }
+      const auth = result.auth;
+      if (auth.resource?.href !== resource) {
+        const detail = audienceMismatchMessage(resource);
+        unauthorized({
+          error: "invalid_token",
+          description: detail,
+          message: detail,
+        });
+        return;
+      }
       if (
-        !auth ||
         !auth.extra?.userId ||
         !requiredScopes.every((scope) => auth.scopes.includes(scope)) ||
-        auth.resource?.href !== resource ||
         !auth.expiresAt ||
         auth.expiresAt <= Date.now() / 1000
       ) {
-        unauthorized("invalid_token");
+        unauthorized({ error: "invalid_token" });
         return;
       }
       res.locals.authInfo = auth;
       next();
     } catch {
-      unauthorized("invalid_token");
+      unauthorized({ error: "invalid_token" });
     }
   });
   app.post("/mcp", express.json({ limit: "64kb" }), async (req, res, next) => {

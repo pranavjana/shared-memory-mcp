@@ -31,14 +31,17 @@ test("real database API and both MCP protocols enforce identity, revisions and c
       verifyToken: async (token) =>
         ["user_a", "user_b"].includes(token)
           ? {
-              token,
-              clientId: "agent-test",
-              scopes: ["profile", "email"],
-              expiresAt: Date.now() / 1000 + 3600,
-              resource: new URL(origin + "/mcp"),
-              extra: { userId: token },
+              ok: true as const,
+              auth: {
+                token,
+                clientId: "agent-test",
+                scopes: ["profile", "email"],
+                expiresAt: Date.now() / 1000 + 3600,
+                resource: new URL(origin + "/mcp"),
+                extra: { userId: token },
+              },
             }
-          : undefined,
+          : { ok: false as const, code: "invalid_token" as const, message: "invalid_token" },
       dashboardAuthenticate: async (req) =>
         ["user_a", "user_b"].includes(req.get("authorization") ?? "")
           ? {

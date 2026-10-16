@@ -10,16 +10,24 @@ MCP: https://shared-memory-mcp-production.up.railway.app/mcp
 
 Create an account in the dashboard. In Connections, add the MCP URL to your assistant using Streamable HTTP and OAuth, then sign in with the same account. Connecting grants the client access to that account's memory tools; individual clients can be revoked in Connections.
 
-OAuth requirements (do not weaken these):
+OAuth requirements (do not weaken these) — working Muse / public-client shape:
 
-- Resource (RFC 8707) must be exactly `https://shared-memory-mcp-production.up.railway.app/mcp`. Clients must send `resource=` with that value in **both** the authorization request and the token request, and retain it on refresh. Tokens issued for another audience are rejected.
-- Required scopes: `profile email`.
-- Public clients use PKCE (`S256`) with `token_endpoint_auth_method=none`. Never paste access tokens or client secrets into chat.
+| Parameter | Value |
+|-----------|--------|
+| MCP resource | exactly `https://shared-memory-mcp-production.up.railway.app/mcp` |
+| `resource=` | required on **authorize and token** (and retained on refresh); RFC 8707 |
+| Minimum scopes | `profile email` |
+| Host refresh / OIDC | some hosts also need `openid` and `offline_access` (Muse used `openid profile email offline_access`) |
+| Public client auth | PKCE `S256`, `token_endpoint_auth_method: none` (no client secret) |
+| DCR | `POST https://organic-buck-9271.clerk.accounts.dev/oauth/register` when advertised |
 
 Client registration:
 
-- Prefer the host's automatic flow when Clerk advertises it: Dynamic Client Registration (`registration_endpoint` on `/.well-known/oauth-authorization-server`) and/or Client ID Metadata Documents (`client_id_metadata_document_supported`). Leave manually entered client ID and secret blank for that flow.
+- **Do use DCR** when Clerk advertises `registration_endpoint` on OAuth authorization-server metadata (`/.well-known/oauth-authorization-server`). Production register URL: `https://organic-buck-9271.clerk.accounts.dev/oauth/register`. OIDC discovery (`/.well-known/openid-configuration`) may **omit** `registration_endpoint` — do not conclude “no DCR” from OIDC alone; read AS metadata (or use the documented register URL).
+- CIMD is also fine when `client_id_metadata_document_supported` is true. Leave manually entered client ID and secret blank for DCR/CIMD.
 - If the host cannot use DCR/CIMD, register a **public** OAuth application in the Clerk Dashboard (see below) and configure the host with that client ID only (no secret).
+
+A 401 `invalid_token` / audience mismatch means the access token was not bound to this MCP URL (usually missing DCR and/or missing `resource=`). That is a client configuration error, not host admin policy. Reconnect with DCR + `resource=` rather than broadening scopes alone.
 
 For ChatGPT users, open [ChatGPT Plugins](https://chatgpt.com/plugins), choose **+ → Add custom MCP server**, enter the endpoint and OAuth settings, create and install the plugin, then authorize the connection. Availability depends on the host's workspace permissions. Select the installed plugin with `@` in a chat.
 
@@ -57,7 +65,7 @@ Ask a supported OpenAI dot or cloud Work chat to monitor an authorized space and
 
 Subscriptions persist in FalkorDB and expire no later than their authorizing access token; the host must refresh them. Signing secrets and authorizing tokens are encrypted using AES-256-GCM. The worker rechecks client revocation, OAuth authorization and space access. It verifies signed callback challenges and pins validated public DNS addresses for each HTTPS connection. Private destinations and redirects are blocked. Stable event IDs survive retries; transient failures use bounded exponential backoff. Sender echoes are suppressed. `accepted` means the receiver acknowledged the webhook, not that an agent ran or sent a message. The dashboard distinguishes those states.
 
-The protocol does not offer historical replay (`cursor: null`). Subscribe before generating updates. Real dot subscription, automatic tool invocation, and event-to-user-message behavior need host acceptance testing; simulated webhook receipt alone does not verify them. Muse compatibility is a separate integration milestone.
+The protocol does not offer historical replay (`cursor: null`). Subscribe before generating updates. Real dot subscription, automatic tool invocation, and event-to-user-message behavior need host acceptance testing; simulated webhook receipt alone does not verify them. Muse connects successfully when the host uses DCR plus `resource=` on authorize/token (with scopes such as `openid profile email offline_access`).
 
 Reference: https://developers.openai.com/plugins/build/mcp-events
 
@@ -81,9 +89,9 @@ Clerk instance: `https://organic-buck-9271.clerk.accounts.dev` (application `app
 
 On **OAuth applications → Settings**:
 
-1. **Client onboarding** — enable **Publish DCR support** for hosts that dynamically register; enable **Publish CIMD support** for clients that use a metadata-document `client_id`. Set **Default scopes for dynamic clients** to at least `profile` and `email` (add `openid` / `offline_access` only if a host needs them).
+1. **Client onboarding** — enable **Publish DCR support** (required for hosts like Muse that dynamically register); enable **Publish CIMD support** for metadata-document `client_id`s. Set **Default scopes for dynamic clients** to at least `profile` and `email`; include `openid` / `offline_access` when hosts omit `scope` but need refresh.
 2. **Authorization security** — enable **Require PKCE** so public clients must use `S256`.
-3. Do not disable audience / resource binding on the MCP server. The API verifies Clerk tokens with `audience` set to the MCP URL and rejects mismatches.
+3. Do not disable audience / resource binding on the MCP server. The API verifies Clerk tokens with `audience` set to the MCP URL and rejects mismatches with a self-diagnosing `invalid_token` detail. Clerk still accepts authorize/token requests that omit `resource=`; clients must send it so tokens carry the correct `aud`.
 
 Manual public client (when DCR/CIMD is unavailable):
 
