@@ -54,7 +54,7 @@ The default fixture command finds the existing verified real user and creates/re
 
 The user stays signed in as themselves. The demo teammate is synthetic server-side fixture activity, not a real external agent. Existing Alice/Bob/Eve data is preserved as legacy optional fixtures; normal testing does not require those logins.
 
-Install/update the private personal [Shared Spaces Sandbox plugin](https://chatgpt.com/plugins/plugins_6ad16bfddd148191bd28a8d808f99c85), version `0.2.1`, and authorize it with your own sandbox email. Ask: **"Verify my signed-in email and show my Demo Teammate's shared updates in Sandbox collaboration."** It includes the [test checklist](../plugin/shared-spaces-sandbox/skills/shared-spaces-sandbox-testing/references/test-checklist.md). The original Shared Memory plugin still connects to production. The private plugin belongs to Pranav's ChatGPT account; Roshan needs his own sandbox MCP/plugin connection. Cloning the repository does not install/authenticate a plugin.
+Install/update the private personal [Shared Spaces Sandbox plugin](https://chatgpt.com/plugins/plugins_6ad16bfddd148191bd28a8d808f99c85), version `0.2.2`, and authorize it with your own sandbox email. Ask: **"Verify my signed-in email and show my Demo Teammate's shared updates in Sandbox collaboration."** It includes the [test checklist](../plugin/shared-spaces-sandbox/skills/shared-spaces-sandbox-testing/references/test-checklist.md). The original Shared Memory plugin still connects to production. The private plugin belongs to Pranav's ChatGPT account; Roshan needs his own sandbox MCP/plugin connection. Cloning the repository does not install/authenticate a plugin.
 
 ### OAuth scope troubleshooting
 
