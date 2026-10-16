@@ -258,7 +258,10 @@ test("identity reuse requires grounded author context and revised sources reject
         await new Promise<void>((r) => {
           release = r;
         });
-      const result = output(context.source.text);
+      const result = output(
+        context.source.text,
+        context.source.text.includes("Beta") ? "Beta" : "Acme",
+      );
       if (requestExisting) Object.assign(result.entities[0], requestExisting);
       return result;
     },
@@ -272,7 +275,7 @@ test("identity reuse requires grounded author context and revised sources reject
     const ambiguous = (
       await s.remember(
         owner,
-        input("identity-ambiguous", "Nadia works at a company."),
+        input("identity-ambiguous", "Nadia works at Beta."),
       )
     ).memory;
     await auto.process(owner, ambiguous.id);
@@ -299,6 +302,26 @@ test("identity reuse requires grounded author context and revised sources reject
       )
     )[0];
     assert.equal(JSON.parse(clearClaim.payload).subject.key, person.key);
+    requestExisting = undefined;
+    const secondPerson = (
+      await s.remember(owner, input("same-name-second-person"))
+    ).memory;
+    await auto.process(owner, secondPerson.id);
+    requestExisting = {
+      existingKey: person.key,
+      identityEvidence: "Nadia works at Acme.",
+    };
+    const uncertain = (await s.remember(owner, input("two-matching-contexts")))
+      .memory;
+    await auto.process(owner, uncertain.id);
+    const uncertainClaim = (
+      await s.query<any>(
+        "MATCH (c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory {id:$id}) RETURN c.payload AS payload",
+        { id: uncertain.id },
+        true,
+      )
+    )[0];
+    assert.notEqual(JSON.parse(uncertainClaim.payload).subject.key, person.key);
     waiting = true;
     const pending = (await s.remember(owner, input("revision-race-01"))).memory;
     const work = auto.process(owner, pending.id);

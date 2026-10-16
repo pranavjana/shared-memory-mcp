@@ -225,10 +225,24 @@ export class AutomaticOntology {
         );
         const c = matches.length === 1 ? matches[0] : undefined;
         const ev = e.identityEvidence;
+        const contextualMatches = ev
+          ? candidates.filter(
+              (candidate) =>
+                candidate.type === e.type &&
+                [candidate.name, ...candidate.aliases].some(
+                  (n) => normalize(n) === normalize(e.name),
+                ) &&
+                candidate.contexts.some(
+                  (n) => n.length >= 3 && normalize(ev).includes(normalize(n)),
+                ),
+            )
+          : [];
         if (
           c &&
           (c.sameSource ||
             (ev &&
+              !["obligation", "event", "task"].includes(e.type) &&
+              contextualMatches.length === 1 &&
               (source.text.includes(ev) || source.evidence.includes(ev)) &&
               c.contexts.some(
                 (n) => n.length >= 3 && normalize(ev).includes(normalize(n)),
