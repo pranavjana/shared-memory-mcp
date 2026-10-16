@@ -7,6 +7,7 @@ import { EventService, eventDefinition } from "./events.js";
 import { memoryTools, operatingInstructions, runTool } from "./tools.js";
 import { dashboardApi } from "./api.js";
 import { mcpInstallPrompt } from "./onboarding.js";
+import { ontology } from "./ontology.js";
 import cors from "cors";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
@@ -122,6 +123,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         service: "shared-memory-mcp",
         version: "0.2.0",
         memory: Boolean(dependencies.memory),
+        ontologyVersion: dependencies.memory ? ontology.version : null,
         events: Boolean(dependencies.events),
         database: dependencies.users ? "connected" : "not_configured",
       });

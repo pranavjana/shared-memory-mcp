@@ -138,6 +138,71 @@ test("real database API and both MCP protocols enforce identity, revisions and c
     });
     const id = saved.body.result.structuredContent.memory.id;
     assert.ok(id);
+    assert.equal((await fetch(base + "/api/ontology")).status, 401);
+    const schema = await fetch(base + "/api/ontology", {
+      headers: { Authorization: "user_a" },
+    }).then((r) => r.json());
+    assert.equal(schema.version, "1.0.0");
+    const knowledge = {
+      sourceMemoryId: id,
+      sourceRevision: 1,
+      idempotencyKey: "api-ontology-001",
+      entities: [{ key: "project:atlas", type: "project", name: "Atlas" }],
+      claims: [
+        {
+          subject: "project:atlas",
+          predicate: "HAS_STATUS",
+          value: "in_progress",
+          basis: "explicit",
+          evidence: "Synthetic verified memory",
+        },
+      ],
+    };
+    for (const version of ["2026-07-28", "2025-11-25"]) {
+      const registry = await rpc(
+        "user_a",
+        "tools/call",
+        { name: "get_ontology", arguments: {} },
+        version,
+      );
+      assert.equal(registry.body.result.structuredContent.version, "1.0.0");
+      const structured = await rpc(
+        "user_a",
+        "tools/call",
+        { name: "record_knowledge", arguments: knowledge },
+        version,
+      );
+      assert.equal(structured.body.result.structuredContent.saved, true);
+      const retrieved = await rpc(
+        "user_a",
+        "tools/call",
+        { name: "recall_knowledge", arguments: { query: "Atlas" } },
+        version,
+      );
+      assert.equal(
+        retrieved.body.result.structuredContent.claims[0].subject.name,
+        "Atlas",
+      );
+      const denied = await rpc(
+        "user_b",
+        "tools/call",
+        { name: "recall_knowledge", arguments: { query: "Atlas" } },
+        version,
+      );
+      assert.equal(denied.body.result.structuredContent.claims.length, 0);
+    }
+    assert.equal(
+      (
+        await api("user_a", "record_knowledge", {
+          ...knowledge,
+          idempotencyKey: "invalid-ontology-property",
+          entities: [
+            { ...knowledge.entities[0], properties: { unrecognized: "value" } },
+          ],
+        })
+      ).status,
+      400,
+    );
     const foreign = await rpc("user_b", "tools/call", {
       name: "get_memory",
       arguments: { id },

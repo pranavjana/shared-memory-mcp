@@ -28,11 +28,19 @@ Each remember call includes:
 - kind: fact, preference, event, goal, task, decision, or relationship.
 - basis: user_statement or observed_outcome.
 - evidence: the relevant short statement or actual tool outcome, not invented proof.
-- entities: relevant person, project, organization, place, or topic names.
+- entities: relevant person, project, task, goal, event, decision, preference, organization, place, or topic names when the server supports those types.
 - eventAt: when the event happened, if known; do not confuse it with the save time.
 - idempotencyKey: a stable key for this operation, reused for its retries.
 
 Reuse established entity names when identity is clear. Do not merge two people or projects because they share a name. Keep time-limited events distinct from ongoing preferences. Resolve relative dates only when the date and timezone are known; otherwise omit eventAt or clarify. Agent-reported outcomes are attributed observations, not independent service verification.
+
+## Structured ontology (when supported)
+
+When `get_ontology`, `record_knowledge` and `recall_knowledge` are available, read the live schema before structuring tasks, decisions, goals or contextual preferences. After saving a source with `remember`, attach claims with `record_knowledge` using its returned memory ID/revision and a stable retry key. Reuse entity keys found in authorized knowledge; keys are scoped to the author, and names alone never merge identities. Provide only allowed properties, predicates and endpoint types. Each claim's evidence must be an exact source excerpt. Do not turn “can start” into acceptance or completion. Keep any useful inference labeled `inferred`; do not manufacture an explicit statement or record unadopted proposals as commitments.
+
+Use `recall_knowledge` for structured questions, predicate/entity filters and applicable-time bounds. Standard recall also returns a knowledge packet when supported. Missing validity remains unknown; older assertions are history, not automatically the historical truth. When correcting a source, structure its new revision; old private claims no longer appear by default. Use `supersedes` only for a correction of the same author's same subject/predicate. Preserve differing authors' claims and show uncertainty.
+
+Only when the user explicitly selects an assertion for a space, use `publish_claim` with `userRequested:true`. This creates an immutable snapshot of that assertion, evidence excerpt and entity names. Do not use whole-memory `share_memory` for this operation. Private source text, other claims, aliases and entity properties remain private. Source edits do not silently republish snapshots. `publish_claim` with `enabled:false` withdraws the selected publication; retries cannot reactivate it. Forgetting a source removes its derived claims/publications. Ontology publications currently support on-demand retrieval only; do not claim they triggered a webhook or proactive notification. If these tools are missing, use the existing memory workflow and report the ontology capability as unavailable.
 
 ## Duplicates, corrections, and forgetting
 

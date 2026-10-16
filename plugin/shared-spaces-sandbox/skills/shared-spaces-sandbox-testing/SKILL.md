@@ -15,6 +15,8 @@ The default space is **Sandbox collaboration**, owned by the real user, with an 
 
 Save/share only when requested. Use actual memory/space IDs, `userRequested: true`, and stable idempotency keys reused for retries. Inspect automaticShares for rules that affect privacy. Use the dashboard for creating spaces, invitations, and membership controls; do not invent admin MCP tools. Report save, share, recipient retrieval, and notification as separate outcomes.
 
+For requested ontology testing, read `get_ontology`, then attach typed claims to a requested synthetic source using `record_knowledge`. Reuse returned source IDs/revisions and scoped entity keys. Use `recall_knowledge` to verify aliases, predicates, provenance and authorized space retrieval. A selected claim is shared with `publish_claim`, creating a frozen snapshot; use `enabled:false` to retract it. This does not share the whole source or trigger webhook delivery. The dashboard's Ontology tab shows the live schema and authorized claims. Follow `docs/ontology.md` when repository access is available; otherwise read the bundled operating guide. Missing ontology tools means this feature has not reached that server—do not substitute production or invent success.
+
 If fixtures are missing or the user requests new incoming demo activity, a coding agent with the repository and authorized Railway access can run the guarded sandbox operator from `docs/development.md`. A plugin connection alone has no admin seed tool. The exact environment/graph/Clerk IDs are verified before writes. The real owner must have signed into the sandbox once; no real person's account is created by the seed.
 
 - `npm run sandbox:seed` previews the plan; append `-- --apply` to seed/reuse fixtures inside the sandbox service.
