@@ -38,6 +38,16 @@ Sign in using an email code: **424242**. These are [Clerk development test addre
 
 The seed creates one private memory each for Alice and Bob, plus one Alice-authored memory shared with Bob. All contents are labeled synthetic. Verify that Bob can read the shared memory, cannot read Alice's private memory or modify her source, and Eve cannot access the space. Test retracting a share and revoking Bob, then issue a new invitation to restore access. The graph/API CI suite also exercises these boundaries, revision history, retries, rules, client revocation, and subscription delivery.
 
+## Test with the sandbox plugin
+
+Install the private personal [Shared Spaces Sandbox plugin](https://chatgpt.com/plugins/plugins_6ad16bfddd148191bd28a8d808f99c85), version `0.1.0`, and authorize the sandbox MCP as Alice. It contains a separate `shared-spaces-sandbox` server binding and an explicitly invoked testing skill. The production Shared Memory plugin is unchanged. Saving the package does not install or authenticate it.
+
+Select Shared Spaces Sandbox with `@` in a new chat and ask: "Verify my sandbox account and guide me through the shared-spaces test. Do not write until I ask." The bundled [manual test checklist](../plugin/shared-spaces-sandbox/skills/shared-spaces-sandbox-testing/references/test-checklist.md) provides exact prompts for saves, selected sharing, recipient reads, private-record denial, corrections, retraction, membership revocation, and outsider access. Notifications have a separate host-capability test and are not implied by sharing.
+
+For the fastest two-person test, keep the plugin connected as Alice and use the dashboard as Bob in a separate browser profile. Alice's agent shares a synthetic update; Bob's dashboard should show it without exposing Alice's private note. To test Bob's agent reads, reconnect **only the sandbox plugin** as Bob, start a clean chat, and verify `get_connection_status` before reading the returned memory IDs. A new chat by itself does not change the connected identity; asking an Alice-authenticated agent to "act as Bob" cannot exercise Bob's permissions. Installation/connection and real host tool execution remain pending until completed in the client.
+
+Stored plugin ID: `plugins_6ad16bfddd148191bd28a8d808f99c85`. Release: `pluginrel_6ad16bfe99088191959d5816a2856076`. It is USER-scoped and PRIVATE, so the link is for the owning account, not a public install link for friends.
+
 ## Seeding and operator safeguards
 
 The deployed container contains an idempotent fixture script. With the Railway CLI authenticated to the personal workspace, preview its plan:

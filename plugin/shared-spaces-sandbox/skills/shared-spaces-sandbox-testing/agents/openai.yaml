@@ -1,0 +1,6 @@
+interface:
+  display_name: Shared Spaces Sandbox
+  short_description: Test sharing with sandbox accounts
+  default_prompt: Verify the signed-in sandbox account, list its spaces, and guide me through a synthetic sharing test one step at a time.
+policy:
+  allow_implicit_invocation: false

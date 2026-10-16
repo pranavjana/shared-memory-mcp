@@ -1,0 +1,30 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "shared-spaces-sandbox",
+  "version": "0.1.0",
+  "description": "Test shared memories, private access, and revocation with synthetic sandbox accounts.",
+  "author": {
+    "name": "Pranav Janakiraman",
+    "email": "pranavjana2003@gmail.com"
+  },
+  "homepage": "https://shared-memory-mcp-sandbox.up.railway.app/dashboard",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Shared Spaces Sandbox",
+        "shortDescription": "Test shared spaces safely",
+        "longDescription": "A separate connection to the Shared Memory Railway sandbox. Use Alice, Bob, and Eve test accounts to try private memories, selected sharing, corrections, and revoked access. Includes a guided test workflow. Production memories are in a separate service and identity system.",
+        "developerName": "Pranav Janakiraman",
+        "category": "Productivity",
+        "capabilities": [],
+        "logo": "./assets/logo.svg",
+        "composerIcon": "./assets/logo.svg",
+        "defaultPrompt": [
+          "Verify my sandbox account and guide me through the shared-spaces test. Do not write until I ask.",
+          "As signed-in Alice, save a synthetic demo update and share it only in Shared Spaces Sandbox.",
+          "Verify I am Bob, then recall Alice's shared Sandbox Demo updates."
+        ]
+      }
+    }
+  }
+}
