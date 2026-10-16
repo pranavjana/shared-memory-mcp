@@ -2,7 +2,14 @@ import { z } from "zod";
 
 export interface PropertyDefinition {
   name: string;
-  type: "string" | "datetime" | "string[]" | "number" | "boolean";
+  type:
+    | "string"
+    | "datetime"
+    | "string[]"
+    | "number"
+    | "boolean"
+    | "decimal"
+    | "currency";
   description: string;
   required?: boolean;
   values?: string[];
@@ -25,6 +32,9 @@ export const entityTypes = [
   "organization",
   "place",
   "topic",
+  "obligation",
+  "item",
+  "routine",
 ] as const;
 export type EntityTypeName = (typeof entityTypes)[number];
 const prop = (
@@ -104,6 +114,22 @@ export const typeDefinitions: TypeDefinition[] = [
   ]),
   domain("topic", "A subject used to connect otherwise related knowledge.", [
     prop("description", "Meaning of the topic."),
+  ]),
+  domain(
+    "obligation",
+    "A distinct reported debt or repayment obligation; never implies acceptance, a transfer or a calculated balance.",
+    [
+      prop(
+        "description",
+        "Context distinguishing this obligation from other debts.",
+      ),
+    ],
+  ),
+  domain("item", "A particular possession, product, document or service.", [
+    prop("description", "What this item is."),
+  ]),
+  domain("routine", "A recurring activity; separate from any one occurrence.", [
+    prop("description", "The recurring activity."),
   ]),
   {
     id: "account",
@@ -312,6 +338,244 @@ const link = (
 ): RelationDefinition => ({ id, description, from, to, group: "assertion" });
 export const relationshipDefinitions: RelationDefinition[] = [
   link(
+    "WORKS_AT",
+    "Reported employment, not organization membership or a future job wish.",
+    ["person"],
+    ["organization"],
+  ),
+  link(
+    "STUDIES_AT",
+    "Reported study at an institution.",
+    ["person"],
+    ["organization"],
+  ),
+  link(
+    "MEMBER_OF_ORGANIZATION",
+    "Reported organization membership; does not grant application access.",
+    ["person"],
+    ["organization"],
+  ),
+  link(
+    "KNOWS",
+    "Reported acquaintance; directional and never an authorization grant.",
+    ["person"],
+    ["person"],
+  ),
+  link(
+    "FRIEND_OF",
+    "Reported friendship; do not infer mutual claims or sharing consent.",
+    ["person"],
+    ["person"],
+  ),
+  link(
+    "FAMILY_OF",
+    "Reported family connection; use evidence for the exact role.",
+    ["person"],
+    ["person"],
+  ),
+  link(
+    "PARENT_OF",
+    "Reported parent-child relationship; direction matters and does not imply custody or consent.",
+    ["person"],
+    ["person"],
+  ),
+  link(
+    "SIBLING_OF",
+    "Reported sibling relationship; no reverse claim is silently authored.",
+    ["person"],
+    ["person"],
+  ),
+  link(
+    "PARTNER_OF",
+    "Reported personal partnership, qualified by validity and evidence.",
+    ["person"],
+    ["person"],
+  ),
+  link(
+    "COLLEAGUE_OF",
+    "Reported coworker relationship; employment at one organization does not establish this automatically.",
+    ["person"],
+    ["person"],
+  ),
+  link(
+    "REPORTS_TO",
+    "Reported work reporting line, distinct from an application role.",
+    ["person"],
+    ["person"],
+  ),
+  link(
+    "WORKS_ON",
+    "Reported involvement in an ongoing project; does not imply task acceptance.",
+    ["person", "organization"],
+    ["project"],
+  ),
+  link(
+    "HAS_SKILL",
+    "Reported skill, not a measured proficiency or verified qualification.",
+    ["person"],
+    ["topic"],
+  ),
+  link(
+    "LIVES_IN",
+    "Reported residence; visiting a place does not establish residence.",
+    ["person"],
+    ["place"],
+  ),
+  link(
+    "LOCATED_AT",
+    "Place associated with this particular event, organization or item.",
+    ["event", "organization", "item"],
+    ["place"],
+  ),
+  link(
+    "HAS_PARTICIPANT",
+    "Reported participant in a particular event; no attendance confirmation implied.",
+    ["event"],
+    ["person"],
+  ),
+  link(
+    "ORGANIZED_BY",
+    "Reported event organizer.",
+    ["event"],
+    ["person", "organization"],
+  ),
+  link(
+    "WANTS",
+    "A person's desired goal, not a decision, acceptance or completed action.",
+    ["person"],
+    ["goal"],
+  ),
+  link(
+    "CONCERNED_ABOUT",
+    "A reported concern; does not imply a diagnosis.",
+    ["person"],
+    ["goal", "topic", "event", "project", "task", "obligation"],
+  ),
+  link(
+    "LIKES",
+    "Reported liking; preserve context and time.",
+    ["person"],
+    ["item", "topic", "place", "routine"],
+  ),
+  link(
+    "DISLIKES",
+    "Reported dislike; not inferred from a single event.",
+    ["person"],
+    ["item", "topic", "place", "routine"],
+  ),
+  link(
+    "OWNS",
+    "Reported possession, not application ownership or access.",
+    ["person", "organization"],
+    ["item"],
+  ),
+  link(
+    "USES",
+    "Reported use of an item or service.",
+    ["person", "organization"],
+    ["item"],
+  ),
+  link("PRACTICES", "Reported recurring activity.", ["person"], ["routine"]),
+  link(
+    "OWES",
+    "Debtor points to a distinct obligation, not directly to a creditor. Use OWED_TO on that obligation. Separate debts need separate keys.",
+    ["person"],
+    ["obligation"],
+  ),
+  link(
+    "OWED_TO",
+    "The reported creditor of this particular obligation.",
+    ["obligation"],
+    ["person"],
+  ),
+  link(
+    "FOR_CONTEXT",
+    "Context of a particular obligation, goal or routine.",
+    ["obligation", "goal", "routine"],
+    ["organization", "event", "item", "topic", "project"],
+  ),
+  {
+    ...link(
+      "HAS_AMOUNT",
+      "Reported amount, as an exact nonnegative decimal string. Never infer remaining balance or aggregate currencies.",
+      ["obligation"],
+      [],
+    ),
+    value: {
+      name: "value",
+      type: "decimal",
+      description:
+        "Exact decimal string, e.g. 15.50. No exponent or currency symbol; up to six fractional places.",
+    },
+  },
+  {
+    ...link(
+      "HAS_CURRENCY",
+      "Explicit ISO 4217 currency code; dollars alone does not establish USD.",
+      ["obligation"],
+      [],
+    ),
+    value: {
+      name: "value",
+      type: "currency",
+      description: "Three-letter ISO 4217 code, only when explicitly known.",
+    },
+  },
+  {
+    ...link(
+      "HAS_PAYMENT_STATUS",
+      "Reported state of a particular obligation; no automatic payment or balance inference.",
+      ["obligation"],
+      [],
+    ),
+    value: prop("value", "Reported payment state.", [
+      "outstanding",
+      "partially_paid",
+      "settled",
+      "disputed",
+      "cancelled",
+    ]),
+  },
+  {
+    ...link(
+      "HAS_ROLE",
+      "Reported job or family role in its evidence context; not an application permission.",
+      ["person"],
+      [],
+    ),
+    value: prop("value", "The reported role, e.g. analyst."),
+  },
+  {
+    ...link(
+      "HAS_FREQUENCY",
+      "Reported recurrence in words; not a scheduler or reminder registration.",
+      ["routine"],
+      [],
+    ),
+    value: prop("value", "Reported recurrence; retain timezone if stated."),
+  },
+  {
+    ...link(
+      "STARTS_AT",
+      "Explicit start of a particular event.",
+      ["event"],
+      [],
+    ),
+    value: {
+      name: "value",
+      type: "datetime",
+      description: "ISO timestamp with timezone.",
+    },
+  },
+  {
+    ...link("ENDS_AT", "Explicit end of a particular event.", ["event"], []),
+    value: {
+      name: "value",
+      type: "datetime",
+      description: "ISO timestamp with timezone.",
+    },
+  },
+  link(
     "PART_OF",
     "Work or context belongs to a project.",
     ["task", "event", "decision"],
@@ -386,7 +650,7 @@ export const relationshipDefinitions: RelationDefinition[] = [
     ...link(
       "DUE_AT",
       "A reported deadline with an explicit timezone.",
-      ["task", "goal"],
+      ["task", "goal", "obligation"],
       [],
     ),
     value: {
@@ -540,7 +804,9 @@ export const relationshipDefinitions: RelationDefinition[] = [
   },
 ];
 export const ontology = {
-  version: "1.0.0",
+  version: "1.1.0",
+  representation:
+    "Evidence-backed property graph; JSON schema validation, no OWL reasoner",
   types: typeDefinitions,
   relationships: relationshipDefinitions,
   rules: [
@@ -633,6 +899,16 @@ export const knowledgeInput = z
       if (r.value) {
         if (c.object !== undefined || !c.value)
           fail("This predicate requires a value and no object");
+        if (
+          r.value.type === "decimal" &&
+          !/^(0|[1-9]\d{0,14})(\.\d{1,6})?$/.test(c.value ?? "")
+        )
+          fail("Amount must be an exact nonnegative decimal string");
+        if (
+          r.value.type === "currency" &&
+          !Intl.supportedValuesOf("currency").includes(c.value ?? "")
+        )
+          fail("Currency must be a recognized ISO 4217 code");
         if (r.value.values && !r.value.values.includes(c.value ?? ""))
           fail("Value is outside the allowed enum");
         if (
@@ -660,10 +936,15 @@ export const knowledgeQuery = z
   .object({
     query: z.string().max(1000).default(""),
     spaceId: z.string().min(1).optional(),
+    personalOnly: z.boolean().default(false),
     entityId: z.string().min(1).optional(),
     predicate: z.enum(predicates).optional(),
     asOf: timestamp.optional(),
     includeHistory: z.boolean().default(false),
-    limit: z.number().int().min(1).max(50).default(20),
+    limit: z.number().int().min(1).max(200).default(20),
   })
-  .strict();
+  .strict()
+  .refine(
+    (i) => !(i.personalOnly && i.spaceId),
+    "Choose personalOnly or a space, not both",
+  );

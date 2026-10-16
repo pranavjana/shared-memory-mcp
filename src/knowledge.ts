@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { KnowledgeSearch, claimText, searchTerms } from "./knowledge-search.js";
+import type { Embedder } from "./embeddings.js";
 import { DomainError, digest, type Actor, type MemoryStore } from "./memory.js";
 import {
   knowledgeInput,
@@ -32,7 +34,16 @@ export interface Claim {
 const entityId = (owner: string, type: string, key: string) =>
   "ke_" + digest(JSON.stringify([owner, type, key]));
 export class KnowledgeStore {
-  constructor(private store: MemoryStore) {}
+  private search: KnowledgeSearch;
+  constructor(
+    private store: MemoryStore,
+    embedder?: Embedder,
+  ) {
+    this.search = new KnowledgeSearch(store, embedder);
+  }
+  async index(actor: Actor, limit = 20) {
+    return this.search.backfill(actor, limit);
+  }
   async record(actor: Actor, raw: unknown) {
     const input = knowledgeInput.parse(raw);
     const source = await this.store.get(actor, input.sourceMemoryId);
@@ -79,6 +90,10 @@ export class KnowledgeStore {
         saved: true,
         claimIds: input.claims.map((_, i) => batchId + ":" + i),
         receipt: batchId,
+        searchIndex: await this.search.indexIds(
+          actor,
+          input.claims.map((_, i) => batchId + ":" + i),
+        ),
       };
     }
     const entities = new Map(
@@ -178,7 +193,15 @@ export class KnowledgeStore {
         409,
         "Source or superseded claim changed; retrieve current knowledge before retrying",
       );
-    return { saved: true, claimIds: rows.map((r) => r.id), receipt: batchId };
+    return {
+      saved: true,
+      claimIds: rows.map((r) => r.id),
+      receipt: batchId,
+      searchIndex: await this.search.indexIds(
+        actor,
+        rows.map((r) => r.id),
+      ),
+    };
   }
   async recall(actor: Actor, raw: unknown = {}) {
     const input = knowledgeQuery.parse(raw);
@@ -190,30 +213,64 @@ export class KnowledgeStore {
           status: string;
           current: boolean;
         }>(
-          `MATCH (c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE c.owner=$user AND m.deletedAt IS NULL AND ($history OR (c.sourceRevision=m.revision AND c.status<>'superseded')) RETURN c.payload AS payload,c.status AS status,c.sourceRevision=m.revision AS current ORDER BY c.recordedAt DESC,c.id DESC LIMIT 501`,
-          { user: actor.userId, history: input.includeHistory },
+          `MATCH (c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE c.owner=$user AND m.deletedAt IS NULL AND ($entity='' OR c.subjectId=$entity OR c.objectId=$entity) AND ($history OR (c.sourceRevision=m.revision AND c.status<>'superseded')) RETURN c.payload AS payload,c.status AS status,c.sourceRevision=m.revision AS current ORDER BY c.recordedAt DESC,c.id DESC LIMIT 501`,
+          {
+            user: actor.userId,
+            history: input.includeHistory,
+            entity: input.entityId ?? "",
+          },
           true,
         );
-    const shared = await this.store.query<{
-      payload: string;
-      status: string;
-      current: boolean;
-    }>(
-      `MATCH (:Person {id:$user})-[:MEMBER_OF {active:true}]->(s:Space)<-[:PUBLISHED_IN]-(p:Publication)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory)
-      WHERE p.active=true AND m.deletedAt IS NULL AND ($space='' OR s.id=$space) RETURN DISTINCT p.payload AS payload,'snapshot' AS status,true AS current ORDER BY p.publishedAt DESC,p.id DESC LIMIT 501`,
-      { user: actor.userId, space: input.spaceId ?? "" },
-      true,
-    );
+    const shared = input.personalOnly
+      ? []
+      : await this.store.query<{
+          payload: string;
+          status: string;
+          current: boolean;
+        }>(
+          `MATCH (:Person {id:$user})-[:MEMBER_OF {active:true}]->(s:Space)<-[:PUBLISHED_IN]-(p:Publication)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory)
+      WHERE p.active=true AND m.deletedAt IS NULL AND ($space='' OR s.id=$space) ${input.entityId ? "WITH p,m MATCH (p)-[:SUBJECT|OBJECT]->(e:KnowledgeEntity {id:$entity})" : ""} RETURN DISTINCT p.payload AS payload,'snapshot' AS status,true AS current ORDER BY p.publishedAt DESC,p.id DESC LIMIT 501`,
+          {
+            user: actor.userId,
+            space: input.spaceId ?? "",
+            entity: input.entityId ?? "",
+          },
+          true,
+        );
+    const indexed =
+      input.query.trim() && !input.entityId
+        ? await this.search.search(
+            actor,
+            input.query,
+            input.spaceId,
+            input.personalOnly,
+          )
+        : {
+            hits: [],
+            truncated: false,
+            semantic: this.search.embedder ? "not_requested" : "not_configured",
+          };
     const candidates = [
-      ...privateRows.slice(0, 500),
-      ...shared.slice(0, 500),
-    ].map((r) => ({
-      ...JSON.parse(r.payload),
-      status: r.status === "snapshot" ? JSON.parse(r.payload).status : r.status,
-      ...(r.status === "snapshot"
-        ? { publicationSemantics: "frozen_snapshot" }
-        : { sourceCurrent: r.current }),
-    })) as (Claim & { sourceCurrent?: boolean })[];
+      ...new Map(
+        [
+          ...privateRows.slice(0, 500).map((r) => ({
+            ...JSON.parse(r.payload),
+            status: r.status,
+            sourceCurrent: r.current,
+          })),
+          ...shared.slice(0, 500).map((r) => ({
+            ...JSON.parse(r.payload),
+            publicationSemantics: "frozen_snapshot",
+          })),
+          ...indexed.hits.map((h) => ({
+            ...h.claim,
+            ...(h.claim.scope === "space"
+              ? { publicationSemantics: "frozen_snapshot" }
+              : { sourceCurrent: true }),
+          })),
+        ].map((c) => [c.id, c]),
+      ).values(),
+    ] as (Claim & { sourceCurrent?: boolean })[];
     const time = input.asOf ? Date.parse(input.asOf) : Date.now();
     const filtered = candidates.filter(
       (c) =>
@@ -221,49 +278,132 @@ export class KnowledgeStore {
         (!c.validFrom || Date.parse(c.validFrom) <= time) &&
         (!c.validUntil || Date.parse(c.validUntil) > time),
     );
-    const terms = input.query
-      .toLowerCase()
-      .split(/[^\p{L}\p{N}_]+/u)
-      .filter((t) => t.length > 1)
-      .slice(0, 12);
-    const score = (c: Claim) => {
-      if (input.entityId)
-        return [c.subject.id, c.object?.id].includes(input.entityId) ? 100 : 0;
-      if (!terms.length) return 1;
-      const text = [
-        c.subject.name,
-        ...c.subject.aliases,
-        c.object?.name,
-        ...(c.object?.aliases ?? []),
-        c.value,
-        c.predicate.replaceAll("_", " "),
-        c.evidence,
-      ]
-        .join(" ")
-        .toLowerCase();
-      return terms.reduce((n, t) => n + (text.includes(t) ? 1 : 0), 0);
-    };
-    const seeds = filtered
+    const terms = searchTerms(input.query);
+    const nativeLexical = new Map(
+      indexed.hits
+        .filter((h) => h.channel === "lexical")
+        .map((h) => [h.claim.id, h.score]),
+    );
+    const lexical = filtered
       .map((c) => ({
         claim: c,
-        score: score(c),
-        reason: "Matched name, alias, value or evidence",
+        score:
+          nativeLexical.get(c.id) ??
+          (input.entityId
+            ? [c.subject.id, c.object?.id].includes(input.entityId)
+              ? 100
+              : 0
+            : !terms.length
+              ? input.query.trim()
+                ? 0
+                : 1
+              : terms.reduce(
+                  (n, t) =>
+                    n + (claimText(c).toLowerCase().includes(t) ? 1 : 0),
+                  0,
+                )),
       }))
-      .filter((c) => c.score > 0)
+      .filter((r) => r.score > 0)
       .sort(
-        (a, b) => b.score - a.score || b.claim.recordedAt - a.claim.recordedAt,
+        (a, b) =>
+          Number(nativeLexical.has(b.claim.id)) -
+            Number(nativeLexical.has(a.claim.id)) ||
+          b.score - a.score ||
+          b.claim.recordedAt - a.claim.recordedAt,
       );
+    const validIds = new Set(filtered.map((c) => c.id));
+    const semantic = [
+      ...new Map(
+        indexed.hits
+          .filter((h) => h.channel === "semantic" && validIds.has(h.claim.id))
+          .map((h) => [h.claim.id, h]),
+      ).values(),
+    ].sort((a, b) => b.score - a.score);
+    // Reciprocal-rank fusion avoids treating TF-IDF, word counts and cosine as comparable scales.
+    const ranks = new Map<
+      string,
+      { claim: Claim; score: number; reason: string; channels: string[] }
+    >();
+    for (const [channel, ranked] of [
+      ["lexical", lexical],
+      ["semantic", semantic],
+    ] as const)
+      ranked.forEach((r, i) => {
+        const old = ranks.get(r.claim.id);
+        const channels = [...(old?.channels ?? []), channel];
+        ranks.set(r.claim.id, {
+          claim: r.claim,
+          score: (old?.score ?? 0) + 1 / (60 + i + 1),
+          channels,
+          reason: channels.join(" + ") + " match",
+        });
+      });
+    const seeds = [...ranks.values()].sort(
+      (a, b) => b.score - a.score || b.claim.recordedAt - a.claim.recordedAt,
+    );
     const ids = new Set(
       seeds
         .slice(0, input.limit)
         .flatMap((c) =>
-          [c.claim.subject.id, c.claim.object?.id].filter(Boolean),
+          [c.claim.subject.id, c.claim.object?.id].filter(
+            (id): id is string => typeof id === "string",
+          ),
         ),
     );
     const seedIds = new Set(seeds.map((c) => c.claim.id));
+    // Fetch neighbors from FalkorDB rather than only the recent listing window.
+    const expansionRows: {
+      payload: string;
+      status: string;
+      current: boolean;
+    }[] = [];
+    if (ids.size && (terms.length || input.entityId)) {
+      if (!input.spaceId)
+        expansionRows.push(
+          ...(await this.store.query<{
+            payload: string;
+            status: string;
+            current: boolean;
+          }>(
+            `MATCH (c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE c.owner=$user AND m.deletedAt IS NULL AND c.sourceRevision=m.revision AND c.status IN ['active','disputed'] AND (c.subjectId IN $ids OR c.objectId IN $ids) RETURN c.payload AS payload,c.status AS status,true AS current ORDER BY c.recordedAt DESC,c.id LIMIT 201`,
+            { user: actor.userId, ids: [...ids] },
+            true,
+          )),
+        );
+      if (!input.personalOnly)
+        expansionRows.push(
+          ...(await this.store.query<{
+            payload: string;
+            status: string;
+            current: boolean;
+          }>(
+            `MATCH (:Person {id:$user})-[:MEMBER_OF {active:true}]->(s:Space)<-[:PUBLISHED_IN]-(p:Publication)-[:SUBJECT|OBJECT]->(e:KnowledgeEntity), (p)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE p.active=true AND m.deletedAt IS NULL AND ($space='' OR s.id=$space) AND e.id IN $ids RETURN DISTINCT p.payload AS payload,'snapshot' AS status,true AS current ORDER BY p.publishedAt DESC,p.id LIMIT 201`,
+            { user: actor.userId, space: input.spaceId ?? "", ids: [...ids] },
+            true,
+          )),
+        );
+    }
+    const neighbors = [
+      ...new Map(
+        [
+          ...filtered,
+          ...expansionRows.map((r) => ({
+            ...JSON.parse(r.payload),
+            ...(r.status === "snapshot"
+              ? { publicationSemantics: "frozen_snapshot" }
+              : { status: r.status, sourceCurrent: r.current }),
+          })),
+        ].map((c) => [c.id, c]),
+      ).values(),
+    ].filter(
+      (c) =>
+        (!input.predicate || c.predicate === input.predicate) &&
+        (!c.validFrom || Date.parse(c.validFrom) <= time) &&
+        (!c.validUntil || Date.parse(c.validUntil) > time),
+    );
     const related =
       terms.length || input.entityId
-        ? filtered
+        ? neighbors
             .filter(
               (c) =>
                 !seedIds.has(c.id) &&
@@ -280,12 +420,20 @@ export class KnowledgeStore {
       claims: selected.map((r) => ({ ...r.claim, reason: r.reason })),
       asOf: new Date(time).toISOString(),
       truncated:
+        indexed.truncated ||
         privateRows.length > 500 ||
         shared.length > 500 ||
+        expansionRows.length > 200 ||
         seeds.length + related.length > input.limit,
-      scope: input.spaceId ?? "personal_and_authorized_spaces",
+      scope:
+        input.spaceId ??
+        (input.personalOnly ? "personal" : "personal_and_authorized_spaces"),
       retrieval:
-        "Lexical and alias matching with one-hop scoped entity expansion; no embeddings in v1",
+        "FalkorDB full-text + Gemini vector search with reciprocal-rank fusion and one-hop scoped entity expansion",
+      semanticSearch: indexed.semantic,
+      semanticCoverage:
+        "Only indexed current claims; older unindexed claims use keyword fallback",
+      candidateLimit: 500,
       temporalSemantics:
         "asOf filters known validity bounds; missing validity remains unknown. includeHistory returns earlier assertions, not a resolved historical truth.",
     };
@@ -312,6 +460,10 @@ export class KnowledgeStore {
         { id: publicationId, user: actor.userId, space: input.spaceId },
       );
       if (!rows[0]) throw new DomainError(404, "Publication not found");
+      await this.store.query(
+        "MATCH (d:KnowledgeSearchDocument)-[:INDEXES]->(p:Publication {id:$id}) DETACH DELETE d",
+        { id: publicationId },
+      );
       return { published: false, publicationId, spaceId: input.spaceId };
     }
     const rows = await this.store.query<{ payload: string }>(
@@ -383,6 +535,9 @@ export class KnowledgeStore {
     // A retry cannot reactivate a withdrawn publication. Publish a new source claim
     // to issue an updated snapshot, rather than mutating what recipients saw.
     return {
+      searchIndex: receipt[0].active
+        ? await this.search.index(actor, snapshot).catch(() => "pending")
+        : "inactive",
       published: receipt[0].active,
       publicationId,
       spaceId: input.spaceId,

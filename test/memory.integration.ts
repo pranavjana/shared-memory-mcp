@@ -777,3 +777,167 @@ test("real graph: signed subscriptions, stable retry IDs, no origin echo, revoca
     await s.close();
   }
 });
+
+test("FalkorDB hybrid search stores vectors, ranks paraphrases and excludes private, revoked, revised and forgotten data", async () => {
+  const s = await connectMemoryStore({
+    ...env,
+    FALKORDB_MEMORY_GRAPH: env.FALKORDB_MEMORY_GRAPH + "_hybrid",
+  });
+  let calls = 0;
+  // Deterministic vectors verify DB/search behavior; real model quality is a separate live benchmark.
+  const embedder = {
+    signature: "fixture_semantics_v1",
+    dimensions: 3,
+    async embed(text: string) {
+      calls++;
+      return /companies|switching jobs|PRIVATE_ALIAS/.test(text)
+        ? [1, 0, 0]
+        : [0, 1, 0];
+    },
+  };
+  const k = new KnowledgeStore(s, embedder);
+  try {
+    const source = (
+      await s.remember(alice, {
+        ...input(
+          "hybrid-career-source",
+          "Test Person wants to change companies.",
+        ),
+        basis: "user_statement",
+      })
+    ).memory;
+    const data = {
+      sourceMemoryId: source.id,
+      sourceRevision: 1,
+      idempotencyKey: "hybrid-claims-001",
+      entities: [
+        {
+          key: "p",
+          type: "person",
+          name: "Test Person",
+          aliases: ["PRIVATE_ALIAS"],
+        },
+        { key: "g", type: "goal", name: "Changing companies" },
+      ],
+      claims: [
+        {
+          subject: "p",
+          predicate: "WANTS",
+          object: "g",
+          basis: "explicit",
+          evidence: source.text,
+        },
+      ],
+    };
+    const saved = await k.record(alice, data);
+    assert.equal(saved.searchIndex.indexed, 1);
+    const original = (await k.recall(alice, {})).claims[0];
+    await s.query(
+      `UNWIND range(1,501) AS i MATCH (m:Memory {id:$memory}) CREATE (c:KnowledgeClaim {id:'recent_'+toString(i),owner:$user,subjectId:'unrelated_'+toString(i),objectId:'',status:'active',sourceRevision:1,recordedAt:$now,payload:$payload}) CREATE (c)-[:SUPPORTED_BY]->(m)`,
+      {
+        memory: source.id,
+        user: alice.userId,
+        now: Date.now() + 1000,
+        payload: JSON.stringify({
+          ...original,
+          id: "synthetic-recent",
+          subject: { ...original.subject, id: "unrelated", name: "Gardening" },
+          predicate: "ABOUT",
+          object: { ...original.object, name: "Plants", id: "plants" },
+          evidence: "Unrelated gardening record",
+        }),
+      },
+    );
+    const before = calls;
+    await k.record(alice, data);
+    assert.equal(
+      calls,
+      before,
+      "Stable document hashes avoid re-embedding retry writes",
+    );
+    const found = await k.recall(alice, {
+      query: "switching jobs",
+      personalOnly: true,
+    });
+    assert.equal(found.semanticSearch, "available");
+    assert.equal(
+      found.claims[0]?.id,
+      saved.claimIds[0],
+      "Indexed candidates find the older relevant claim outside the recent-500 window",
+    );
+    assert.match(found.claims[0].reason, /semantic/);
+    assert.equal(
+      (await k.recall(bob, { query: "switching jobs" })).claims.length,
+      0,
+    );
+    const space = await s.createSpace(alice, "Hybrid synthetic space");
+    const invite = await s.invite(alice, space.id, bob.email!, "reader");
+    await s.accept(bob, invite.token);
+    const publication = await k.publish(alice, {
+      claimId: saved.claimIds[0],
+      spaceId: space.id,
+      userRequested: true,
+      idempotencyKey: "hybrid-publication",
+    });
+    assert.equal(publication.searchIndex, "indexed");
+    const docs = await s.query<{ text: string }>(
+      "MATCH (d:KnowledgeSearchDocument)-[:INDEXES]->(p:Publication {id:$id}) RETURN d.text AS text",
+      { id: publication.publicationId },
+      true,
+    );
+    assert.ok(docs.length);
+    assert.ok(
+      !docs[0].text.includes("PRIVATE_ALIAS"),
+      "Shared search indexes only the frozen projection",
+    );
+    assert.equal(
+      (await k.recall(bob, { query: "switching jobs", spaceId: space.id }))
+        .claims.length,
+      1,
+    );
+    await s.query(
+      "MATCH (:Person {id:$user})-[m:MEMBER_OF]->(:Space {id:$space}) SET m.active=false",
+      { user: bob.userId, space: space.id },
+    );
+    assert.equal(
+      (await k.recall(bob, { query: "switching jobs" })).claims.length,
+      0,
+    );
+    await k.publish(alice, {
+      claimId: saved.claimIds[0],
+      spaceId: space.id,
+      userRequested: true,
+      idempotencyKey: "hybrid-retraction",
+      enabled: false,
+    });
+    assert.equal(
+      (
+        await s.query(
+          "MATCH (d:KnowledgeSearchDocument)-[:INDEXES]->(p:Publication {id:$id}) RETURN d.id",
+          { id: publication.publicationId },
+          true,
+        )
+      ).length,
+      0,
+    );
+    await s.revise(alice, source.id, 1, {
+      ...input("hybrid-revision", "Test Person likes gardening."),
+      basis: "user_statement",
+    });
+    assert.equal(
+      (await k.recall(alice, { query: "switching jobs" })).claims.length,
+      0,
+      "Outdated vectors cannot restore old assertions",
+    );
+    await s.forget(alice, source.id);
+    assert.equal(
+      (await s.query("MATCH (d:KnowledgeSearchDocument) RETURN d.id", {}, true))
+        .length,
+      0,
+      "Forgetting deletes private and publication vectors/text",
+    );
+  } finally {
+    await s.graph.delete();
+    await s.close();
+  }
+});

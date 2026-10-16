@@ -1,676 +1,419 @@
 @layer components {
-  .ontology-page {
-    max-width: 1100px;
+  .knowledge-graph-page {
+    width: 100%;
+    min-width: 0;
   }
-  .ontology-toolbar {
+  .kg-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding-bottom: 18px;
+  }
+  .kg-search {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding-bottom: 22px;
-    border-bottom: 1px solid #e8e8e8;
+    gap: 9px;
+    flex: 1;
+    min-width: 130px;
   }
-  .ontology-tabs {
-    display: flex;
-    gap: 5px;
-    flex-wrap: wrap;
+  .kg-search > span {
+    font-size: 24px;
+    color: #888;
   }
-  .ontology-tabs button {
+  .kg-search input {
+    width: 100%;
+    min-width: 0;
+    font-size: 13px;
+    background: transparent;
+    box-shadow: none;
+    padding: 6px 0;
+  }
+  .kg-search button,
+  .kg-close,
+  .kg-modal-heading > button {
     border: 0;
     background: transparent;
-    padding: 8px 12px;
+    color: #888;
+    font-size: 22px;
+    padding: 4px 8px;
+  }
+  .kg-toolbar select,
+  .kg-inspector select {
+    font-size: 11px;
+    color: #555;
+    border: 1px solid #e5e5e5;
     border-radius: 6px;
-    font-size: 12px;
-    color: #666;
+    padding: 7px 10px;
+    background: white;
+    max-width: 190px;
   }
-  .ontology-tabs button.selected {
-    background: #ededed;
-    color: #171717;
-    font-weight: 500;
+  .kg-schema-button {
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    background: white;
+    font-size: 11px;
+    padding: 8px 12px;
+    color: #555;
+    white-space: nowrap;
   }
-  .ontology-version {
+  .kg-schema-button span {
+    margin-left: 10px;
+    color: #999;
+  }
+  .kg-workspace {
+    display: flex;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fafafa;
+    min-height: 540px;
+    height: calc(100dvh - 200px);
+    max-height: 900px;
+  }
+  .kg-canvas {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    height: 100%;
+  }
+  .kg-count {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    font: 10px var(--font-mono);
+    color: #888;
+    pointer-events: none;
+  }
+  .knowledge-graph-page .react-flow__node.kg-node {
+    width: 180px;
+    padding: 12px 14px;
+    border: 1px solid #dedede;
+    border-radius: 7px;
+    background: white;
+    text-align: left;
+    box-shadow: 0 2px 5px #00000004;
+  }
+  .knowledge-graph-page .react-flow__node.kg-node.selected {
+    border-color: #777;
+    box-shadow: 0 0 0 2px #00000008;
+  }
+  .kg-node-type {
     display: flex;
     align-items: center;
-    gap: 7px;
-    white-space: nowrap;
-    font: 10px var(--font-mono);
-    color: #666;
+    gap: 5px;
+    color: #999;
+    font: 9px var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
   }
-  .ontology-version > span {
+  .kg-node-type i,
+  .kg-schema-modal summary i {
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: #398e4a;
+    display: inline-block;
+    flex-shrink: 0;
   }
-  .ontology-search-row {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    justify-content: space-between;
-    margin: 22px 0;
-  }
-  .ontology-search {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    max-width: 460px;
-    flex: 1;
-    color: #777;
-  }
-  .ontology-search input {
-    background: transparent;
-    box-shadow: none;
-    padding: 5px 0;
+  .kg-node strong {
+    display: block;
+    color: #333;
     font-size: 12px;
-    width: 100%;
-    min-height: 30px;
+    font-weight: 500;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
   }
-  .ontology-search button {
+  .knowledge-graph-page .react-flow__handle {
+    width: 4px;
+    height: 4px;
+    min-width: 4px;
+    min-height: 4px;
+    background: #bbb;
     border: 0;
-    background: transparent;
-    padding: 3px 7px;
-    color: #666;
   }
-  .ontology-count {
-    color: #888;
-    font: 10px var(--font-mono);
-    white-space: nowrap;
-  }
-  .ontology-browser {
-    display: grid;
-    grid-template-columns: 210px minmax(0, 1fr);
+  .knowledge-graph-page .react-flow__controls {
+    box-shadow: none;
     border: 1px solid #e5e5e5;
-    border-radius: 9px;
+    border-radius: 6px;
     overflow: hidden;
-    background: #fff;
   }
-  .ontology-type-list {
-    border-right: 1px solid #e8e8e8;
-    background: #fdfdfd;
-    padding: 14px 10px;
+  .knowledge-graph-page .react-flow__controls-button {
+    background: white;
+    width: 28px;
+    height: 28px;
+    border-bottom-color: #eee;
   }
-  .ontology-group-label {
+  .knowledge-graph-page .react-flow__edge.selected .react-flow__edge-path {
+    stroke: #555;
+    stroke-width: 1.8;
+  }
+  .kg-inspector {
+    position: relative;
+    width: 305px;
+    flex-shrink: 0;
+    border-left: 1px solid #e5e5e5;
+    background: white;
+    padding: 27px 23px;
+    overflow-y: auto;
+  }
+  .kg-close {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+  }
+  .kg-eyebrow {
+    color: #999;
     font: 9px var(--font-mono);
     text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #888;
-    padding: 12px 10px;
+    letter-spacing: 0.8px;
   }
-  .ontology-type-list > div + div {
-    margin-top: 14px;
-  }
-  .ontology-type-list button {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    border: 0;
-    background: transparent;
-    text-align: left;
-    border-radius: 5px;
-    padding: 8px 10px;
-    font-size: 12px;
-    color: #666;
-  }
-  .ontology-type-list button.selected {
-    color: #171717;
-    background: #efefef;
-  }
-  .ontology-type-list button:hover {
-    color: #171717;
-    background: #f5f5f5;
-  }
-  .ontology-type-list button small {
-    margin-left: auto;
-    font: 10px var(--font-mono);
-    color: #999;
-  }
-  .ontology-mark {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 26px;
-    height: 26px;
-    border: 1px solid #e3e3e3;
-    border-radius: 6px;
-    background: #fff;
-    color: #666;
-  }
-  .ontology-mark-task {
-    color: #267744;
-  }
-  .ontology-mark-project {
-    color: #356fc0;
-  }
-  .ontology-mark-person {
-    color: #8c5aaa;
-  }
-  .ontology-mark-preference {
-    color: #ae791a;
-  }
-  .ontology-mark-claim {
-    color: #407b85;
-  }
-  .ontology-inspector {
-    min-width: 0;
-    padding: 28px;
-  }
-  .ontology-type-heading {
-    display: flex;
-    align-items: flex-start;
-    gap: 13px;
-  }
-  .ontology-type-heading > .ontology-mark {
-    width: 38px;
-    height: 38px;
-  }
-  .ontology-type-heading > div {
-    min-width: 0;
-    flex: 1;
-  }
-  .ontology-type-heading h2 {
+  .kg-inspector h2 {
     font-size: 17px;
     font-weight: 500;
-    letter-spacing: -0.5px;
-    margin: 0 0 6px;
+    margin: 17px 0;
+    overflow-wrap: anywhere;
+    letter-spacing: -0.3px;
   }
-  .ontology-type-heading p {
+  .kg-assertion {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    align-items: center;
     font-size: 12px;
     line-height: 1.7;
-    color: #777;
-    margin: 0;
-    max-width: 480px;
   }
-  .ontology-badge {
-    border: 1px solid #e8e8e8;
-    border-radius: 4px;
-    color: #888;
-    font: 9px var(--font-mono);
-    padding: 4px 6px;
-  }
-  .ontology-map {
-    display: grid;
-    grid-template-columns: minmax(120px, 1fr) minmax(160px, 2fr);
-    align-items: center;
-    border: 1px solid #ececec;
-    border-radius: 7px;
-    padding: 26px 22px;
-    margin: 26px 0 30px;
-    background-color: #fcfcfc;
-    background-image: radial-gradient(#dcdcdc 0.6px, transparent 0.6px);
-    background-size: 12px 12px;
-  }
-  .ontology-map-source {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-self: end;
-    background: white;
-    border: 1px solid #bdbdbd;
-    border-radius: 7px;
-    padding: 12px;
-    box-shadow: 0 2px 6px #00000005;
-    z-index: 1;
-  }
-  .ontology-map-source strong {
-    font-size: 12px;
-    font-weight: 500;
-  }
-  .ontology-map-source > span:last-child {
-    font: 9px var(--font-mono);
-    color: #999;
-    width: 100%;
-    padding-left: 34px;
-  }
-  .ontology-map-targets {
-    display: grid;
-    gap: 10px;
-    position: relative;
-  }
-  .ontology-map-targets::before {
-    content: "";
-    position: absolute;
-    top: 20px;
-    bottom: 40px;
-    left: 0;
-    width: 1px;
-    background: #d8d8d8;
-  }
-  .ontology-map-caption {
-    font: 9px var(--font-mono);
-    color: #888;
-    margin: 8px 0 0 12px;
-  }
-  .ontology-map-path {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-  }
-  .ontology-path-label {
-    flex: 1;
-    position: relative;
-    text-align: center;
-    min-width: 60px;
-  }
-  .ontology-path-label > span {
-    position: relative;
-    z-index: 1;
-    font: 9px var(--font-mono);
-    color: #777;
-    display: block;
-    max-width: 170px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 0 5px 7px;
-  }
-  .ontology-path-label > i {
-    display: block;
-    width: 100%;
-    height: 1px;
-    background: #d8d8d8;
-    position: absolute;
-    top: calc(50% + 5px);
-  }
-  .ontology-path-label > i::after {
-    content: "";
-    position: absolute;
-    right: 0;
-    top: -3px;
-    border-left: 4px solid #ccc;
-    border-top: 3px solid transparent;
-    border-bottom: 3px solid transparent;
-  }
-  .ontology-map-path > button,
-  .ontology-value-node {
-    width: 135px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    border: 1px solid #e4e4e4;
-    background: #fff;
-    border-radius: 6px;
-    padding: 7px 9px;
-    font-size: 11px;
-    text-align: left;
-  }
-  .ontology-map-path > button > span:last-child {
-    color: #aaa;
-    margin-left: auto;
-  }
-  .ontology-value-node {
-    display: flex;
-    gap: 4px;
-    flex-direction: column;
-    align-items: flex-start;
-    font-size: 8px;
-  }
-  .ontology-section-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    font-weight: 500;
-    margin: 26px 0 12px;
-  }
-  .ontology-section-label > span {
-    font: 9px var(--font-mono);
-    color: #999;
-  }
-  .ontology-table-scroll {
-    overflow-x: auto;
-  }
-  .ontology-table {
-    border-collapse: collapse;
-    width: 100%;
-    font-size: 11px;
-    text-align: left;
-  }
-  .ontology-table th {
-    font-size: 10px;
-    font-weight: 400;
-    color: #888;
-    padding: 10px 10px 10px 0;
-    border-bottom: 1px solid #e8e8e8;
-  }
-  .ontology-table td {
-    vertical-align: top;
-    padding: 14px 14px 14px 0;
-    border-bottom: 1px solid #f0f0f0;
-    line-height: 1.7;
-    color: #777;
-  }
-  .ontology-table td:first-child {
-    color: #333;
-    white-space: nowrap;
-  }
-  .ontology-table code {
-    font-size: 10px;
-  }
-  .ontology-required {
-    color: #aaa;
-    margin-left: 3px;
-  }
-  .ontology-property-type {
-    background: #f4f4f4;
-    border-radius: 4px;
-    padding: 3px 5px;
-    font: 9px var(--font-mono);
-    white-space: nowrap;
-    color: #777;
-  }
-  .ontology-enums {
-    display: flex;
-    gap: 5px;
-    flex-wrap: wrap;
-    margin-top: 8px;
-  }
-  .ontology-enums code {
+  .kg-assertion code {
     font-size: 9px;
-    padding: 2px 5px;
-    background: #f5f5f5;
+    background: #f4f4f4;
     border-radius: 3px;
+    padding: 3px 5px;
   }
-  .ontology-relation-row {
-    padding: 16px 0;
-    border-bottom: 1px solid #eee;
+  .kg-assertion strong {
+    font-weight: 500;
   }
-  .ontology-relation-row:last-child {
-    border-bottom: 0;
-  }
-  .ontology-relation-name {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .ontology-relation-name > code {
-    font-size: 10px;
-  }
-  .ontology-relation-kind {
-    font: 8px var(--font-mono);
-    color: #aaa;
-  }
-  .ontology-relation-endpoints {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    margin-top: 10px;
-    color: #aaa;
-  }
-  .ontology-relation-endpoints > div {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-  }
-  .ontology-relation-endpoints button {
-    background: #f8f8f8;
-    border: 1px solid #e9e9e9;
-    padding: 3px 6px;
-    border-radius: 4px;
-    color: #777;
-    font-size: 10px;
-  }
-  .ontology-relation-endpoints button.current {
-    color: #171717;
-    border-color: #bbb;
-  }
-  .ontology-relation-endpoints button:hover {
-    border-color: #999;
-  }
-  .ontology-relation-row > p {
-    font-size: 11px;
-    color: #888;
-    line-height: 1.7;
-    margin: 10px 0 0;
-  }
-  .ontology-all-relations {
-    background: white;
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-    padding: 5px 25px;
-  }
-  .ontology-rules {
-    margin-top: 22px;
-    font-size: 11px;
+  .kg-inspector blockquote {
+    margin: 24px 0;
+    border-left: 2px solid #ddd;
+    padding-left: 12px;
+    color: #666;
+    font-size: 12px;
     line-height: 1.8;
-    color: #888;
+    overflow-wrap: anywhere;
   }
-  .ontology-rules summary {
-    cursor: pointer;
-    width: fit-content;
-  }
-  .ontology-rules ul {
-    padding-left: 18px;
-  }
-  .ontology-no-links {
+  .kg-inspector dl,
+  .kg-schema-modal dl {
+    display: grid;
+    grid-template-columns: 95px minmax(0, 1fr);
+    gap: 10px;
     font-size: 11px;
-    color: #888;
-    padding: 12px;
+    line-height: 1.6;
   }
-  .ontology-knowledge-toolbar {
+  .kg-inspector dt,
+  .kg-schema-modal dt {
+    color: #999;
+  }
+  .kg-inspector dd,
+  .kg-schema-modal dd {
+    color: #555;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .kg-inspector form {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 25px;
+  }
+  .kg-neighbor {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    text-align: left;
+    width: 100%;
+    padding: 15px 0;
+    border: 0;
+    border-bottom: 1px solid #eee;
+    background: transparent;
+    font-size: 11px;
+  }
+  .kg-neighbor strong {
+    color: #444;
+    font-weight: 500;
+  }
+  .kg-neighbor span {
+    color: #888;
+    line-height: 1.5;
+  }
+  .kg-empty {
+    position: absolute;
+    left: 50%;
+    top: 45%;
+    transform: translate(-50%, -50%);
+    width: min(300px, 90%);
+    text-align: center;
+    pointer-events: none;
+  }
+  .kg-empty > span {
+    display: block;
+    font-size: 32px;
+    color: #aaa;
     margin-bottom: 20px;
   }
-  .ontology-knowledge-toolbar select {
-    font-size: 11px;
-  }
-  .ontology-empty {
-    background: #fff;
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-    padding: 60px 24px;
-    text-align: center;
-  }
-  .ontology-empty > .ontology-mark {
-    width: 40px;
-    height: 40px;
-  }
-  .ontology-empty h2 {
-    font-size: 15px;
+  .kg-empty strong {
+    font-size: 14px;
     font-weight: 500;
+    color: #555;
   }
-  .ontology-empty p {
-    max-width: 360px;
-    margin: 12px auto 20px;
+  .kg-empty p {
     font-size: 12px;
-    line-height: 1.8;
-    color: #888;
-  }
-  .ontology-empty > code {
-    font-size: 10px;
     color: #999;
+    line-height: 1.7;
   }
-  .ontology-claim {
+  .kg-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    color: #999;
+    font-size: 10px;
+    line-height: 1.6;
+    padding: 12px 1px;
+  }
+  .kg-message {
+    color: #666;
+    font-size: 12px;
+  }
+  .kg-modal-backdrop {
+    position: fixed;
+    z-index: 100;
+    inset: 0;
+    background: #0005;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .kg-schema-modal {
+    width: 580px;
+    max-width: 100%;
+    height: 100%;
+    overflow-y: auto;
     background: white;
-    border: 1px solid #e5e5e5;
-    border-radius: 7px;
-    margin-bottom: 10px;
-    padding: 18px;
+    padding: 32px;
+    box-shadow: -10px 0 50px #0001;
   }
-  .ontology-claim summary {
-    cursor: pointer;
-    list-style: none;
-  }
-  .ontology-claim-line {
+  .kg-modal-heading {
     display: flex;
-    gap: 12px;
-    align-items: center;
-    flex-wrap: wrap;
-    font-size: 12px;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
   }
-  .ontology-claim-line strong {
+  .kg-modal-heading h2 {
+    margin: 0 0 10px;
+    font-size: 19px;
     font-weight: 500;
+    letter-spacing: -0.4px;
   }
-  .ontology-claim-line code {
-    font-size: 9px;
+  .kg-schema-modal p {
+    font-size: 12px;
     color: #888;
-    padding: 4px 6px;
-    background: #f6f6f6;
-    border-radius: 4px;
-  }
-  .ontology-claim-meta {
-    display: block;
-    margin-top: 10px;
-    font-size: 10px;
-    color: #999;
-  }
-  .ontology-claim blockquote {
-    font-size: 12px;
-    color: #777;
     line-height: 1.8;
-    margin: 20px 0;
-    padding-left: 12px;
-    border-left: 2px solid #ddd;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
   }
-  .ontology-claim dl {
-    display: grid;
-    grid-template-columns: 110px minmax(0, 1fr);
-    gap: 8px;
-    font-size: 10px;
-    color: #777;
-  }
-  .ontology-claim dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-  .ontology-publish {
-    margin-top: 20px;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-  .ontology-publish select {
+  .kg-schema-modal h3 {
     font-size: 11px;
-  }
-  .ontology-publish p {
-    width: 100%;
-    font-size: 10px;
+    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 1px;
     color: #999;
-    line-height: 1.8;
+    margin: 32px 0 14px;
   }
-  .ontology-notice,
-  .ontology-loading {
-    color: #777;
-    font-size: 12px;
+  .kg-schema-modal details {
+    border-bottom: 1px solid #eee;
     padding: 12px 0;
   }
-  @media (max-width: 1000px) {
-    .ontology-inspector {
-      padding: 20px;
-    }
-    .ontology-browser {
-      grid-template-columns: 170px minmax(0, 1fr);
-    }
-    .ontology-map {
-      padding: 18px 10px;
-    }
-    .ontology-map-path > button,
-    .ontology-value-node {
-      width: 115px;
-    }
-    .ontology-path-label > span {
-      font-size: 6px;
-    }
+  .kg-schema-modal summary {
+    font-size: 12px;
+    color: #444;
+    cursor: pointer;
   }
-  @media (max-width: 650px) {
-    .ontology-toolbar {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .ontology-browser {
-      grid-template-columns: 1fr;
-    }
-    .ontology-type-list {
-      border-right: 0;
-      border-bottom: 1px solid #e8e8e8;
-      display: flex;
-      overflow: auto;
-      gap: 14px;
-      padding: 10px;
-    }
-    .ontology-type-list > div {
-      display: flex;
-      gap: 4px;
-    }
-    .ontology-group-label {
-      display: none;
-    }
-    .ontology-type-list > div + div {
-      margin-top: 0;
-    }
-    .ontology-type-list button {
-      width: auto;
-      white-space: nowrap;
-    }
-    .ontology-type-list button small {
-      display: none;
-    }
-    .ontology-inspector {
-      padding: 18px;
-    }
-    .ontology-map {
-      grid-template-columns: 100px minmax(0, 1fr);
-    }
-    .ontology-map-source {
-      padding: 8px;
-    }
-    .ontology-map-source .ontology-mark {
-      display: none;
-    }
-    .ontology-map-source > span:last-child {
-      padding: 0;
-      font-size: 8px;
-    }
-    .ontology-map-path > button,
-    .ontology-value-node {
-      width: 110px;
-    }
-    .ontology-count {
-      font-size: 9px;
-    }
-    .ontology-claim-line {
-      gap: 7px;
-    }
-    .ontology-table td {
-      padding-right: 10px;
-    }
-    .ontology-search-row {
+  .kg-schema-modal summary i {
+    margin: 0 10px;
+  }
+  .kg-schema-modal code {
+    font-size: 10px;
+    color: #777;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+  @media (max-width: 760px) {
+    .kg-toolbar {
+      flex-wrap: wrap;
       gap: 8px;
     }
+    .kg-search {
+      flex-basis: 100%;
+    }
+    .kg-toolbar select {
+      flex: 1;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .kg-workspace {
+      min-height: 500px;
+      height: 70dvh;
+      position: relative;
+    }
+    .kg-inspector {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      top: 0;
+      width: min(305px, 90%);
+      z-index: 10;
+      box-shadow: -6px 0 20px #0001;
+    }
+    .kg-footer {
+      flex-direction: column;
+      gap: 4px;
+    }
+    .kg-schema-modal {
+      padding: 24px;
+    }
   }
-  @media (max-width: 400px) {
-    .ontology-map {
-      grid-template-columns: 80px minmax(0, 1fr);
-      padding: 14px 8px;
-    }
-    .ontology-map-path > button,
-    .ontology-value-node {
-      width: 95px;
-      font-size: 10px;
-    }
-    .ontology-path-label {
-      min-width: 20px;
-    }
-    .ontology-map-source strong {
-      font-size: 11px;
-    }
-    .ontology-type-heading {
-      gap: 9px;
-    }
-    .ontology-type-heading > .ontology-mark {
-      width: 30px;
-      height: 30px;
-    }
-  }
+}
+
+/* React Flow ships unlayered defaults; keep node/handle overrides in the same layer. */
+.knowledge-graph-page .react-flow__node.kg-node {
+  width: 180px;
+  padding: 12px 14px;
+  border: 1px solid #dedede;
+  border-radius: 7px;
+  background: white;
+  text-align: left;
+  box-shadow: 0 2px 5px #00000004;
+}
+.knowledge-graph-page .react-flow__node.kg-node.selected {
+  border-color: #777;
+  box-shadow: 0 0 0 2px #00000008;
+}
+.knowledge-graph-page .react-flow__handle {
+  width: 4px;
+  height: 4px;
+  min-width: 4px;
+  min-height: 4px;
+  background: #bbb;
+  border: 0;
+}
+.knowledge-graph-page .react-flow__controls {
+  box-shadow: none;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.knowledge-graph-page .react-flow__controls-button {
+  background: white;
+  width: 28px;
+  height: 28px;
+  border-bottom-color: #eee;
+}
+.knowledge-graph-page .react-flow__edge.selected .react-flow__edge-path {
+  stroke: #555;
+  stroke-width: 1.8;
 }
