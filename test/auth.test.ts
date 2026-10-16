@@ -114,6 +114,10 @@ test("OAuth discovery, access checks, and concurrent users stay isolated", async
     assert.ok(instructions.includes(`resource=${mcpResource}`));
     assert.ok(instructions.includes("registration_endpoint"));
     assert.ok(instructions.includes("/oauth/register"));
+    assert.ok(instructions.includes("oauth-authorization-server"));
+    assert.ok(instructions.includes("openid profile email offline_access"));
+    assert.ok(instructions.includes("token_endpoint_auth_method=none"));
+    assert.ok(instructions.includes("Do not blame host admin"));
     assert.ok(!instructions.includes("attacker.example"));
     assert.ok(!instructions.startsWith("---"));
     assert.ok(instructions.includes("get_connection_status"));
