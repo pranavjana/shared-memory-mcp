@@ -6,6 +6,7 @@ type QueryParams = NonNullable<
   >["params"]
 >;
 import { z } from "zod";
+import { entityTypes } from "./ontology.js";
 
 export const kinds = [
   "fact",
@@ -18,7 +19,7 @@ export const kinds = [
 ] as const;
 export const entitySchema = z
   .object({
-    type: z.enum(["person", "project", "organization", "place", "topic"]),
+    type: z.enum(entityTypes),
     name: z.string().trim().min(1).max(120),
   })
   .strict();
@@ -134,6 +135,10 @@ export class MemoryStore {
       "Delivery",
       "Connection",
       "SharingRule",
+      "KnowledgeClaim",
+      "KnowledgeEntity",
+      "KnowledgeBatch",
+      "Publication",
     ]) {
       try {
         await this.graph.createNodeRangeIndex(label, "id");
@@ -398,7 +403,11 @@ export class MemoryStore {
       OPTIONAL MATCH (m)-[:HAS_REVISION]->(r:Revision)
       SET r.text=NULL,r.evidence=NULL,r.entities=NULL,r.eventAt=NULL,m.text=NULL,m.evidence=NULL,m.entities='[]',m.eventAt=NULL,m.deletedAt=$now
       WITH DISTINCT m OPTIONAL MATCH (m)-[share:SHARED_IN]->(:Space) SET share.active=false
-      WITH DISTINCT m OPTIONAL MATCH (m)-[link:ABOUT]->(:Entity) DELETE link`,
+      WITH DISTINCT m OPTIONAL MATCH (m)-[link:ABOUT]->(:Entity) DELETE link
+      WITH DISTINCT m OPTIONAL MATCH (c:KnowledgeClaim)-[:SUPPORTED_BY]->(m)
+      SET c.payload=NULL,c.status='forgotten'
+      WITH DISTINCT c OPTIONAL MATCH (p:Publication)-[:DERIVED_FROM]->(c)
+      SET p.payload=NULL,p.active=false`,
       { id, user: actor.userId, now: Date.now() },
     );
     await this.query(

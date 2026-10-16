@@ -5,6 +5,7 @@ import { z } from "zod";
 import { DomainError, MemoryStore, type Actor } from "./memory.js";
 import type { EventService } from "./events.js";
 import { runTool, type Tool } from "./tools.js";
+import { ontology } from "./ontology.js";
 export function dashboardApi(
   config: { secretKey: string; publishableKey: string; publicUrl: string },
   store: MemoryStore,
@@ -61,6 +62,7 @@ export function dashboardApi(
       res.status(401).json({ error: "Session expired. Sign in again." });
     }
   });
+  api.get("/ontology", (_req, res) => res.json(ontology));
   api.get("/overview", async (_req, res) => {
     const actor = res.locals.actor as Actor;
     const [

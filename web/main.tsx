@@ -7,7 +7,9 @@ import codexLogo from "./assets/codex.png";
 import museLogo from "./assets/muse.svg";
 import { SpaceView } from "./SpaceView";
 import { invitationRedirect } from "./invitation";
+import { OntologyView } from "./OntologyView";
 import "./style.css";
+import "./ontology.css";
 type Config = {
   publishableKey: string;
   mcpUrl: string;
@@ -480,6 +482,7 @@ function Dashboard({ config }: { config: Config }) {
             ["memories", "memory", "Memories"],
             ["connections", "graph", "Connections"],
             ["spaces", "share", "Shared spaces"],
+            ["ontology", "graph", "Ontology"],
             ["activity", "activity", "Activity"],
           ].map(([id, icon, label]) => (
             <button
@@ -1176,6 +1179,14 @@ function Dashboard({ config }: { config: Config }) {
                 </>
               )}
             </>
+          )}
+          {section === "ontology" && (
+            <OntologyView
+              request={request}
+              action={action}
+              spaces={data?.spaces ?? []}
+              userId={data?.actor.id ?? ""}
+            />
           )}
           {section === "activity" && (
             <>

@@ -32,6 +32,8 @@ Only code is promoted. Demo accounts, test memories, sandbox credentials, and vo
 
 ## Basic shared-space dashboard
 
+The [ontology v1 guide](ontology.md) documents the Ontology tab, typed claims, source evidence, scoped identities, snapshot publication and current retrieval limits. Source-memory sharing and selected-claim publication are separate operations.
+
 1. Sign in as yourself and open **Shared spaces**.
 2. Create a space; it opens its shared-memory feed. Existing space names open their feeds too.
 3. Under **Invite a friend**, enter a verified account email, choose reader/contributor, and create an invitation link. Copy/send it yourself; the app does not currently email invitations. The friend opens the link and accepts while signed in with that email, then lands in the space.

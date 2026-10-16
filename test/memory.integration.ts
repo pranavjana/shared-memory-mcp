@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID, randomBytes } from "node:crypto";
 import { connectMemoryStore, DomainError, type Actor } from "../src/memory.js";
+import { KnowledgeStore } from "../src/knowledge.js";
 // @ts-ignore JavaScript sandbox operator helpers; no CLI execution on import.
 import { seedWorkspace, FixtureStateError } from "../scripts/sandbox-seed.mjs";
 import {
@@ -42,6 +43,302 @@ const input = (key: string, text = "Authentication finished") => ({
   evidence: "Observed successful build",
   entities: [{ type: "project", name: "Atlas" }],
   idempotencyKey: key,
+});
+
+test("ontology claims enforce provenance, scoped identity, corrections and frozen shared projections", async () => {
+  const s = await connectMemoryStore({
+    ...env,
+    FALKORDB_MEMORY_GRAPH: env.FALKORDB_MEMORY_GRAPH + "_ontology",
+  });
+  const k = new KnowledgeStore(s);
+  try {
+    const source = (
+      await s.remember(alice, {
+        ...input(
+          "ontology-source-001",
+          "OAuth is completed. Roshan can test. Private launch concern.",
+        ),
+        basis: "user_statement",
+      })
+    ).memory;
+    const data = {
+      sourceMemoryId: source.id,
+      sourceRevision: 1,
+      idempotencyKey: "ontology-batch-001",
+      entities: [
+        {
+          key: "task:oauth",
+          type: "task",
+          name: "OAuth",
+          aliases: ["login setup"],
+          properties: { description: "PRIVATE ENTITY DETAIL" },
+        },
+        { key: "task:tests", type: "task", name: "Connector tests" },
+        { key: "person:roshan", type: "person", name: "Roshan" },
+      ],
+      claims: [
+        {
+          subject: "task:oauth",
+          predicate: "HAS_STATUS",
+          value: "completed",
+          basis: "explicit",
+          evidence: "OAuth is completed.",
+        },
+        {
+          subject: "task:tests",
+          predicate: "DEPENDS_ON",
+          object: "task:oauth",
+          basis: "inferred",
+          evidence: "Roshan can test.",
+        },
+        {
+          subject: "task:tests",
+          predicate: "ASSIGNED_TO",
+          object: "person:roshan",
+          basis: "inferred",
+          evidence: "Roshan can test.",
+        },
+      ],
+    };
+    await assert.rejects(k.record(bob, data));
+    await assert.rejects(
+      k.record(alice, {
+        ...data,
+        claims: [{ ...data.claims[0], evidence: "fabricated evidence" }],
+      }),
+    );
+    const saved = await k.record(alice, data);
+    assert.deepEqual(await k.record(alice, data), saved);
+    await assert.rejects(
+      k.record(alice, {
+        ...data,
+        idempotencyKey: "inferred-correction-denied",
+        claims: [
+          {
+            ...data.claims[0],
+            basis: "inferred",
+            supersedes: saved.claimIds[0],
+          },
+        ],
+      }),
+      "An inference cannot replace an explicit statement",
+    );
+    await assert.rejects(
+      k.record(alice, { ...data, claims: [data.claims[0]] }),
+    );
+    assert.equal((await k.recall(bob, {})).claims.length, 0);
+    const recalled = await k.recall(alice, { query: "login setup" });
+    assert.equal(
+      recalled.claims.length,
+      3,
+      "Alias seeds expand to connected task context",
+    );
+    assert.ok(recalled.claims.some((c) => c.basis === "inferred"));
+    assert.equal(
+      (await k.recall(alice, { predicate: "ACCEPTED_BY" })).claims.length,
+      0,
+      "An assignment never creates acceptance",
+    );
+    const entity = (await k.recall(alice, {})).claims.find(
+      (c) => c.predicate === "HAS_STATUS",
+    )!.subject.id;
+    const otherSource = (
+      await s.remember(bob, {
+        ...input("ontology-bob-source", "OAuth is blocked."),
+        basis: "user_statement",
+      })
+    ).memory;
+    await k.record(bob, {
+      ...data,
+      sourceMemoryId: otherSource.id,
+      idempotencyKey: "ontology-bob-batch",
+      claims: [
+        { ...data.claims[0], value: "blocked", evidence: "OAuth is blocked." },
+      ],
+    });
+    assert.notEqual(
+      (await k.recall(bob, {})).claims[0].subject.id,
+      entity,
+      "Same key/name in another author's namespace stays separate",
+    );
+    const space = await s.createSpace(alice, "Ontology test space");
+    const invite = await s.invite(alice, space.id, bob.email!, "reader");
+    await s.accept(bob, invite.token);
+    const pubInput = {
+      claimId: saved.claimIds[0],
+      spaceId: space.id,
+      userRequested: true,
+      idempotencyKey: "ontology-publish-001",
+    };
+    await assert.rejects(k.publish(bob, pubInput));
+    const pub = await k.publish(alice, pubInput);
+    const visible = (await k.recall(bob, { spaceId: space.id })).claims;
+    assert.equal(visible.length, 1);
+    assert.equal(visible[0].scope, "space");
+    assert.equal(visible[0].sourceMemoryId, undefined);
+    assert.notEqual(visible[0].subject.id, entity);
+    assert.equal(
+      JSON.stringify(visible).includes("PRIVATE ENTITY DETAIL"),
+      false,
+    );
+    assert.equal(
+      JSON.stringify(visible).includes("Private launch concern"),
+      false,
+    );
+    assert.equal(
+      JSON.stringify(visible).includes("login setup"),
+      false,
+      "Private aliases are not published",
+    );
+    await assert.rejects(
+      s.get(bob, source.id),
+      "A claim publication does not share its private source",
+    );
+    await assert.rejects(k.recall(stranger, { spaceId: space.id }));
+    await s.revise(alice, source.id, 1, {
+      ...input("ontology-revision-002", "OAuth is blocked."),
+      basis: "user_statement",
+    });
+    assert.equal(
+      (await k.recall(alice, { query: "completed" })).claims.filter(
+        (c) => c.scope === "personal",
+      ).length,
+      0,
+    );
+    assert.equal(
+      (await k.recall(alice, { includeHistory: true })).claims.filter(
+        (c) => c.scope === "personal",
+      ).length,
+      3,
+    );
+    assert.equal(
+      (await k.recall(bob, { spaceId: space.id })).claims[0].value,
+      "completed",
+      "Private source edits do not silently modify a published snapshot",
+    );
+    const corrected = await k.record(alice, {
+      ...data,
+      sourceRevision: 2,
+      idempotencyKey: "ontology-correction-002",
+      claims: [
+        {
+          ...data.claims[0],
+          value: "blocked",
+          evidence: "OAuth is blocked.",
+          supersedes: saved.claimIds[0],
+        },
+      ],
+    });
+    assert.equal(corrected.claimIds.length, 1);
+    assert.ok(
+      (await k.recall(alice, { includeHistory: true })).claims.some(
+        (c) => c.status === "superseded",
+      ),
+    );
+    await assert.rejects(
+      k.record(bob, {
+        ...data,
+        sourceMemoryId: otherSource.id,
+        idempotencyKey: "ontology-cross-correction",
+        claims: [
+          {
+            ...data.claims[0],
+            evidence: "OAuth is blocked.",
+            supersedes: corrected.claimIds[0],
+          },
+        ],
+      }),
+    );
+    await k.publish(alice, {
+      ...pubInput,
+      claimId: pub.publicationId,
+      enabled: false,
+    });
+    assert.equal((await k.recall(bob, { spaceId: space.id })).claims.length, 0);
+    const pub2 = await k.publish(alice, {
+      ...pubInput,
+      claimId: corrected.claimIds[0],
+      idempotencyKey: "ontology-publish-002",
+    });
+    assert.equal(pub2.published, true);
+    await s.revoke(alice, space.id, bob.userId);
+    await assert.rejects(k.recall(bob, { spaceId: space.id }));
+    assert.equal(
+      (await k.recall(bob, {})).claims.filter((c) => c.scope === "space")
+        .length,
+      0,
+    );
+    await s.forget(alice, source.id);
+    assert.equal(
+      (await k.recall(alice, { includeHistory: true })).claims.length,
+      0,
+    );
+    const payloads = await s.query<{ payload: string }>(
+      "MATCH (c:KnowledgeClaim) WHERE c.owner=$user RETURN c.payload AS payload",
+      { user: alice.userId },
+      true,
+    );
+    assert.ok(
+      payloads.every((c) => c.payload == null),
+      "Forgetting scrubs claim content, not just query visibility",
+    );
+    const snapshots = await s.query<{ payload: string; active: boolean }>(
+      "MATCH (p:Publication) WHERE p.owner=$user RETURN p.payload AS payload,p.active AS active",
+      { user: alice.userId },
+      true,
+    );
+    assert.ok(snapshots.every((p) => p.payload == null && !p.active));
+    const timedSource = (
+      await s.remember(alice, {
+        ...input("ontology-time-source", "The target date is January 2, 2050."),
+        basis: "user_statement",
+      })
+    ).memory;
+    const timed = await k.record(alice, {
+      sourceMemoryId: timedSource.id,
+      sourceRevision: 1,
+      idempotencyKey: "ontology-time-claim",
+      entities: [{ key: "goal:timed", type: "goal", name: "Future goal" }],
+      claims: [
+        {
+          subject: "goal:timed",
+          predicate: "DUE_AT",
+          value: "2050-01-02T00:00:00Z",
+          basis: "explicit",
+          evidence: "The target date is January 2, 2050.",
+          validFrom: "2050-01-01T00:00:00Z",
+          validUntil: "2051-01-01T00:00:00Z",
+        },
+      ],
+    });
+    assert.equal(
+      (await k.recall(alice, { asOf: "2049-12-31T23:59:59Z" })).claims.length,
+      0,
+    );
+    assert.equal(
+      (await k.recall(alice, { asOf: "2050-01-01T00:00:00Z" })).claims.length,
+      1,
+    );
+    assert.equal(
+      (await k.recall(alice, { asOf: "2051-01-01T00:00:00Z" })).claims.length,
+      0,
+    );
+    const timedPublication = {
+      ...pubInput,
+      claimId: timed.claimIds[0],
+      idempotencyKey: "ontology-time-publish",
+    };
+    await k.publish(alice, timedPublication);
+    await k.publish(alice, { ...timedPublication, enabled: false });
+    assert.equal(
+      (await k.publish(alice, timedPublication)).published,
+      false,
+      "A repeated publish cannot resurrect a retracted snapshot",
+    );
+  } finally {
+    await s.graph.delete();
+    await s.close();
+  }
 });
 
 test("own-account demo fixtures preserve privacy, retries, retractions and explicit revocation", async () => {
