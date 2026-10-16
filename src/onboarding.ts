@@ -1,31 +1,49 @@
-/** Connection setup only. The operating skill is installed separately. */
+/** Connection setup only. The operating skill is installed separately.
+ *  Source of truth: Project store internal/shared-memory-agent-setup-prompt.md
+ *  Served text substitutes this deployment's MCP resource for the template ENDPOINT.
+ */
 export function mcpInstallPrompt(resource: string): string {
-  const origin = new URL(resource).origin;
-  const prm = `${origin}/.well-known/oauth-protected-resource/mcp`;
-  return `Install and connect the Shared Memory MCP server using the working OAuth recipe below.
+  const endpoint = new URL(resource).href.replace(/\/$/, "");
+  const origin = new URL(endpoint).origin;
+  const host = new URL(endpoint).host;
+  const prmBase = `${origin}/.well-known/oauth-protected-resource`;
+  return `Install and connect the Shared Memory MCP server, then verify the connection actually works.
 
-Server name: Shared Memory
-MCP endpoint: ${resource}
-Transport: Streamable HTTP
-Authentication: OAuth (Clerk)
+ENDPOINT: ${endpoint}
+(This prompt works for any Shared Memory deployment. Change only the ENDPOINT line; every URL below is derived from it.)
 
-Working OAuth recipe (required — this is what unblocked Muse):
-- Discover auth from protected-resource metadata (${prm}), then load Clerk **oauth-authorization-server** metadata from authorization_servers (…/.well-known/oauth-authorization-server). Do **not** rely on OIDC discovery alone; it may omit registration_endpoint.
-- Use Dynamic Client Registration: POST to registration_endpoint from AS metadata (Clerk: …/oauth/register). Public client with token_endpoint_auth_method=none and PKCE S256. Leave manually entered client ID and client secret blank for DCR.
-- Send resource=${resource} on BOTH the authorization request and the token request, and retain that resource on refresh (RFC 8707). Without resource=, the access token has the wrong/missing audience and MCP returns invalid_token / audience mismatch.
-- Request scopes: openid profile email offline_access (minimum required by this service: profile email; include openid and offline_access so hosts that need OIDC/refresh work — Muse needed all four). Never request public_metadata or private_metadata.
+Transport: Streamable HTTP. Authentication: OAuth 2.0 authorization code via the server's Clerk instance, with Dynamic Client Registration.
 
-Scope of this task: configure the MCP connection and verify it works. Do not install skills, download SKILL.md, change agent or memory instructions, save example memories, share data, or start background monitoring. Skill installation is a separate step.
+Success is one thing only: an authenticated get_connection_status call that returns the account I signed in with. A saved configuration, a completed sign-in, or a registered connector is not success. Do not report the connection as working until step 6 passes.
 
-1. Identify the assistant host and its supported MCP configuration method. Inspect existing connections first. Reuse a Shared Memory entry pointing to ${resource} instead of creating duplicates. Preserve unrelated servers and settings. If you can configure MCP connections through a supported tool or local configuration, do so using the host's required permissions. If you cannot, give me the exact manual steps and state that installation is still pending. Do not invent a settings tool or claim that pasting this prompt installs anything by itself.
+1. Inspect existing connections first. If a Shared Memory connection for this exact ENDPOINT already exists, reuse it and skip to step 6 instead of creating a duplicate. Preserve all unrelated servers and settings.
 
-2. Configure a remote Streamable HTTP connection to ${resource} with OAuth using the working recipe above. Prefer DCR when registration_endpoint is advertised; CIMD is fine when client_id_metadata_document_supported is true. If the host supports only stdio, or blocks custom MCPs through workspace policy, report that limitation rather than silently changing transport or bypassing it — but only after confirming DCR, resource=, and scopes are correct.
+2. Discover the auth configuration from the server, in this order. Do not guess endpoints and do not rely on OIDC discovery alone, because it can omit the registration endpoint:
+   - Read the protected-resource metadata from the endpoint host: ${prmBase} (if that returns nothing, try the same path with /mcp appended). Take \`authorization_servers\` and \`scopes_supported\` from it.
+   - From the authorization server in that metadata, read its oauth-authorization-server metadata (…/.well-known/oauth-authorization-server). Take \`authorization_endpoint\`, \`token_endpoint\`, \`registration_endpoint\`, and \`revocation_endpoint\` from there.
 
-3. Start the normal OAuth sign-in flow. I will sign in to my own Shared Memory account and approve the connection in the browser. Do not ask me to paste passwords, OTPs, access tokens, refresh tokens, or client secrets into chat or configuration. Never print or persist those credentials in plaintext; let the host handle its normal credential storage.
+3. Register the connection through the host's custom connector / API access setup flow, using the values from step 2:
+   - auth scheme: oauth2_code
+   - registration: Dynamic Client Registration using the \`registration_endpoint\` from step 2. Public client, token_endpoint_auth_method = none, PKCE S256. Leave any manually entered client ID and client secret blank.
+   - scopes: openid profile email offline_access. Never request public_metadata or private_metadata.
+   - api hosts: only the endpoint host, ${host}.
+   - CRITICAL, the step everything hinges on: append ?resource=<ENDPOINT> to BOTH the authorization URL and the token URL you register, i.e. authorization_url = <authorization_endpoint>?resource=${endpoint} and token_url = <token_endpoint>?resource=${endpoint}. There is no separate resource field in the setup flow and none is needed; the parameter travels inside those two URL values, and the flow passes them through unchanged. Without it, the issued token has no audience for this server and every call fails with 401 invalid_token. This exact registration is proven working on Muse (production server connected 2026-10-14, this sandbox server connected 2026-10-15, both verified live in step 6's terms).
 
-4. After login, reload the MCP connection if the host requires it, discover tools, and call get_connection_status. Confirm the account identity returned by the service with me; if it is unexpected, stop and help reconnect to the intended account. Do not infer success from a config file, plugin installation, or completed sign-in alone.
+4. Start the sign-in flow the setup returns and let me sign in to my own Shared Memory account and approve it in the browser. Never ask me to paste a password, one-time code, access token, refresh token, or client secret into chat or into a configuration file. Never print or persist a credential anywhere; the host's credential storage handles it.
 
-5. On 401 or 403: first check (a) DCR/public client registration, (b) resource=${resource} on authorize and token, (c) scopes include at least profile email (prefer openid profile email offline_access), (d) token audience matches ${resource}. Do not blame host admin / workspace policy until those are correct — a missing resource= or skipped DCR produces a malformed credential that looks like a policy failure. On audience mismatch, reconnect with DCR + resource=; do not loop new registrations or widen scopes alone. For invalid_scope, request only advertised scopes. For network/discovery errors, report the failing endpoint and status without credentials. Use bounded retries; never weaken audience checks or turn off authentication.
+5. Build the MCP client from the host's Streamable HTTP MCP client template, pointed at ENDPOINT, and wire it to the registered connection through the host's dynamic credentials helper. That helper supplies a surrogate and the real credential is exchanged only on approved requests to the registered host. Never read, extract, log, or work around the stored token; the client is supposed to work without ever seeing it, and it does.
 
-Finish with a short report: where the MCP connection was configured, whether tool discovery and get_connection_status succeeded, the account returned, and any exact action I still need to take. End with "MCP connected; skill installation is separate" only if the authenticated connection check actually succeeded.`;
+6. Verify, in this order:
+   - List the server's tools. The list must include get_connection_status. (The sandbox currently returns 15 tools, production returns 10; the exact count is whatever the server returns, what matters is that discovery succeeds over the authenticated connection.)
+   - Call get_connection_status with no arguments. Read the account identity it returns and confirm it with me. If the identity is not the account I intended, stop and help me reconnect to the right one.
+
+7. Failure rules. Bounded retries; never loop registrations, never widen scopes to fix an auth error, never weaken audience checks or turn off authentication.
+   - On 401 or 403, check in order: (a) the registration used DCR with a public client, (b) resource=<ENDPOINT> is present on BOTH the authorization and token URLs, (c) scopes are exactly the advertised ones from step 3, (d) the token audience matches ENDPOINT. A missing resource parameter or a skipped DCR produces a credential that looks exactly like a host policy failure; do not diagnose a policy, admin, or workspace block until (a) to (d) are confirmed correct. On an audience mismatch, reconnect once with the same details plus resource on both URLs.
+   - On invalid_scope, request only the scopes the metadata advertises.
+   - On a discovery or network error, report the exact endpoint and status that failed, without credentials.
+   - Do not conclude the host cannot do this from tool schemas or documentation. If a step genuinely fails, attempt it first, then report the exact error you got back.
+
+Scope of this task: configure and verify the MCP connection only. Do not install skills or download any SKILL.md, do not change agent or memory instructions, do not save example memories, do not share data, and do not start background monitoring. Skill installation is a separate step.
+
+Finish with a short report: where the connection was configured, whether tool discovery succeeded and how many tools it returned, the get_connection_status result and the account it returned, and any exact action I still need to take. End with "MCP connected; skill installation is separate" only if the authenticated get_connection_status check actually succeeded.`;
 }

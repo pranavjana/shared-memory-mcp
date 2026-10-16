@@ -111,18 +111,54 @@ test("OAuth discovery, access checks, and concurrent users stay isolated", async
     });
     assert.equal(prompt.status, 200);
     const instructions = await prompt.text();
-    assert.ok(instructions.includes(`resource=${mcpResource}`));
+    assert.ok(instructions.includes(`ENDPOINT: ${mcpResource}`));
+    assert.ok(instructions.includes(`?resource=${mcpResource}`));
+    assert.ok(
+      instructions.includes(
+        `authorization_url = <authorization_endpoint>?resource=${mcpResource}`,
+      ),
+    );
+    assert.ok(
+      instructions.includes(
+        `token_url = <token_endpoint>?resource=${mcpResource}`,
+      ),
+    );
+    assert.ok(
+      instructions.includes(
+        "There is no separate resource field in the setup flow and none is needed",
+      ),
+    );
     assert.ok(instructions.includes("registration_endpoint"));
-    assert.ok(instructions.includes("/oauth/register"));
     assert.ok(instructions.includes("oauth-authorization-server"));
     assert.ok(instructions.includes("openid profile email offline_access"));
-    assert.ok(instructions.includes("token_endpoint_auth_method=none"));
-    assert.ok(instructions.includes("Do not blame host admin"));
+    assert.ok(instructions.includes("token_endpoint_auth_method = none"));
+    assert.ok(
+      instructions.includes(
+        "A saved configuration, a completed sign-in, or a registered connector is not success",
+      ),
+    );
+    assert.ok(
+      instructions.includes(
+        "do not diagnose a policy, admin, or workspace block until (a) to (d) are confirmed correct",
+      ),
+    );
+    assert.ok(
+      instructions.includes(
+        "Do not conclude the host cannot do this from tool schemas or documentation",
+      ),
+    );
+    assert.ok(
+      !instructions.includes(
+        "give me the exact manual steps and state that installation is still pending",
+      ),
+    );
     assert.ok(!instructions.includes("attacker.example"));
+    assert.ok(!instructions.includes("shared-memory-mcp-sandbox.up.railway.app"));
     assert.ok(!instructions.startsWith("---"));
     assert.ok(instructions.includes("get_connection_status"));
     assert.ok(instructions.includes("Do not install skills"));
     assert.ok(!instructions.includes("# Shared Memory operating guide"));
+
 
     for (const auth of [
       undefined,

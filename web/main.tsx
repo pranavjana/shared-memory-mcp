@@ -828,13 +828,13 @@ function Dashboard({ config }: { config: Config }) {
                       </button>
                     </div>
                     <p className="setup-note">
-                      Working recipe: DCR via Clerk{" "}
-                      <code>…/oauth/register</code> (from
-                      oauth-authorization-server metadata, not OIDC alone);
-                      public client + PKCE; send this MCP URL as{" "}
-                      <code>resource</code> on authorize and token; scopes{" "}
-                      <code>openid profile email offline_access</code>. On
-                      401/403, fix those before blaming workspace policy.
+                      The copyable prompt is generated for this deployment’s MCP
+                      URL. It requires DCR + PKCE,{" "}
+                      <code>?resource=</code> inside both authorize and token
+                      URLs (no separate field), scopes{" "}
+                      <code>openid profile email offline_access</code>, and
+                      success only via authenticated{" "}
+                      <code>get_connection_status</code>.
                     </p>
                     <details className="setup-help chatgpt-setup">
                       <summary>Using ChatGPT?</summary>
@@ -852,11 +852,10 @@ function Dashboard({ config }: { config: Config }) {
                         </li>
                         <li>
                           Name it Shared Memory, paste the URL above, and choose
-                          OAuth. Use DCR / leave credentials blank when offered.
-                          The host must pass the MCP URL as{" "}
-                          <code>resource</code> on authorize and token (RFC
-                          8707); a 401 audience mismatch means that step was
-                          skipped, not a workspace policy block.
+                          OAuth. Use DCR / leave credentials blank. Put{" "}
+                          <code>?resource=</code> on the authorize and token
+                          URLs (no dedicated field needed). Verify with{" "}
+                          <code>get_connection_status</code>.
                         </li>
                         <li>
                           Create and install the plugin, then sign in with your
