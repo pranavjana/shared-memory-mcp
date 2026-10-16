@@ -6,6 +6,7 @@ import "@fontsource-variable/geist-mono";
 import codexLogo from "./assets/codex.png";
 import museLogo from "./assets/muse.svg";
 import { SpaceView } from "./SpaceView";
+import { invitationRedirect } from "./invitation";
 import "./style.css";
 type Config = {
   publishableKey: string;
@@ -1599,8 +1600,8 @@ fetch("/api/config")
               },
             },
           }}
-          signInFallbackRedirectUrl="/dashboard"
-          signUpFallbackRedirectUrl="/dashboard"
+          signInFallbackRedirectUrl={invitationRedirect(location.search)}
+          signUpFallbackRedirectUrl={invitationRedirect(location.search)}
         >
           <App config={config} />
         </ClerkProvider>
