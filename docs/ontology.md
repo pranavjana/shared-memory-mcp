@@ -1,6 +1,6 @@
 # Everyday ontology 1.1
 
-The [everyday-memory research and schema](everyday-memory-research.md) describes the general personal-agent model and measured retrieval behavior. The default Ontology view is the saved knowledge graph; Schema opens the type/relationship catalog.
+The [everyday-memory research and schema](everyday-memory-research.md) describes the general personal-agent model and measured retrieval behavior. The default Ontology view is the saved knowledge graph; Schema opens the type/relationship catalog. Entity cards use class-style compartments: the type and instance name form the header, while literal values (including preferences, amounts, statuses and dates) appear as selectable attributes inside the card. Arrows connect entities only. Selecting an attribute shows its original claim evidence and attribution; it does not turn a claim into a mutable entity property. Multiple claims remain separate rows.
 
 The authenticated dashboard's Ontology tab and MCP `get_ontology` tool expose the registry in `src/ontology.ts`. Domain types, allowed entity properties, predicate endpoints and literal enums are validated by `record_knowledge`. The catalog describes the semantic memory model, not the internal delivery, OAuth or profile-store schemas. System properties are assigned by their owning server operations, not arbitrary agent updates.
 
