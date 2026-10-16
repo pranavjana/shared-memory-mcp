@@ -435,6 +435,37 @@ export class MemoryStore {
     );
     return { id, name, owner: actor.userId, role: "owner", createdAt: now };
   }
+  async spaceMemories(
+    actor: Actor,
+    spaceId: string,
+    limit = 30,
+    cursor?: { updatedAt: number; id: string },
+  ) {
+    const space = await this.requireSpace(actor, spaceId);
+    const rows = await this.query<{ value: Memory }>(
+      `MATCH (:Person {id:$user})-[:MEMBER_OF {active:true}]->(s:Space {id:$space})<-[:SHARED_IN {active:true}]-(m:Memory)
+       WHERE m.deletedAt IS NULL AND ($before IS NULL OR m.updatedAt<$before OR (m.updatedAt=$before AND m.id<$beforeId))
+       WITH DISTINCT m RETURN properties(m) AS value ORDER BY m.updatedAt DESC,m.id DESC LIMIT $limit`,
+      {
+        user: actor.userId,
+        space: spaceId,
+        before: cursor?.updatedAt ?? null,
+        beforeId: cursor?.id ?? "",
+        limit: limit + 1,
+      },
+      true,
+    );
+    const page = rows.slice(0, limit).map((r) => r.value);
+    const last = page.at(-1);
+    return {
+      space,
+      memories: page.map((m) => this.publicMemory(m)),
+      nextCursor:
+        rows.length > limit && last
+          ? { updatedAt: last.updatedAt, id: last.id }
+          : null,
+    };
+  }
   async invite(
     actor: Actor,
     spaceId: string,

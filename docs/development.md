@@ -1,77 +1,91 @@
 # Development and sandbox
 
-Use the persistent Railway `sandbox` environment for development and multi-user testing. It is a separate running API and FalkorDB instance in the existing personal Railway project, with its own volume, password, event encryption key, and Clerk app. It was created empty; production data was not copied.
+Codex reads the repository's [AGENTS.md](../AGENTS.md) for sandbox defaults, branch flow, checks, and the production release boundary. Each developer must pull a branch containing that file and start a fresh Codex session. Until the setup PR is merged, use `codex/development` as the base; an old checkout of `main` does not contain the instructions yet.
 
 | | Sandbox | Production |
 |---|---|---|
-| Git branch | `codex/development` | `main` |
+| Branch | `codex/development` | `main` |
 | Dashboard | https://shared-memory-mcp-sandbox.up.railway.app/dashboard | https://shared-memory-mcp-production.up.railway.app/dashboard |
 | MCP | https://shared-memory-mcp-sandbox.up.railway.app/mcp | https://shared-memory-mcp-production.up.railway.app/mcp |
-| Clerk app | Shared Memory Sandbox (`app_3Kkji888RWnY1TIAjHITY6ZaF92`) | Original Shared Memory app (`app_3KhaoAVxRR0XFfeOzTL2AqaNZoF`) |
-| Profile graph | `sandbox_profiles` | Existing production configuration |
-| Memory graph | `sandbox_memory` | Existing production configuration |
-| Database | Private FalkorDB with a dedicated persistent volume | Existing private FalkorDB and volume |
+| Clerk app | Shared Memory Sandbox (`app_3Kkji888RWnY1TIAjHITY6ZaF92`) | Original Shared Memory (`app_3KhaoAVxRR0XFfeOzTL2AqaNZoF`) |
+| Storage | Dedicated private FalkorDB, volume, password, and encryption key | Existing separate DB, volume, and credentials |
 
-Railway environment ID: `2ef88b92-bf75-4b31-ac2b-0c5b61627732`. The sandbox Clerk development instance is `ins_3KkjiF7zViWlDNsHyTasXpqvaCC`. Both Clerk apps are in Pranav's personal account. The original application's current development-instance status is unchanged; a public launch still needs production Clerk configuration.
+Both run in project `e13f89d3-e41a-4e89-96b8-dbdc0b1f87cd` in Pranav's personal Railway Hobby workspace. Sandbox environment ID is `2ef88b92-bf75-4b31-ac2b-0c5b61627732`; profile/memory graphs are `sandbox_profiles` and `sandbox_memory`. Its Clerk development instance is `ins_3KkjiF7zViWlDNsHyTasXpqvaCC`, issuer `https://up-burro-4657.clerk.accounts.dev`. Production was not copied into it. The original deployed app also still uses a Clerk development instance; broad public launch needs production Clerk/domain configuration.
 
-## Normal workflow
+## From opening Codex to a sandbox change
 
-1. Start a feature branch from `codex/development`, or work on that branch for a small change. Run the relevant local checks.
-2. Merge the feature into `codex/development` and push. GitHub CI builds the app, checks frontend types, tests auth/webhooks, and runs graph/API integration tests against an ephemeral FalkorDB. Railway's sandbox source is this branch and waits for GitHub checks before deployment.
-3. Test the sandbox dashboard and MCP using the synthetic accounts below. For MCP testing, add a **separate connection** with the sandbox MCP URL and authorize a sandbox user. Existing production connectors continue using the production URL and identity system.
-4. Open a pull request from `codex/development` to `main`. Review the diff and green `checks` result, then merge deliberately. Railway production follows `main`; pushing development code does not promote it.
-5. Check production `/health` and the changed behavior after promotion. Code promotion does not copy sandbox accounts, memories, variables, or volumes into production.
+1. Open the repository in Codex. Start a new worktree from the latest `codex/development` when parallel work needs isolation. Create a `codex/<feature-name>` branch, or have Codex create it. Preserve other developers' changes.
+2. Implement the feature and run the relevant checks. Each developer uses their own local setup and registered credentials; a worktree is not a separate Railway environment.
+3. Push the feature branch and open a PR into `codex/development`. Review/integrate it. The current CI workflow runs on pushes to development/main and PRs into main; feature PRs into development do not currently trigger CI themselves.
+4. After integration, CI builds the app, checks frontend types, tests auth/webhooks, and runs real graph/API tests against an ephemeral FalkorDB. Railway waits for green GitHub checks before deploying the development branch to sandbox.
+5. Verify the deployed commit and `/health`, then test the changed feature in the sandbox dashboard/MCP. One shared sandbox serves the team, so use separate spaces and operation keys. Feature branches do not deploy automatically.
 
-Use separate browser profiles for Alice and Bob when testing simultaneously. Switching between production and sandbox is a new login because they use separate Clerk instances. No production auth bypass or impersonation endpoint exists.
+## Ship a working development version to production
 
-`main` has branch protection enforced for administrators too: a pull request and an up-to-date passing `checks` result are required, and force pushes/deletion are blocked. A second person's approval is optional for this small team. Both Railway API environments wait for GitHub checks. Direct CLI deployments are still possible for an authenticated Railway operator, so use the branch workflow for routine changes; this is a deployment guard, not a restriction on the workspace owner's Railway access.
+1. Verify the intended development commit in sandbox, review the diff and test results, and prepare any backward-compatible migration required by the change.
+2. Open a PR from `codex/development` into `main`. `main` requires a PR and an up-to-date passing `checks` result; protection applies to admins too, and force pushes/deletion are blocked. A second person's approval is optional for this small team.
+3. When the user has authorized shipping that release, merge the reviewed PR. No extra confirmation is needed for an already authorized release. If they asked only for a PR or an explanation, leave it ready for review.
+4. Railway waits for GitHub checks on `main`, builds that code, and deploys production with its own existing variables, Clerk app, database, and volume.
+5. Check production health and actual changed behavior. Bring main back into development without discarding ongoing work so subsequent releases remain up to date.
 
-## Test accounts
+Only code is promoted. Demo accounts, test memories, sandbox credentials, and volumes are not copied to production. Code rollback does not reverse database writes. Direct CLI production deployment bypasses the normal branch workflow and needs explicit authorization; these safeguards do not remove the owner's Railway access.
 
-| Account | Email | Initial access |
-|---|---|---|
-| Alice Sandbox | `alice+clerk_test@example.com` | Owner of Shared Spaces Sandbox |
-| Bob Sandbox | `bob+clerk_test@example.com` | Contributor in that space |
-| Eve Sandbox | `eve+clerk_test@example.com` | Outsider with no access |
+## Basic shared-space dashboard
 
-Sign in using an email code: **424242**. These are [Clerk development test addresses](https://clerk.com/docs/guides/development/testing/test-emails-and-phones); Clerk does not deliver email to them. This is not a production login mechanism.
+1. Sign in as yourself and open **Shared spaces**.
+2. Create a space; it opens its shared-memory feed. Existing space names open their feeds too.
+3. Under **Invite a friend**, enter a verified account email, choose reader/contributor, and create an invitation link. Copy/send it yourself; the app does not currently email invitations. The friend opens the link and accepts while signed in with that email, then lands in the space.
+4. **Share a memory** opens a picker of your own memories. Search/select one and confirm sharing. Add a new memory through the picker if necessary, save it privately, then select it to share. Both members' explicitly shared records appear in the same space feed, with author and timestamp.
+5. Private memories and records shared only to other spaces are excluded—even if the viewer owns them. The feed supports loading further pages. Members can inspect a shared record, but only its source author can revise/forget/retract it. **Remove from space** withdraws your own share while preserving the private source.
+6. Owners manage members in the space. Revoked users cannot retrieve its feed; revoking an author does not automatically retract earlier active shares visible to remaining members. Advanced automatic rules remain folded away and require an explicit opt-in.
 
-The seed creates one private memory each for Alice and Bob, plus one Alice-authored memory shared with Bob. All contents are labeled synthetic. Verify that Bob can read the shared memory, cannot read Alice's private memory or modify her source, and Eve cannot access the space. Test retracting a share and revoking Bob, then issue a new invitation to restore access. The graph/API CI suite also exercises these boundaries, revision history, retries, rules, client revocation, and subscription delivery.
+## Test as yourself against a demo teammate
 
-## Test with the sandbox plugin
+Pranav signs in with **pranavjana2003@gmail.com**, using the ordinary email sign-in flow. Roshan uses his own sandbox account. The same email in sandbox and production represents separate Clerk identities. Do not use a demo test code for a real email.
 
-Install the private personal [Shared Spaces Sandbox plugin](https://chatgpt.com/plugins/plugins_6ad16bfddd148191bd28a8d808f99c85), version `0.1.0`, and authorize the sandbox MCP as Alice. It contains a separate `shared-spaces-sandbox` server binding and an explicitly invoked testing skill. The production Shared Memory plugin is unchanged. Saving the package does not install or authenticate it.
+The default fixture command finds the existing verified real user and creates/reuses:
 
-Select Shared Spaces Sandbox with `@` in a new chat and ask: "Verify my sandbox account and guide me through the shared-spaces test. Do not write until I ask." The bundled [manual test checklist](../plugin/shared-spaces-sandbox/skills/shared-spaces-sandbox-testing/references/test-checklist.md) provides exact prompts for saves, selected sharing, recipient reads, private-record denial, corrections, retraction, membership revocation, and outsider access. Notifications have a separate host-capability test and are not implied by sharing.
+- **Sandbox collaboration**, owned by that user;
+- an owner-specific **Demo Teammate Sandbox** contributor;
+- a demo-authored shared graph-import task and dashboard-review proposal;
+- one private record for each side, excluded from the space feed.
 
-For the fastest two-person test, keep the plugin connected as Alice and use the dashboard as Bob in a separate browser profile. Alice's agent shares a synthetic update; Bob's dashboard should show it without exposing Alice's private note. To test Bob's agent reads, reconnect **only the sandbox plugin** as Bob, start a clean chat, and verify `get_connection_status` before reading the returned memory IDs. A new chat by itself does not change the connected identity; asking an Alice-authenticated agent to "act as Bob" cannot exercise Bob's permissions. Installation/connection and real host tool execution remain pending until completed in the client.
+The user stays signed in as themselves. The demo teammate is synthetic server-side fixture activity, not a real external agent. Existing Alice/Bob/Eve data is preserved as legacy optional fixtures; normal testing does not require those logins.
 
-Stored plugin ID: `plugins_6ad16bfddd148191bd28a8d808f99c85`. Release: `pluginrel_6ad16bfe99088191959d5816a2856076`. It is USER-scoped and PRIVATE, so the link is for the owning account, not a public install link for friends.
+Install/update the private personal [Shared Spaces Sandbox plugin](https://chatgpt.com/plugins/plugins_6ad16bfddd148191bd28a8d808f99c85), version `0.2.0`, and authorize it with your own sandbox email. Ask: **"Verify my signed-in email and show my Demo Teammate's shared updates in Sandbox collaboration."** It includes the [test checklist](../plugin/shared-spaces-sandbox/skills/shared-spaces-sandbox-testing/references/test-checklist.md). The original Shared Memory plugin still connects to production. The private plugin belongs to Pranav's ChatGPT account; Roshan needs his own sandbox MCP/plugin connection. Cloning the repository does not install/authenticate a plugin.
 
-## Seeding and operator safeguards
+## Guarded fixture operator
 
-The deployed container contains an idempotent fixture script. With the Railway CLI authenticated to the personal workspace, preview its plan:
+With a current Railway CLI (setup used 5.69.0), preview inside the sandbox API service:
 
 ```sh
-railway ssh --project e13f89d3-e41a-4e89-96b8-dbdc0b1f87cd \
+npx -y @railway/cli@5.69.0 ssh \
+  --project e13f89d3-e41a-4e89-96b8-dbdc0b1f87cd \
   --environment sandbox --service shared-memory-mcp \
   -i ~/.ssh/id_ed25519_shared_memory_railway -- npm run sandbox:seed
 ```
 
-Apply it by appending `-- --apply` after `npm run sandbox:seed`. It validates the Railway environment, exact graph names, sandbox publishable-key issuer, configured app/instance IDs, and the live Clerk instance before creating anything. It refuses a production or mixed target. The default is read-only; it has no reset/delete command. Run one seed operation at a time. Existing test users and memories are reused; rerunning does not erase experiments or undo edits/retractions.
+The identity path is Pranav's registered local development key. Each developer registers their own Railway key and substitutes its path; never share a private key. Commands below run **inside that sandbox service**, using the same SSH prefix:
 
-The identity path above is the dedicated Railway development key registered from this laptop. Another developer must register their own key with their Railway account; never share the private key. Use a current Railway CLI with `ssh --identity-file` support (setup used 5.69.0).
+```sh
+# Create/reuse fixtures for Pranav's existing verified sandbox account.
+npm run sandbox:seed -- --apply
+# Another developer first signs into sandbox, then targets their own email.
+npm run sandbox:seed -- --owner-email YOUR_EMAIL --apply
+# Generate an incoming synthetic teammate update without changing user login.
+npm run sandbox:seed -- --demo-update demo-progress-001 --apply
+# Only on an explicit request, restore revoked/changed demo membership.
+npm run sandbox:seed -- --restore-demo-membership --apply
+```
 
-To test a fresh scenario, create a new space or synthetic memory. Do not use the production friend's account. If a full reset is needed later, target only this environment's two graphs after verifying its environment ID and private database host. Removing the sandbox volume destroys sandbox data; ordinary deployments preserve it.
+Use a new demo-update key per requested update, and reuse it for retries. The operator returns actual space/memory IDs and checks allowed shared retrieval plus denied private retrieval on both sides. It refuses mixed/production Railway IDs, graph names, keys, issuer, or live Clerk instance. Without `--apply` it is read-only. It never creates/impersonates a real human account, resets a database, erases experiments, or silently restores a revoked demo member. A fresh invitation is issued/accepted only with the explicit restoration flag. Reruns also preserve manual share retractions.
 
-## Configuration and local development
+For proactive testing, first subscribe your own agent on a host with real MCP event support, then request a new simulated teammate update. A share, webhook receipt, and actual user-visible notification are different outcomes. Hosts without event subscriptions can still perform on-demand recall. Do not claim automatic messages without real host evidence.
 
-Provider secrets stay in Railway variables and ignored local environment files. `.env.local` still targets the original app. `.env.sandbox.local` contains only the sandbox Clerk development credentials, is ignored by Git, and is excluded from the Docker build context. It is not a complete local database configuration. Never run a script against production by copying its DB credentials into a development file.
+## Local configuration and known limits
 
-For local work, use a local FalkorDB and the sandbox Clerk keys, a separate local graph name, and `PUBLIC_URL=http://localhost:3000`. The fixture script is intentionally restricted to the deployed sandbox; local integration tests generate their own temporary graphs instead. See the README for the Vite/Express commands.
+Use Node 24 and `npm ci`; see README for Vite/Express and test commands. Use sandbox Clerk keys, a local authenticated FalkorDB, and distinct local graph names for local execution. `npm run dev`/`npm start` load `.env.local`; the existing file on Pranav's laptop targets the original application, so verify effective values before starting. `.env.sandbox.local` contains only sandbox Clerk credentials, is ignored by Git/Docker, and is not a complete local DB configuration. Fresh clones/worktrees do not automatically contain ignored credentials.
 
-Sandbox database references such as `${{falkordb.RAILWAY_PRIVATE_DOMAIN}}` resolve inside the **sandbox environment**. There are no explicit cross-environment production references. The DB has no public endpoint. Its volume mounts at `/var/lib/falkordb/data`, with password authentication and append-only persistence. Both environments consume resources in the same Railway Hobby workspace.
+Hosted DB references resolve within each Railway environment. FalkorDB has no public endpoint, uses password authentication, and persists append-only data on its own volume at `/var/lib/falkordb/data`. Preserve event encryption keys across restarts; do not log or commit secret values. GitHub CI uses synthetic identities and a temporary database with no provider credentials.
 
-GitHub CI has no deployment keys or Clerk secrets. Tests use synthetic identities and an ephemeral database. Railway's GitHub integration performs deployments. Database/ontology changes must be backward compatible or have an explicit migration plan before promotion; a code rollback does not undo database writes.
-
-Sandbox Clerk OAuth registration, PKCE, audience enforcement, and email-code login are configured. The Clerk lifecycle webhook subscription has not been connected in this new app yet: the seed writes test profiles directly, normal dashboard access refreshes a profile, and service startup backfills users. Testing immediate provider-side profile deletion propagation still requires adding the sandbox `/webhooks/clerk` endpoint for `user.created`, `user.updated`, and `user.deleted`, then setting that endpoint's signing secret in **sandbox** `CLERK_WEBHOOK_SIGNING_SECRET`. Event subscriptions for shared-memory changes are a separate feature and are enabled by the sandbox event encryption key.
+Sandbox Clerk OAuth/PKCE/audience settings and normal email login are configured. Its Clerk lifecycle webhook subscription is still a parity gap: profiles sync at login/startup/seeding; immediate provider-side deletion propagation needs a sandbox `/webhooks/clerk` subscription for user.created/updated/deleted and its signing secret in sandbox `CLERK_WEBHOOK_SIGNING_SECRET`. Shared-memory event subscriptions are separate and enabled by the event encryption key. Browser sign-in and real host notification behavior must be verified in the client, not inferred from seed/test results.

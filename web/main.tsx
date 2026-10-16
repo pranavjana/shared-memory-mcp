@@ -5,6 +5,7 @@ import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import codexLogo from "./assets/codex.png";
 import museLogo from "./assets/muse.svg";
+import { SpaceView } from "./SpaceView";
 import "./style.css";
 type Config = {
   publishableKey: string;
@@ -329,6 +330,7 @@ function Dashboard({ config }: { config: Config }) {
     [notice, setNotice] = useState(""),
     [setupPromptText, setSetupPromptText] = useState(""),
     [spaceName, setSpaceName] = useState(""),
+    [selectedSpace, setSelectedSpace] = useState<Space | null>(null),
     [invite, setInvite] = useState(""),
     [memberList, setMemberList] = useState<{
       space: Space;
@@ -378,8 +380,11 @@ function Dashboard({ config }: { config: Config }) {
       current = false;
     };
   }, [section, setupPromptText, loadSetupPrompt]);
-  const action = async (name: string, input: unknown) =>
-    request("action", { action: name, input });
+  const action = useCallback(
+    async (name: string, input: unknown) =>
+      request("action", { action: name, input }),
+    [request],
+  );
   const perform = async (fn: () => Promise<unknown>, message?: string) => {
     setBusy(true);
     setError("");
@@ -543,7 +548,14 @@ function Dashboard({ config }: { config: Config }) {
                 disabled={busy}
                 onClick={() =>
                   perform(async () => {
-                    await action("accept_invitation", { token: invite });
+                    const joined = await action("accept_invitation", {
+                      token: invite,
+                    });
+                    const page = await action("space_memories", {
+                      spaceId: joined.id,
+                    });
+                    setSelectedSpace(page.space);
+                    setSection("spaces");
                     setInvite("");
                     history.replaceState({}, "", "/dashboard");
                   }, "Joined shared space")
@@ -948,202 +960,219 @@ function Dashboard({ config }: { config: Config }) {
           )}
           {section === "spaces" && (
             <>
-              <section className="panel create-space">
-                <h2>Create a shared space</h2>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    perform(async () => {
-                      await action("create_space", { name: spaceName });
-                      setSpaceName("");
-                    }, "Shared space created");
-                  }}
-                >
-                  <input
-                    required
-                    maxLength={100}
-                    value={spaceName}
-                    onChange={(e) => setSpaceName(e.target.value)}
-                    placeholder="A project, a plan, a shared interest…"
-                    aria-label="Space name"
-                  />
-                  <button className="button small" disabled={busy}>
-                    Create space
-                  </button>
-                </form>
-              </section>
-              <div className="setup-grid">
-                {data?.spaces.map((s) => (
-                  <section className="panel" key={s.id}>
-                    <div className="panel-title">
-                      <Icon name="share" />
-                      <span className="chip">{s.role}</span>
-                    </div>
-                    <h2>{s.name}</h2>
-                    <div className="space-id">
-                      <code>{s.id}</code>
-                      <button
-                        className="icon-button"
-                        aria-label="Copy space ID"
-                        onClick={() => {
-                          navigator.clipboard.writeText(s.id);
-                          setNotice("Space ID copied");
-                        }}
-                      >
-                        <Icon name="copy" size={14} />
-                      </button>
-                    </div>
-                    <button
-                      className="text-button"
-                      onClick={() =>
-                        perform(async () =>
-                          setMemberList({
-                            space: s,
-                            members: await action("members", { spaceId: s.id }),
-                          }),
-                        )
-                      }
+              {selectedSpace && data ? (
+                <SpaceView
+                  key={selectedSpace.id}
+                  space={selectedSpace}
+                  actorId={data.actor.id}
+                  action={action}
+                  refreshKey={data}
+                  onBack={() => setSelectedSpace(null)}
+                  onChanged={reload}
+                  onSelect={(id) => void select(id)}
+                  onAdd={() => setEditing(null)}
+                />
+              ) : (
+                <>
+                  <section className="panel create-space">
+                    <h2>Create a shared space</h2>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        perform(async () => {
+                          const created = await action("create_space", {
+                            name: spaceName,
+                          });
+                          setSpaceName("");
+                          setSelectedSpace(created);
+                        }, "Shared space created");
+                      }}
                     >
-                      View members <Icon name="arrow" size={14} />
-                    </button>
-                    {s.role === "owner" && (
-                      <form
-                        className="invite-form"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          const f = new FormData(e.currentTarget);
-                          perform(async () => {
-                            const r = await action("invite", {
-                              spaceId: s.id,
-                              email: f.get("email"),
-                              role: f.get("role"),
-                            });
-                            await navigator.clipboard.writeText(r.url);
-                          }, "Invitation link copied. Share it with the invited person.");
-                        }}
-                      >
-                        <label>
-                          Invite by verified account email
-                          <input
-                            type="email"
-                            name="email"
-                            required
-                            placeholder="friend@example.com"
-                          />
-                        </label>
-                        <div className="form-inline">
-                          <select name="role" aria-label="Invitation role">
-                            <option value="reader">Can read</option>
-                            <option value="contributor">
-                              Can read and share
+                      <input
+                        required
+                        maxLength={100}
+                        value={spaceName}
+                        onChange={(e) => setSpaceName(e.target.value)}
+                        placeholder="A project, a plan, a shared interest…"
+                        aria-label="Space name"
+                      />
+                      <button className="button small" disabled={busy}>
+                        Create space
+                      </button>
+                    </form>
+                  </section>
+                  <div className="setup-grid">
+                    {data?.spaces.map((s) => (
+                      <section className="panel" key={s.id}>
+                        <div className="panel-title">
+                          <Icon name="share" />
+                          <span className="chip">{s.role}</span>
+                        </div>
+                        <h2>
+                          <button
+                            className="space-card-name"
+                            onClick={() => setSelectedSpace(s)}
+                          >
+                            {s.name} <Icon name="arrow" size={16} />
+                          </button>
+                        </h2>
+                        <button
+                          className="text-button"
+                          onClick={() =>
+                            perform(async () =>
+                              setMemberList({
+                                space: s,
+                                members: await action("members", {
+                                  spaceId: s.id,
+                                }),
+                              }),
+                            )
+                          }
+                        >
+                          View members <Icon name="arrow" size={14} />
+                        </button>
+                        {s.role === "owner" && (
+                          <form
+                            className="invite-form"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              const f = new FormData(e.currentTarget);
+                              perform(async () => {
+                                const r = await action("invite", {
+                                  spaceId: s.id,
+                                  email: f.get("email"),
+                                  role: f.get("role"),
+                                });
+                                await navigator.clipboard.writeText(r.url);
+                              }, "Invitation link copied. Share it with the invited person.");
+                            }}
+                          >
+                            <label>
+                              Invite by verified account email
+                              <input
+                                type="email"
+                                name="email"
+                                required
+                                placeholder="friend@example.com"
+                              />
+                            </label>
+                            <div className="form-inline">
+                              <select name="role" aria-label="Invitation role">
+                                <option value="reader">Can read</option>
+                                <option value="contributor">
+                                  Can read and share
+                                </option>
+                              </select>
+                              <button className="button small" disabled={busy}>
+                                Create invite link
+                              </button>
+                            </div>
+                          </form>
+                        )}
+                      </section>
+                    ))}
+                  </div>
+                  <details className="panel spaced">
+                    <summary>Advanced sharing rules</summary>
+                    <p>
+                      Explicitly enable a rule to share future matching memories
+                      into a space. Existing memories are not backfilled.
+                      Stopping a rule stops future automatic shares; retract
+                      existing references separately.
+                    </p>
+                    <form
+                      className="invite-form"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const f = new FormData(e.currentTarget);
+                        perform(
+                          () =>
+                            action("add_sharing_rule", {
+                              spaceId: f.get("spaceId"),
+                              kind: f.get("kind"),
+                              entityName: f.get("entityName"),
+                            }),
+                          "Automatic sharing rule enabled",
+                        );
+                      }}
+                    >
+                      <div className="form-inline">
+                        <select
+                          name="spaceId"
+                          required
+                          aria-label="Rule shared space"
+                        >
+                          {data?.spaces
+                            .filter((s) => s.role !== "reader")
+                            .map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                        </select>
+                        <select name="kind" aria-label="Rule memory type">
+                          {kinds.map((k) => (
+                            <option key={k} value={k}>
+                              {title(k)}
                             </option>
-                          </select>
-                          <button className="button small" disabled={busy}>
-                            Create invite link
+                          ))}
+                        </select>
+                        <input
+                          name="entityName"
+                          placeholder="Entity name filter (optional)"
+                          maxLength={120}
+                          aria-label="Rule entity name filter"
+                        />
+                        <button
+                          className="button small"
+                          disabled={
+                            busy ||
+                            !data?.spaces.some((s) => s.role !== "reader")
+                          }
+                        >
+                          Enable rule
+                        </button>
+                      </div>
+                    </form>
+                    {data?.rules
+                      ?.filter((r) => r.active)
+                      .map((r) => (
+                        <div className="record-row" key={r.id}>
+                          <div>
+                            <strong>
+                              {title(r.kind)} →{" "}
+                              {data.spaces.find((s) => s.id === r.spaceId)
+                                ?.name ?? r.spaceId}
+                            </strong>
+                            <small>
+                              {r.entityName
+                                ? "Connected to " + r.entityName
+                                : "All future memories of this type"}
+                            </small>
+                          </div>
+                          <button
+                            className="text-button danger"
+                            onClick={() =>
+                              perform(
+                                () =>
+                                  action("disable_sharing_rule", { id: r.id }),
+                                "Sharing rule stopped",
+                              )
+                            }
+                          >
+                            Stop rule
                           </button>
                         </div>
-                      </form>
-                    )}
-                  </section>
-                ))}
-              </div>
-              <section className="panel spaced">
-                <h2>Automatic sharing rules</h2>
-                <p>
-                  Explicitly enable a rule to share future matching memories
-                  into a space. Existing memories are not backfilled. Stopping a
-                  rule stops future automatic shares; retract existing
-                  references separately.
-                </p>
-                <form
-                  className="invite-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const f = new FormData(e.currentTarget);
-                    perform(
-                      () =>
-                        action("add_sharing_rule", {
-                          spaceId: f.get("spaceId"),
-                          kind: f.get("kind"),
-                          entityName: f.get("entityName"),
-                        }),
-                      "Automatic sharing rule enabled",
-                    );
-                  }}
-                >
-                  <div className="form-inline">
-                    <select
-                      name="spaceId"
-                      required
-                      aria-label="Rule shared space"
-                    >
-                      {data?.spaces
-                        .filter((s) => s.role !== "reader")
-                        .map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                    </select>
-                    <select name="kind" aria-label="Rule memory type">
-                      {kinds.map((k) => (
-                        <option key={k} value={k}>
-                          {title(k)}
-                        </option>
                       ))}
-                    </select>
-                    <input
-                      name="entityName"
-                      placeholder="Entity name filter (optional)"
-                      maxLength={120}
-                      aria-label="Rule entity name filter"
-                    />
-                    <button
-                      className="button small"
-                      disabled={
-                        busy || !data?.spaces.some((s) => s.role !== "reader")
-                      }
-                    >
-                      Enable rule
-                    </button>
-                  </div>
-                </form>
-                {data?.rules
-                  ?.filter((r) => r.active)
-                  .map((r) => (
-                    <div className="record-row" key={r.id}>
-                      <div>
-                        <strong>
-                          {title(r.kind)} →{" "}
-                          {data.spaces.find((s) => s.id === r.spaceId)?.name ??
-                            r.spaceId}
-                        </strong>
-                        <small>
-                          {r.entityName
-                            ? "Connected to " + r.entityName
-                            : "All future memories of this type"}
-                        </small>
-                      </div>
-                      <button
-                        className="text-button danger"
-                        onClick={() =>
-                          perform(
-                            () => action("disable_sharing_rule", { id: r.id }),
-                            "Sharing rule stopped",
-                          )
-                        }
-                      >
-                        Stop rule
-                      </button>
+                  </details>
+                  {data?.spaces.length === 0 && (
+                    <div className="empty-state">
+                      <Icon name="share" size={32} />
+                      <h2>No shared spaces</h2>
+                      <p>Create a space to invite someone.</p>
                     </div>
-                  ))}
-              </section>
-              {data?.spaces.length === 0 && (
-                <div className="empty-state">
-                  <Icon name="share" size={32} />
-                  <h2>No shared spaces</h2>
-                  <p>Create a space to invite someone.</p>
-                </div>
+                  )}
+                </>
               )}
             </>
           )}

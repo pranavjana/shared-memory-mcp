@@ -150,6 +150,156 @@ test("real database API and both MCP protocols enforce identity, revisions and c
       "2025-11-25",
     );
     assert.equal(legacy.body.result.structuredContent.memories[0].id, id);
+    assert.deepEqual(
+      (await api("user_a", "space_memories", { spaceId: space.id })).body
+        .memories,
+      [],
+      "Even the owner's private record is excluded until explicitly shared",
+    );
+    assert.equal(
+      (await api("user_b", "space_memories", { spaceId: space.id })).status,
+      403,
+    );
+    const invitation = await api("user_a", "invite", {
+      spaceId: space.id,
+      email: "user_b@example.com",
+      role: "contributor",
+    });
+    assert.equal(invitation.status, 200);
+    assert.ok(invitation.body.url.includes("/dashboard?invite="));
+    assert.equal(
+      (
+        await api("user_a", "accept_invitation", {
+          token: invitation.body.token,
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
+      (
+        await api("user_b", "accept_invitation", {
+          token: invitation.body.token,
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await api("user_a", "share_memory", {
+          id,
+          spaceId: space.id,
+          enabled: true,
+          userRequested: true,
+          idempotencyKey: "explicit-api-share",
+        })
+      ).status,
+      200,
+    );
+    const bPrivate = (
+      await api("user_b", "remember", {
+        ...i,
+        text: "B private source",
+        idempotencyKey: "b-private-source",
+      })
+    ).body.memory.id;
+    const bShared = (
+      await api("user_b", "remember", {
+        ...i,
+        text: "B selected shared update",
+        idempotencyKey: "b-shared-source",
+      })
+    ).body.memory.id;
+    assert.equal(
+      (
+        await api("user_b", "share_memory", {
+          id: bShared,
+          spaceId: space.id,
+          enabled: true,
+          userRequested: true,
+          idempotencyKey: "b-explicit-share",
+        })
+      ).status,
+      200,
+    );
+    const combined = await api("user_a", "space_memories", {
+      spaceId: space.id,
+    });
+    assert.deepEqual(
+      new Set(combined.body.memories.map((m: any) => m.id)),
+      new Set([id, bShared]),
+    );
+    assert.ok(!combined.body.memories.some((m: any) => m.id === bPrivate));
+    const firstPage = await api("user_b", "space_memories", {
+      spaceId: space.id,
+      limit: 1,
+    });
+    const nextPage = await api("user_b", "space_memories", {
+      spaceId: space.id,
+      limit: 1,
+      cursor: firstPage.body.nextCursor,
+    });
+    assert.notEqual(
+      firstPage.body.memories[0].id,
+      nextPage.body.memories[0].id,
+    );
+    assert.equal(nextPage.body.nextCursor, null);
+    assert.equal(
+      (await api("user_a", "space_memories", { spaceId: space.id, limit: 101 }))
+        .status,
+      400,
+    );
+    const otherSpace = (
+      await api("user_b", "create_space", { name: "Another space" })
+    ).body;
+    await api("user_b", "share_memory", {
+      id: bPrivate,
+      spaceId: otherSpace.id,
+      enabled: true,
+      userRequested: true,
+      idempotencyKey: "other-space-share",
+    });
+    assert.equal(
+      (await api("user_a", "space_memories", { spaceId: otherSpace.id }))
+        .status,
+      403,
+    );
+    assert.equal(
+      (await api("user_b", "space_memories", { spaceId: space.id })).body
+        .memories.length,
+      2,
+      "A member's memory shared elsewhere does not enter this space",
+    );
+    assert.equal(
+      (
+        await api("user_b", "revise_memory", {
+          id,
+          expectedRevision: 1,
+          memory: { ...i, idempotencyKey: "foreign-shared-edit" },
+        })
+      ).status,
+      403,
+    );
+    await api("user_a", "share_memory", {
+      id,
+      spaceId: space.id,
+      enabled: false,
+      userRequested: true,
+      idempotencyKey: "explicit-retraction",
+    });
+    assert.deepEqual(
+      (
+        await api("user_b", "space_memories", { spaceId: space.id })
+      ).body.memories.map((m: any) => m.id),
+      [bShared],
+    );
+    await api("user_a", "revoke_member", {
+      spaceId: space.id,
+      userId: "user_b",
+    });
+    assert.equal(
+      (await api("user_b", "space_memories", { spaceId: space.id })).status,
+      403,
+    );
     assert.equal(
       (
         await api("user_b", "revise_memory", {

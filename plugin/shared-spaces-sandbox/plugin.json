@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "shared-spaces-sandbox",
-  "version": "0.1.0",
-  "description": "Test shared memories, private access, and revocation with synthetic sandbox accounts.",
+  "version": "0.2.0",
+  "description": "Test shared spaces from your own sandbox account with a synthetic demo teammate.",
   "author": {
     "name": "Pranav Janakiraman",
     "email": "pranavjana2003@gmail.com"
@@ -13,16 +13,16 @@
       "interface": {
         "displayName": "Shared Spaces Sandbox",
         "shortDescription": "Test shared spaces safely",
-        "longDescription": "A separate connection to the Shared Memory Railway sandbox. Use Alice, Bob, and Eve test accounts to try private memories, selected sharing, corrections, and revoked access. Includes a guided test workflow. Production memories are in a separate service and identity system.",
+        "longDescription": "Stay signed in with your own sandbox account and test against a Demo Teammate with seeded shared and private memories. Includes a guided workflow for retrieval, selected sharing, author permissions, and incoming demo updates. Production uses a separate service and identity system.",
         "developerName": "Pranav Janakiraman",
         "category": "Productivity",
         "capabilities": [],
         "logo": "./assets/logo.svg",
         "composerIcon": "./assets/logo.svg",
         "defaultPrompt": [
-          "Verify my sandbox account and guide me through the shared-spaces test. Do not write until I ask.",
-          "As signed-in Alice, save a synthetic demo update and share it only in Shared Spaces Sandbox.",
-          "Verify I am Bob, then recall Alice's shared Sandbox Demo updates."
+          "Verify my own sandbox account and show my demo teammate's shared updates. Do not write until I ask.",
+          "Save a synthetic update as me and share it only in my Sandbox collaboration space.",
+          "Guide me through testing my own account against the demo teammate without switching users."
         ]
       }
     }
