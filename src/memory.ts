@@ -135,6 +135,7 @@ export class MemoryStore {
       "Delivery",
       "Connection",
       "SharingRule",
+      "KnowledgeSearchDocument",
       "KnowledgeClaim",
       "KnowledgeEntity",
       "KnowledgeBatch",
@@ -409,6 +410,14 @@ export class MemoryStore {
       WITH DISTINCT c OPTIONAL MATCH (p:Publication)-[:DERIVED_FROM]->(c)
       SET p.payload=NULL,p.active=false`,
       { id, user: actor.userId, now: Date.now() },
+    );
+    await this.query(
+      `MATCH (d:KnowledgeSearchDocument)-[:INDEXES]->(c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory {id:$id}) WHERE m.owner=$user DETACH DELETE d`,
+      { id, user: actor.userId },
+    );
+    await this.query(
+      `MATCH (d:KnowledgeSearchDocument)-[:INDEXES]->(:Publication)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory {id:$id}) WHERE m.owner=$user DETACH DELETE d`,
+      { id, user: actor.userId },
     );
     await this.query(
       "MATCH (e:Entity) OPTIONAL MATCH (m:Memory)-[:ABOUT]->(e) WITH e,count(m) AS refs WHERE refs=0 DELETE e",

@@ -1,256 +1,210 @@
-import React, { useEffect, useMemo, useState } from "react";
-import type {
-  TypeDefinition,
-  RelationDefinition,
-  PropertyDefinition,
-} from "../src/ontology";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MarkerType,
+  Position,
+  useNodesState,
+  useEdgesState,
+  type Node,
+  type Edge,
+} from "@xyflow/react";
+import dagre from "@dagrejs/dagre";
+import "@xyflow/react/dist/style.css";
 import type { Claim } from "../src/knowledge";
+import type { ontology } from "../src/ontology";
 
-type Schema = {
-  version: string;
-  types: TypeDefinition[];
-  relationships: RelationDefinition[];
-  rules: string[];
-};
 type Space = { id: string; name: string; role: string };
-function NodeMark({ type }: { type: string }) {
-  return (
-    <span className={`ontology-mark ontology-mark-${type}`} aria-hidden="true">
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      >
-        <path
-          d={
-            type === "person"
-              ? "M6 15c0-5 8-5 8 0M13 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0"
-              : type === "task"
-                ? "m6 10 3 3 5-6M3 3h14v14H3z"
-                : type === "project"
-                  ? "M3 5h6l2 2h6v9H3z"
-                  : type === "claim"
-                    ? "M4 4h12v9H9l-4 3v-3H4z"
-                    : type === "space"
-                      ? "M4 7h12v9H4zM7 7V4h6v3"
-                      : "M10 2 17 6v8l-7 4-7-4V6zM3 6l7 4 7-4M10 10v8"
-          }
-        />
-      </svg>
-    </span>
-  );
-}
-function Properties({ properties }: { properties: PropertyDefinition[] }) {
-  return (
-    <div className="ontology-table-scroll">
-      <table className="ontology-table">
-        <thead>
-          <tr>
-            <th>Property</th>
-            <th>Type</th>
-            <th>Definition</th>
-          </tr>
-        </thead>
-        <tbody>
-          {properties.map((p) => (
-            <tr key={p.name}>
-              <td>
-                <code>{p.name}</code>
-                {p.required && (
-                  <span className="ontology-required" title="Required">
-                    *
-                  </span>
-                )}
-              </td>
-              <td>
-                <span className="ontology-property-type">{p.type}</span>
-              </td>
-              <td>
-                {p.description}
-                {p.values && (
-                  <div className="ontology-enums">
-                    {p.values.map((v) => (
-                      <code key={v}>{v}</code>
-                    ))}
-                  </div>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-function TypeMap({
-  selected,
-  schema,
-  onSelect,
-}: {
-  selected: TypeDefinition;
-  schema: Schema;
-  onSelect: (id: string) => void;
-}) {
-  const relations = schema.relationships.filter((r) =>
-    r.from.includes(selected.id),
-  );
-  const specific = relations.filter((r) => r.id !== "ABOUT");
-  const mapped = specific.length ? specific : relations;
-  const targets = [...new Set(mapped.flatMap((r) => r.to))].slice(0, 6);
-  const scalar = relations.filter((r) => r.value);
-  return (
-    <div
-      className="ontology-map"
-      aria-label={`Allowed outgoing relationships for ${selected.name}`}
-    >
-      <div className="ontology-map-source">
-        <NodeMark type={selected.id} />
-        <strong>{selected.name}</strong>
-        <span>{relations.length} outgoing</span>
-      </div>
-      <div className="ontology-map-targets">
-        {targets.map((id) => {
-          const type = schema.types.find((t) => t.id === id)!;
-          const labels = mapped
-            .filter((r) => r.to.includes(id))
-            .map((r) => r.id);
-          return (
-            <div className="ontology-map-path" key={id}>
-              <div className="ontology-path-label">
-                <span>
-                  {labels.slice(0, 2).join(" · ")}
-                  {labels.length > 2 ? ` +${labels.length - 2}` : ""}
-                </span>
-                <i aria-hidden="true" />
-              </div>
-              <button onClick={() => onSelect(id)}>
-                <NodeMark type={id} />
-                <span>{type.name}</span>
-                <span aria-hidden="true">↗</span>
-              </button>
-            </div>
-          );
-        })}
-        {scalar.length > 0 && (
-          <div className="ontology-map-path">
-            <div className="ontology-path-label">
-              <span>Value predicates</span>
-              <i aria-hidden="true" />
-            </div>
-            <div className="ontology-value-node">
-              {scalar.map((r) => (
-                <code key={r.id}>{r.id}</code>
-              ))}
-            </div>
-          </div>
-        )}
-        {targets.length === 0 && scalar.length === 0 && (
-          <p className="ontology-no-links">No outgoing relationships.</p>
-        )}
-        {(new Set(mapped.flatMap((r) => r.to)).size > 6 ||
-          specific.length !== relations.length) && (
-          <p className="ontology-map-caption">
-            Selected destinations · full list below
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-export function OntologyView({
-  request,
-  action,
-  spaces,
-  userId,
-}: {
+type Props = {
   request: (path: string) => Promise<any>;
   action: (name: string, input: unknown) => Promise<any>;
   spaces: Space[];
   userId: string;
-}) {
-  const [schema, setSchema] = useState<Schema | null>(null),
-    [error, setError] = useState(""),
-    [tab, setTab] = useState("types"),
-    [search, setSearch] = useState(""),
-    [selected, setSelected] = useState("task"),
-    [scope, setScope] = useState(""),
-    [claims, setClaims] = useState<Claim[]>([]),
-    [loading, setLoading] = useState(false),
-    [truncated, setTruncated] = useState(false),
-    [notice, setNotice] = useState("");
+};
+const colors: Record<string, string> = {
+  person: "#8b6cb7",
+  organization: "#5d83ae",
+  event: "#b1804e",
+  place: "#618b7b",
+  goal: "#60899b",
+  obligation: "#bd796c",
+  task: "#779660",
+  preference: "#aa9160",
+  topic: "#999",
+  item: "#7479a5",
+  routine: "#759a9b",
+  decision: "#8c83a4",
+};
+const label = (s: string) => s.replaceAll("_", " ").toLowerCase();
+function layout(claims: Claim[], narrow: boolean) {
+  const entities = new Map<string, { name: string; type: string }>();
+  const graph = new dagre.graphlib.Graph({ multigraph: true })
+    .setGraph({
+      rankdir: narrow ? "TB" : "LR",
+      nodesep: 45,
+      ranksep: 95,
+      marginx: 60,
+      marginy: 60,
+    })
+    .setDefaultEdgeLabel(() => ({}));
+  for (const c of claims) {
+    entities.set(c.subject.id, c.subject);
+    const target = c.object?.id ?? "value:" + c.id;
+    entities.set(target, c.object ?? { name: c.value ?? "", type: "value" });
+    graph.setEdge(c.subject.id, target, {}, c.id);
+  }
+  for (const [id] of entities) graph.setNode(id, { width: 180, height: 62 });
+  dagre.layout(graph);
+  const nodes: Node[] = [...entities].map(([id, e]) => ({
+    id,
+    position: { x: graph.node(id).x - 90, y: graph.node(id).y - 31 },
+    sourcePosition: narrow ? Position.Bottom : Position.Right,
+    targetPosition: narrow ? Position.Top : Position.Left,
+    data: {
+      label: (
+        <>
+          <span className="kg-node-type">
+            <i style={{ background: colors[e.type] ?? "#999" }} />
+            {e.type}
+          </span>
+          <strong>{e.name}</strong>
+        </>
+      ),
+    },
+    className: "kg-node",
+  }));
+  const edges: Edge[] = claims.map((c) => ({
+    id: c.id,
+    source: c.subject.id,
+    target: c.object?.id ?? "value:" + c.id,
+    label: label(c.predicate),
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      width: 14,
+      height: 14,
+      color: "#a8a8a8",
+    },
+    style: {
+      stroke: c.basis === "inferred" ? "#b194c3" : "#bcbcbc",
+      strokeWidth: 1,
+      ...(c.basis === "inferred" ? { strokeDasharray: "4 4" } : {}),
+    },
+    labelStyle: { fontSize: 11, fill: "#696969" },
+    labelBgStyle: { fill: "#fafafa" },
+    labelBgPadding: [6, 3],
+    labelBgBorderRadius: 3,
+  }));
+  return { nodes, edges };
+}
+export function OntologyView({ request, action, spaces, userId }: Props) {
+  const [narrow, setNarrow] = useState(window.innerWidth < 760);
   useEffect(() => {
-    let active = true;
+    const resize = () => setNarrow(window.innerWidth < 760);
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  useEffect(() => {
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSchemaOpen(false);
+        setSelected(null);
+      }
+    };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, []);
+  const [scope, setScope] = useState("personal"),
+    [query, setQuery] = useState(""),
+    [type, setType] = useState("all"),
+    [claims, setClaims] = useState<Claim[]>([]),
+    [selected, setSelected] = useState<string | null>(null),
+    [schema, setSchema] = useState<typeof ontology | null>(null),
+    [schemaOpen, setSchemaOpen] = useState(false),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [truncated, setTruncated] = useState(false),
+    [semantic, setSemantic] = useState(""),
+    [notice, setNotice] = useState(""),
+    [revision, setRevision] = useState(0);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]),
+    [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  useEffect(() => {
+    let alive = true;
     request("ontology")
       .then((s) => {
-        if (active) setSchema(s);
+        if (alive) setSchema(s);
       })
-      .catch((e) => {
-        if (active) setError(e.message);
-      });
+      .catch(() => {});
     return () => {
-      active = false;
+      alive = false;
     };
   }, [request]);
   useEffect(() => {
-    if (tab !== "knowledge") return;
-    let active = true;
+    let alive = true;
     setLoading(true);
     setError("");
+    setSelected(null);
     setClaims([]);
-    setTruncated(false);
-    action("recall_knowledge", {
-      query: search,
-      ...(scope ? { spaceId: scope } : {}),
-      limit: 50,
-    })
-      .then((r) => {
-        if (active) {
-          setClaims(r.claims);
-          setTruncated(r.truncated);
-        }
+    const timer = setTimeout(() => {
+      action("recall_knowledge", {
+        query,
+        limit: 200,
+        ...(scope === "personal"
+          ? { personalOnly: true }
+          : scope !== "all"
+            ? { spaceId: scope }
+            : {}),
       })
-      .catch((e) => {
-        if (active) setError(e.message);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+        .then((r) => {
+          if (alive) {
+            setClaims(r.claims);
+            setTruncated(r.truncated);
+            setSemantic(r.semanticSearch);
+          }
+        })
+        .catch((e) => {
+          if (alive) setError(e.message);
+        })
+        .finally(() => {
+          if (alive) setLoading(false);
+        });
+    }, 250);
     return () => {
-      active = false;
+      alive = false;
+      clearTimeout(timer);
     };
-  }, [tab, scope, search, action]);
+  }, [scope, query, action, revision]);
   const visible = useMemo(
     () =>
-      schema?.types.filter((t) =>
-        [t.name, t.description, ...t.properties.map((p) => p.name)]
-          .join(" ")
-          .toLowerCase()
-          .includes(search.toLowerCase()),
-      ) ?? [],
-    [schema, search],
+      claims.filter(
+        (c) =>
+          type === "all" || c.subject.type === type || c.object?.type === type,
+      ),
+    [claims, type],
   );
-  if (!schema)
-    return (
-      <div className="ontology-loading" role="status">
-        {error || "Loading ontology…"}
-      </div>
-    );
-  const type = schema.types.find((t) => t.id === selected)!;
-  const related = schema.relationships.filter(
-    (r) => r.from.includes(type.id) || r.to.includes(type.id),
-  );
-  const openType = (id: string) => {
+  const drawn = useMemo(() => layout(visible, narrow), [visible, narrow]);
+  useEffect(() => {
+    setNodes(drawn.nodes);
+    setEdges(drawn.edges);
+  }, [drawn, setNodes, setEdges]);
+  const chosen = visible.find((c) => c.id === selected);
+  const chosenNode = nodes.find((n) => n.id === selected);
+  const chosenName =
+    visible
+      .flatMap((c) => [c.subject, ...(c.object ? [c.object] : [])])
+      .find((e) => e.id === selected)?.name ?? "Value";
+  const neighbors = chosenNode
+    ? visible.filter(
+        (c) => c.subject.id === chosenNode.id || c.object?.id === chosenNode.id,
+      )
+    : [];
+  const inspect = useCallback((id: string) => {
     setSelected(id);
-    setSearch("");
-    setTab("types");
-  };
+    setNotice("");
+  }, []);
   const publish = async (c: Claim, spaceId: string, enabled = true) => {
     setError("");
-    setNotice("");
-    setLoading(true);
     try {
       const r = await action("publish_claim", {
         claimId: c.id,
@@ -261,88 +215,64 @@ export function OntologyView({
       });
       setNotice(
         r.published
-          ? "Selected claim published as a snapshot."
-          : "Publication is retracted.",
+          ? "Selected relationship shared as a snapshot."
+          : "Snapshot retracted.",
       );
-      const read = await action("recall_knowledge", {
-        query: search,
-        ...(scope ? { spaceId: scope } : {}),
-        limit: 50,
-      });
-      setClaims(read.claims);
-      setTruncated(read.truncated);
+      setRevision((n) => n + 1);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not update publication");
-    } finally {
-      setLoading(false);
+      setError(e instanceof Error ? e.message : "Could not update sharing");
     }
   };
   return (
-    <div className="ontology-page">
-      <div className="ontology-toolbar">
-        <div className="ontology-tabs" role="group" aria-label="Ontology view">
-          {[
-            ["types", "Node types"],
-            ["relations", "Relationships"],
-            ["knowledge", "Knowledge"],
-          ].map(([id, label]) => (
-            <button
-              key={id}
-              aria-pressed={tab === id}
-              className={tab === id ? "selected" : ""}
-              onClick={() => {
-                setTab(id);
-                setSearch("");
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <span className="ontology-version">
-          <span />
-          Schema {schema.version}
-        </span>
-      </div>
-      <div className="ontology-search-row">
-        <label className="ontology-search">
-          <svg
-            aria-hidden="true"
-            width="15"
-            height="15"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-          >
-            <circle cx="8" cy="8" r="5.5" />
-            <path d="m12 12 5 5" />
-          </svg>
+    <div className="knowledge-graph-page">
+      <div className="kg-toolbar">
+        <label className="kg-search">
+          <span aria-hidden="true">⌕</span>
           <input
-            aria-label="Search ontology"
-            placeholder={
-              tab === "knowledge"
-                ? "Search saved claims…"
-                : "Search types, properties, relationships…"
-            }
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search knowledge"
+            placeholder="Search your knowledge…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
           />
-          {search && (
-            <button
-              aria-label="Clear ontology search"
-              onClick={() => setSearch("")}
-            >
+          {query && (
+            <button aria-label="Clear search" onClick={() => setQuery("")}>
               ×
             </button>
           )}
         </label>
-        <span className="ontology-count">
-          {tab === "types"
-            ? `${schema.types.length} types`
-            : tab === "relations"
-              ? `${schema.relationships.length} relationships`
-              : "Authorized claims"}
-        </span>
+        <select
+          aria-label="Graph scope"
+          value={scope}
+          onChange={(e) => setScope(e.target.value)}
+        >
+          <option value="personal">Personal</option>
+          <option value="all">All authorized</option>
+          {spaces.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Filter node type"
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+        >
+          <option value="all">All types</option>
+          {schema?.types
+            .filter((t) => t.group === "domain")
+            .map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+        </select>
+        <button
+          className="kg-schema-button"
+          onClick={() => setSchemaOpen(true)}
+        >
+          Schema <span aria-hidden="true">↗</span>
+        </button>
       </div>
       {error && (
         <div className="error-banner" role="alert">
@@ -350,275 +280,235 @@ export function OntologyView({
         </div>
       )}
       {notice && (
-        <p role="status" className="ontology-notice">
+        <p className="kg-message" role="status">
           {notice}
         </p>
       )}
-      {tab === "types" && (
-        <div className="ontology-browser">
-          <aside className="ontology-type-list" aria-label="Node types">
-            {["domain", "system"].map((group) => (
-              <div key={group}>
-                <div className="ontology-group-label">
-                  {group === "domain" ? "Entities" : "Memory & access"}
+      <div className="kg-workspace">
+        <div className="kg-canvas" aria-label="Personal knowledge graph">
+          <ReactFlow
+            key={scope + ":" + query + ":" + type + ":" + revision}
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeClick={(_, n) => inspect(n.id)}
+            onEdgeClick={(_, e) => inspect(e.id)}
+            onPaneClick={() => setSelected(null)}
+            nodesConnectable={false}
+            edgesReconnectable={false}
+            nodesDraggable
+            fitView
+            fitViewOptions={{ padding: 0.12, maxZoom: 1 }}
+            minZoom={0.15}
+            maxZoom={1.8}
+            deleteKeyCode={null}
+          >
+            <Background color="#ddd" gap={22} size={1} />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+          <div className="kg-count">
+            {loading
+              ? "Loading…"
+              : `${nodes.length} nodes · ${edges.length} relationships`}
+          </div>
+          {!loading && !visible.length && (
+            <div className="kg-empty">
+              <span>◇</span>
+              <strong>
+                {query
+                  ? "No matching knowledge"
+                  : "Your knowledge graph starts here"}
+              </strong>
+              <p>
+                {query
+                  ? "Try a name, subject, or different phrasing."
+                  : "Ask your connected agent to structure a memory."}
+              </p>
+            </div>
+          )}
+        </div>
+        {(chosen || chosenNode) && (
+          <aside className="kg-inspector" aria-label="Knowledge details">
+            <button
+              className="kg-close"
+              aria-label="Close details"
+              onClick={() => setSelected(null)}
+            >
+              ×
+            </button>
+            {chosen ? (
+              <>
+                <span className="kg-eyebrow">Relationship</span>
+                <h2>{chosen.subject.name}</h2>
+                <div className="kg-assertion">
+                  <code>{chosen.predicate}</code>
+                  <span>→</span>
+                  <strong>{chosen.object?.name ?? chosen.value}</strong>
                 </div>
-                {visible
-                  .filter((t) => t.group === group)
-                  .map((t) => (
-                    <button
-                      key={t.id}
-                      className={selected === t.id ? "selected" : ""}
-                      aria-pressed={selected === t.id}
-                      onClick={() => setSelected(t.id)}
+                <blockquote>{chosen.evidence}</blockquote>
+                <dl>
+                  <dt>Reported by</dt>
+                  <dd>{chosen.authorName}</dd>
+                  <dt>Basis</dt>
+                  <dd>{chosen.basis}</dd>
+                  <dt>Visibility</dt>
+                  <dd>
+                    {chosen.scope === "personal"
+                      ? "Private"
+                      : "Shared snapshot"}
+                  </dd>
+                  <dt>Source revision</dt>
+                  <dd>{chosen.sourceRevision}</dd>
+                  <dt>State</dt>
+                  <dd>{chosen.status}</dd>
+                  {chosen.validFrom && (
+                    <>
+                      <dt>Valid from</dt>
+                      <dd>{chosen.validFrom}</dd>
+                    </>
+                  )}
+                  {chosen.validUntil && (
+                    <>
+                      <dt>Valid until</dt>
+                      <dd>{chosen.validUntil}</dd>
+                    </>
+                  )}
+                </dl>
+                {chosen.authorId === userId &&
+                  chosen.scope === "personal" &&
+                  spaces.some((s) => s.role !== "reader") && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        publish(
+                          chosen,
+                          String(new FormData(e.currentTarget).get("spaceId")),
+                        );
+                      }}
                     >
-                      <NodeMark type={t.id} />
-                      <span>{t.name}</span>
-                      <small>{t.properties.length}</small>
-                    </button>
-                  ))}
-              </div>
-            ))}
-            {!visible.length && (
-              <p className="ontology-no-links">No matching types.</p>
+                      <select name="spaceId" aria-label="Share destination">
+                        {spaces
+                          .filter((s) => s.role !== "reader")
+                          .map((s) => (
+                            <option value={s.id} key={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                      </select>
+                      <button className="button small">
+                        Share this relationship
+                      </button>
+                    </form>
+                  )}
+                {chosen.authorId === userId && chosen.spaceId && (
+                  <button
+                    className="button small"
+                    onClick={() => publish(chosen, chosen.spaceId!, false)}
+                  >
+                    Retract snapshot
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <span className="kg-eyebrow">Connected knowledge</span>
+                <h2>{chosenName}</h2>
+                {neighbors.map((c) => (
+                  <button
+                    className="kg-neighbor"
+                    key={c.id}
+                    onClick={() => inspect(c.id)}
+                  >
+                    <strong>{c.subject.name}</strong>
+                    <span>
+                      {label(c.predicate)} → {c.object?.name ?? c.value}
+                    </span>
+                  </button>
+                ))}
+              </>
             )}
           </aside>
+        )}
+      </div>
+      <div className="kg-footer">
+        <span>Drag to explore · select a relationship for evidence</span>
+        <span>
+          {truncated
+            ? "Showing a bounded view. Search to narrow it."
+            : query && semantic === "not_configured"
+              ? "Semantic search needs an embedding key."
+              : query && semantic === "unavailable"
+                ? "Embedding provider unavailable; keyword results shown."
+                : ""}
+        </span>
+      </div>
+      {schemaOpen && (
+        <div className="kg-modal-backdrop" onClick={() => setSchemaOpen(false)}>
           <section
-            className="ontology-inspector"
-            aria-label={`${type.name} schema`}
+            className="kg-schema-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Ontology schema"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="ontology-type-heading">
-              <NodeMark type={type.id} />
+            <div className="kg-modal-heading">
               <div>
-                <h2>{type.name}</h2>
-                <p>{type.description}</p>
+                <h2>Schema {schema?.version}</h2>
+                <p>Evidence-backed property graph · no OWL reasoner</p>
               </div>
-              <span className="ontology-badge">
-                {type.group === "domain" ? "Entity" : "System"}
-              </span>
+              <button
+                aria-label="Close schema"
+                onClick={() => setSchemaOpen(false)}
+              >
+                ×
+              </button>
             </div>
-            <TypeMap selected={type} schema={schema} onSelect={openType} />
-            <div className="ontology-section-label">
-              Allowed properties <span>{type.properties.length}</span>
-            </div>
-            <Properties properties={type.properties} />
-            <div className="ontology-section-label">
-              Relationships <span>{related.length}</span>
-            </div>
-            <div className="ontology-relation-list">
-              {related.map((r) => (
-                <RelationRow
-                  key={r.id}
-                  relation={r}
-                  schema={schema}
-                  onSelect={openType}
-                  selected={type.id}
-                />
+            <h3>Node types</h3>
+            {schema?.types
+              .filter((t) => t.group === "domain")
+              .map((t) => (
+                <details key={t.id}>
+                  <summary>
+                    <i style={{ background: colors[t.id] }} />
+                    {t.name}
+                  </summary>
+                  <p>{t.description}</p>
+                  <dl>
+                    {t.properties.map((p) => (
+                      <React.Fragment key={p.name}>
+                        <dt>
+                          {p.name}
+                          {p.required ? " *" : ""}
+                        </dt>
+                        <dd>
+                          {p.type} · {p.description}
+                        </dd>
+                      </React.Fragment>
+                    ))}
+                  </dl>
+                </details>
               ))}
-            </div>
+            <h3>Relationships</h3>
+            {schema?.relationships
+              .filter((r) => r.group === "assertion")
+              .map((r) => (
+                <details key={r.id}>
+                  <summary>{r.id}</summary>
+                  <p>{r.description}</p>
+                  <code>
+                    {r.from.join(" / ")} → {r.value?.type ?? r.to.join(" / ")}
+                  </code>
+                  {r.value?.values && <p>{r.value.values.join(" · ")}</p>}
+                </details>
+              ))}
+            <h3>Rules</h3>
+            {schema?.rules.map((r) => (
+              <p key={r}>{r}</p>
+            ))}
           </section>
         </div>
       )}
-      {tab === "relations" && (
-        <div className="ontology-all-relations">
-          {schema.relationships
-            .filter((r) =>
-              [r.id, r.description, ...r.from, ...r.to]
-                .join(" ")
-                .toLowerCase()
-                .includes(search.toLowerCase()),
-            )
-            .map((r) => (
-              <RelationRow
-                key={r.id}
-                relation={r}
-                schema={schema}
-                onSelect={openType}
-              />
-            ))}
-          {!schema.relationships.some((r) =>
-            [r.id, r.description, ...r.from, ...r.to]
-              .join(" ")
-              .toLowerCase()
-              .includes(search.toLowerCase()),
-          ) && <p className="ontology-no-links">No matching relationships.</p>}
-        </div>
-      )}
-      {tab === "knowledge" && (
-        <section className="ontology-knowledge">
-          <div className="ontology-knowledge-toolbar">
-            <select
-              aria-label="Knowledge scope"
-              value={scope}
-              onChange={(e) => setScope(e.target.value)}
-            >
-              <option value="">Personal & authorized spaces</option>
-              {spaces.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <span className="ontology-count">
-              {loading ? "Loading…" : `${claims.length} claims`}
-            </span>
-          </div>
-          {!loading && !claims.length && (
-            <div className="ontology-empty">
-              <NodeMark type="claim" />
-              <h2>No structured claims yet</h2>
-              <p>
-                Ask your connected agent to read the ontology, then structure a
-                saved memory. Existing memories stay available in Memories.
-              </p>
-              <code>get_ontology → record_knowledge → recall_knowledge</code>
-            </div>
-          )}
-          {claims.map((c) => (
-            <details key={c.id} className="ontology-claim">
-              <summary>
-                <span className="ontology-claim-line">
-                  <strong>{c.subject.name}</strong>
-                  <code>{c.predicate}</code>
-                  <span>{c.object?.name ?? c.value}</span>
-                </span>
-                <span className="ontology-claim-meta">
-                  {c.authorName} ·{" "}
-                  {c.scope === "space" ? "Shared snapshot" : "Private"} ·{" "}
-                  {c.basis}
-                  {c.status !== "active" ? ` · ${c.status}` : ""}
-                </span>
-              </summary>
-              <blockquote>{c.evidence}</blockquote>
-              <dl>
-                <dt>Source revision</dt>
-                <dd>{c.sourceRevision}</dd>
-                <dt>Captured by</dt>
-                <dd>{c.sourceClient}</dd>
-                <dt>Recorded</dt>
-                <dd>{new Date(c.recordedAt).toLocaleString()}</dd>
-                {c.validFrom && (
-                  <>
-                    <dt>Valid from</dt>
-                    <dd>{new Date(c.validFrom).toLocaleString()}</dd>
-                  </>
-                )}
-                {c.validUntil && (
-                  <>
-                    <dt>Valid until</dt>
-                    <dd>{new Date(c.validUntil).toLocaleString()}</dd>
-                  </>
-                )}
-              </dl>
-              {c.authorId === userId &&
-                c.scope === "personal" &&
-                spaces.some((s) => s.role !== "reader") && (
-                  <form
-                    className="ontology-publish"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const f = new FormData(e.currentTarget);
-                      publish(c, String(f.get("spaceId")));
-                    }}
-                  >
-                    <select
-                      name="spaceId"
-                      aria-label={`Destination for ${c.subject.name}`}
-                    >
-                      {spaces
-                        .filter((s) => s.role !== "reader")
-                        .map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                    </select>
-                    <button className="button small" disabled={loading}>
-                      Publish selected claim
-                    </button>
-                    <p>
-                      Publishes this assertion, its excerpt and entity names.
-                      Private source text and other claims stay private.
-                    </p>
-                  </form>
-                )}
-              {c.authorId === userId && c.scope === "space" && (
-                <button
-                  className="text-button"
-                  disabled={loading}
-                  onClick={() => publish(c, c.spaceId!, false)}
-                >
-                  Retract snapshot
-                </button>
-              )}
-            </details>
-          ))}
-          {truncated && (
-            <p className="ontology-notice">
-              Results are limited. Narrow the search or select a space.
-            </p>
-          )}
-        </section>
-      )}
-      <details className="ontology-rules">
-        <summary>Scope & lifecycle rules</summary>
-        <ul>
-          {schema.rules.map((r) => (
-            <li key={r}>{r}</li>
-          ))}
-        </ul>
-      </details>
-    </div>
-  );
-}
-function RelationRow({
-  relation: r,
-  schema,
-  onSelect,
-  selected,
-}: {
-  relation: RelationDefinition;
-  schema: Schema;
-  onSelect: (id: string) => void;
-  selected?: string;
-}) {
-  const names = (ids: string[]) =>
-    ids.map((id) => (
-      <button
-        key={id}
-        onClick={() => onSelect(id)}
-        className={selected === id ? "current" : ""}
-      >
-        {schema.types.find((t) => t.id === id)?.name ?? id}
-      </button>
-    ));
-  return (
-    <div className="ontology-relation-row">
-      <div className="ontology-relation-name">
-        <code>{r.id}</code>
-        <span className="ontology-relation-kind">
-          {r.group === "assertion" ? "Claim predicate" : "System link"}
-        </span>
-      </div>
-      <div className="ontology-relation-endpoints">
-        <div>{names(r.from)}</div>
-        <span aria-hidden="true">→</span>
-        <div>
-          {r.value ? (
-            <span className="ontology-property-type">{r.value.type}</span>
-          ) : (
-            names(r.to)
-          )}
-        </div>
-      </div>
-      <p>{r.description}</p>
-      {r.value?.values && (
-        <div className="ontology-enums">
-          {r.value.values.map((v) => (
-            <code key={v}>{v}</code>
-          ))}
-        </div>
-      )}
-      {r.properties && <Properties properties={r.properties} />}
     </div>
   );
 }

@@ -7,7 +7,9 @@ import codexLogo from "./assets/codex.png";
 import museLogo from "./assets/muse.svg";
 import { SpaceView } from "./SpaceView";
 import { invitationRedirect } from "./invitation";
-import { OntologyView } from "./OntologyView";
+const OntologyView = React.lazy(() =>
+  import("./OntologyView").then((m) => ({ default: m.OntologyView })),
+);
 import "./style.css";
 import "./ontology.css";
 type Config = {
@@ -826,10 +828,9 @@ function Dashboard({ config }: { config: Config }) {
                       </button>
                     </div>
                     <p className="setup-note">
-                      Prefer DCR (Clerk{" "}
-                      <code>…/oauth/register</code> from authorization-server
-                      metadata — OIDC discovery may omit it). Public clients:
-                      PKCE, no secret. Send this MCP URL as{" "}
+                      Prefer DCR (Clerk <code>…/oauth/register</code> from
+                      authorization-server metadata — OIDC discovery may omit
+                      it). Public clients: PKCE, no secret. Send this MCP URL as{" "}
                       <code>resource</code> on authorize and token. Minimum
                       scopes <code>profile email</code>; some hosts also need{" "}
                       <code>openid</code> / <code>offline_access</code>.
@@ -1190,12 +1191,14 @@ function Dashboard({ config }: { config: Config }) {
             </>
           )}
           {section === "ontology" && (
-            <OntologyView
-              request={request}
-              action={action}
-              spaces={data?.spaces ?? []}
-              userId={data?.actor.id ?? ""}
-            />
+            <React.Suspense fallback={<p className="empty">Loading graph…</p>}>
+              <OntologyView
+                request={request}
+                action={action}
+                spaces={data?.spaces ?? []}
+                userId={data?.actor.id ?? ""}
+              />
+            </React.Suspense>
           )}
           {section === "activity" && (
             <>

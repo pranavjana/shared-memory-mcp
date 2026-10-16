@@ -1,4 +1,6 @@
-# Ontology v1
+# Everyday ontology 1.1
+
+The [everyday-memory research and schema](everyday-memory-research.md) describes the general personal-agent model and measured retrieval behavior. The default Ontology view is the saved knowledge graph; Schema opens the type/relationship catalog.
 
 The authenticated dashboard's Ontology tab and MCP `get_ontology` tool expose the registry in `src/ontology.ts`. Domain types, allowed entity properties, predicate endpoints and literal enums are validated by `record_knowledge`. The catalog describes the semantic memory model, not the internal delivery, OAuth or profile-store schemas. System properties are assigned by their owning server operations, not arbitrary agent updates.
 
@@ -41,7 +43,7 @@ Do not record this example as a real user fact. Agent-generated illustrative tas
 
 Use `publish_claim` with a selected authored claim ID, authorized space ID, `userRequested: true` and stable operation key. A publication is immutable: it contains only that assertion, its exact excerpt, attribution and entity type/name. Private aliases, entity descriptions, source memory IDs, adjacent text and supersession IDs are omitted. Space-specific entity IDs let publications from one author's same entity connect, without implicitly merging different people's entities.
 
-Read it through `recall_knowledge({"spaceId":"SPACE_ID"})` or Ontology → Knowledge → the selected space. Active membership is required on every read. Publishing a claim does not grant access to its private source memory. It currently has no event/webhook notification; receipts explicitly report `on_demand_only`.
+Read it through `recall_knowledge({"spaceId":"SPACE_ID"})` or Ontology → the selected space. Active membership is required on every read. Publishing a claim does not grant access to its private source memory. It currently has no event/webhook notification; receipts explicitly report `on_demand_only`.
 
 Set `enabled:false` to retract by the original claim ID or returned publication ID. Retries cannot reactivate withdrawn snapshots. To publish a new version, record and select a new claim. Source edits or supersession do not silently change existing snapshots, which are labeled with their publication time and source revision. Forgetting the source scrubs all its claim/publication payloads and withdraws publications. Account deletion uses the same cleanup. Content already received by another host cannot be recalled.
 
@@ -49,6 +51,6 @@ The existing `share_memory` path still shares a live **whole-memory reference**,
 
 ## First-version limits
 
-Extraction is performed by the connected agent, with server-side validation; there is no background extraction worker or automatic backfill. Retrieval uses lexical/alias candidates and one-hop expansion through scoped entity IDs. It considers up to 500 authorized personal and 500 authorized shared candidates, returns a bounded result and reports truncation. There are no embeddings, calibrated confidence scores, cross-author entity reconciliation, automated conflict resolution or joint task editing. These are explicit follow-ups, not implied by the schema visualization.
+Extraction is performed by the connected agent, with server-side validation; there is no background extraction worker or automatic reinterpretation of old ABOUT claims. Retrieval combines FalkorDB full-text and Gemini semantic vectors with bounded one-hop expansion. Embeddings require a configured private provider key; failures and missing configuration are reported as semanticSearch states. `index_knowledge` builds missing search documents for bounded batches of current authored claims without changing their meaning. See the research guide for exact retrieval windows, evaluation and scale limits. No cross-author reconciliation, automatic balance calculation or formal OWL inference is implied.
 
-Storage changes are additive indexes and new labels (`KnowledgeEntity`, `KnowledgeClaim`, `KnowledgeBatch`, `Publication`); existing graph records are preserved. The existing source `forget_memory` operation additionally scrubs its derived payloads. No hosted backfill or data migration is needed for this version. Develop and verify in sandbox before any authorized production release.
+Storage changes are additive indexes and new labels (`KnowledgeEntity`, `KnowledgeClaim`, `KnowledgeBatch`, `Publication`, `KnowledgeSearchDocument`); existing graph records are preserved. The existing source `forget_memory` operation additionally scrubs its derived payloads. No hosted backfill or data migration is needed for this version. Develop and verify in sandbox before any authorized production release.
