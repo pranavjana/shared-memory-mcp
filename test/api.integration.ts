@@ -127,6 +127,11 @@ test("real database API and both MCP protocols enforce identity, revisions and c
     const discover = await rpc("user_a", "server/discover");
     assert.deepEqual(discover.body.result.supportedVersions, ["2026-07-28"]);
     assert.ok(discover.body.result.capabilities.events);
+    const eventCatalog = await rpc("user_a", "events/list");
+    assert.deepEqual(
+      eventCatalog.body.result.events.map((e: any) => e.name),
+      ["memory.changed", "knowledge.changed"],
+    );
     assert.equal((await rpc("invalid", "tools/list")).status, 401);
     const listed = await rpc("user_a", "tools/list");
     assert.ok(listed.body.result.tools.some((t: any) => t.name === "remember"));
@@ -303,6 +308,28 @@ test("real database API and both MCP protocols enforce identity, revisions and c
       ).status,
       200,
     );
+    for (const version of ["2026-07-28", "2025-11-25"]) {
+      const packet = await rpc(
+        "user_b",
+        "tools/call",
+        { name: "get_shared_update", arguments: { id, spaceId: space.id } },
+        version,
+      );
+      assert.equal(packet.body.result.structuredContent.update.memory.id, id);
+      const setup = await rpc(
+        "user_b",
+        "tools/call",
+        {
+          name: "notification_setup",
+          arguments: { spaceId: space.id, host: "dot" },
+        },
+        version,
+      );
+      assert.equal(setup.body.result.structuredContent.eventsAvailable, true);
+      assert.ok(
+        setup.body.result.structuredContent.prompt.includes(origin + "/mcp"),
+      );
+    }
     const bPrivate = (
       await api("user_b", "remember", {
         ...i,

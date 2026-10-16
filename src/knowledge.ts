@@ -438,6 +438,41 @@ export class KnowledgeStore {
         "asOf filters known validity bounds; missing validity remains unknown. includeHistory returns earlier assertions, not a resolved historical truth.",
     };
   }
+  async sharedUpdate(actor: Actor, id: string, spaceId: string) {
+    await this.store.requireSpace(actor, spaceId);
+    let update: unknown, query: string;
+    if (id.startsWith("pub_")) {
+      const [row] = await this.store.query<{ payload: string }>(
+        `MATCH (:Person {id:$user})-[:MEMBER_OF {active:true}]->(:Space {id:$space})<-[:PUBLISHED_IN]-(p:Publication {id:$id})-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE p.active=true AND m.deletedAt IS NULL RETURN p.payload AS payload`,
+        { user: actor.userId, space: spaceId, id },
+        true,
+      );
+      if (!row)
+        throw new DomainError(404, "Shared update unavailable or withdrawn");
+      const claim = JSON.parse(row.payload) as Claim;
+      update = { type: "publication", claim };
+      query = [claim.subject.name, claim.object?.name]
+        .filter(Boolean)
+        .join(" ");
+    } else {
+      const [row] = await this.store.query<{
+        value: import("./memory.js").Memory;
+      }>(
+        `MATCH (:Person {id:$user})-[:MEMBER_OF {active:true}]->(:Space {id:$space})<-[:SHARED_IN {active:true}]-(m:Memory {id:$id}) WHERE m.deletedAt IS NULL RETURN properties(m) AS value`,
+        { user: actor.userId, space: spaceId, id },
+        true,
+      );
+      if (!row)
+        throw new DomainError(404, "Shared update unavailable or withdrawn");
+      update = { type: "memory", memory: this.store.publicMemory(row.value) };
+      query = row.value.text.slice(0, 1000);
+    }
+    return {
+      spaceId,
+      update,
+      context: await this.recall(actor, { spaceId, query, limit: 5 }),
+    };
+  }
   async publish(actor: Actor, raw: unknown) {
     const input = z
       .object({
@@ -454,10 +489,24 @@ export class KnowledgeStore {
       !input.enabled && input.claimId.startsWith("pub_")
         ? input.claimId
         : "pub_" + digest(JSON.stringify([input.spaceId, input.claimId]));
+    const eventId =
+      "evt_" +
+      digest(publicationId + (input.enabled ? ":published" : ":retracted"));
     if (!input.enabled) {
       const rows = await this.store.query<{ id: string }>(
-        `MATCH (p:Publication {id:$id})-[:PUBLISHED_IN]->(s:Space {id:$space})<-[:MEMBER_OF {active:true}]-(:Person {id:$user}) WHERE p.owner=$user SET p.active=false RETURN p.id AS id`,
-        { id: publicationId, user: actor.userId, space: input.spaceId },
+        `MATCH (p:Publication {id:$id})-[:PUBLISHED_IN]->(s:Space {id:$space})<-[:MEMBER_OF {active:true}]-(:Person {id:$user}) WHERE p.owner=$user
+         WITH p,p.active AS wasActive SET p.active=false
+         FOREACH (_ IN CASE WHEN wasActive THEN [1] ELSE [] END | MERGE (event:Change {id:$event}) ON CREATE SET event.publicationId=p.id,event.spaceId=$space,event.actorId=$user,event.actorName=$name,event.clientId=$client,event.revision=coalesce(p.sourceRevision,0),event.kind='retracted',event.createdAt=$now)
+         RETURN p.id AS id`,
+        {
+          id: publicationId,
+          user: actor.userId,
+          space: input.spaceId,
+          event: eventId,
+          name: actor.name ?? "Member",
+          client: actor.clientId,
+          now: Date.now(),
+        },
       );
       if (!rows[0]) throw new DomainError(404, "Publication not found");
       await this.store.query(
@@ -510,8 +559,9 @@ export class KnowledgeStore {
     const receipt = await this.store.query<{ id: string; active: boolean }>(
       `MATCH (c:KnowledgeClaim {id:$claim})-[:SUPPORTED_BY]->(m:Memory),(:Person {id:$user})-[member:MEMBER_OF {active:true}]->(s:Space {id:$space})
       WHERE c.owner=$user AND c.status IN ['active','disputed'] AND c.sourceRevision=m.revision AND m.deletedAt IS NULL AND member.role IN ['owner','contributor']
-      MERGE (p:Publication {id:$id}) ON CREATE SET p.owner=$user,p.payload=$payload,p.publishedAt=$now,p.operation=$operation,p.active=true
+      MERGE (p:Publication {id:$id}) ON CREATE SET p.owner=$user,p.payload=$payload,p.publishedAt=$now,p.operation=$operation,p.active=true,p.sourceRevision=$revision
       MERGE (p)-[:DERIVED_FROM]->(c) MERGE (p)-[:PUBLISHED_IN]->(s)
+      FOREACH (_ IN CASE WHEN p.active THEN [1] ELSE [] END | MERGE (event:Change {id:$event}) ON CREATE SET event.publicationId=p.id,event.spaceId=$space,event.actorId=$user,event.actorName=$name,event.clientId=$client,event.revision=$revision,event.kind='published',event.createdAt=$now)
       MERGE (subject:KnowledgeEntity {id:$subjectId}) ON CREATE SET subject.kind=$subjectType,subject.spaceId=$space
       MERGE (p)-[:SUBJECT]->(subject)
       FOREACH (_ IN CASE WHEN $objectId='' THEN [] ELSE [1] END | MERGE (object:KnowledgeEntity {id:$objectId}) ON CREATE SET object.kind=$objectType,object.spaceId=$space MERGE (p)-[:OBJECT]->(object))
@@ -524,6 +574,10 @@ export class KnowledgeStore {
         payload: JSON.stringify(snapshot),
         now: snapshot.publishedAt!,
         operation,
+        event: eventId,
+        name: actor.name ?? "Member",
+        client: actor.clientId,
+        revision: snapshot.sourceRevision,
         subjectId: snapshot.subject.id,
         subjectType: snapshot.subject.type,
         objectId: snapshot.object?.id ?? "",
@@ -542,7 +596,10 @@ export class KnowledgeStore {
       publicationId,
       spaceId: input.spaceId,
       snapshot: true,
-      delivery: "on_demand_only",
+      eventId: receipt[0].active ? eventId : null,
+      delivery: receipt[0].active
+        ? "queued_for_active_subscribers"
+        : "inactive",
     };
   }
 }

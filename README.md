@@ -58,13 +58,13 @@ Sharing happens on an explicit request or through a dashboard-enabled rule match
 
 ## Proactive events
 
-The same authenticated endpoint implements stateless `2026-07-28` discovery and tools alongside legacy MCP `2025-11-25` support. `events/list`, `events/subscribe` and `events/unsubscribe` expose `memory.changed`, filtered by `space_id`.
+The same authenticated endpoint implements stateless `2026-07-28` discovery and tools alongside legacy MCP `2025-11-25` support. `events/list`, `events/subscribe` and `events/unsubscribe` expose `memory.changed` for whole-memory shares and `knowledge.changed` for selected-claim publications, filtered by `space_id`.
 
-Ask a supported OpenAI dot or cloud Work chat to monitor an authorized space and notify its own user. The intended flow is: Pranav shares an update; Roshan's subscribed agent retrieves current context and messages Roshan. No automatic response to Pranav is required.
+Open a space → Agent notifications for a space-specific Muse or Dot setup prompt and actual subscription status. Dot/Cloud Work supports native MCP Events; Muse must demonstrate a persistent callback and wake-up support before claiming monitoring. Ask the receiving agent to monitor both events in an authorized space and notify its own user. The intended flow is: Pranav shares an update; Roshan's subscribed agent retrieves current context and messages Roshan. No automatic response to Pranav is required.
 
 Subscriptions persist in FalkorDB and expire no later than their authorizing access token; the host must refresh them. Signing secrets and authorizing tokens are encrypted using AES-256-GCM. The worker rechecks client revocation, OAuth authorization and space access. It verifies signed callback challenges and pins validated public DNS addresses for each HTTPS connection. Private destinations and redirects are blocked. Stable event IDs survive retries; transient failures use bounded exponential backoff. Sender echoes are suppressed. `accepted` means the receiver acknowledged the webhook, not that an agent ran or sent a message. The dashboard distinguishes those states.
 
-The protocol does not offer historical replay (`cursor: null`). Subscribe before generating updates. Real dot subscription, automatic tool invocation, and event-to-user-message behavior need host acceptance testing; simulated webhook receipt alone does not verify them. Muse connects successfully when the host uses DCR plus `resource=` on authorize/token (with scopes such as `openid profile email offline_access`).
+The protocol does not offer historical replay (`cursor: null`). Subscribe before generating updates. Real Muse/Dot subscriptions, automatic tool invocation, and event-to-user-message behavior need host acceptance testing; simulated webhook receipt alone does not verify them. Muse connects successfully when the host uses DCR plus `resource=` on authorize/token (with scopes such as `openid profile email offline_access`).
 
 Reference: https://developers.openai.com/plugins/build/mcp-events
 
