@@ -4,6 +4,7 @@ import { randomUUID, randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { createApp } from "../src/app.js";
 import { connectMemoryStore } from "../src/memory.js";
+import { AutomaticOntology } from "../src/ontology-extraction.js";
 import { EventService } from "../src/events.js";
 import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 test("real database API and both MCP protocols enforce identity, revisions and connection revocation", async () => {
@@ -26,6 +27,41 @@ test("real database API and both MCP protocols enforce identity, revisions and c
     },
     {
       memory: store,
+      automaticOntology: new AutomaticOntology(store, undefined, {
+        async extract(context) {
+          if (context.source.text !== "Nadia works at Acme.")
+            return { entities: [], claims: [] };
+          return {
+            entities: [
+              {
+                key: "nadia",
+                type: "person",
+                name: "Nadia",
+                existingKey: null,
+                identityEvidence: null,
+              },
+              {
+                key: "acme",
+                type: "organization",
+                name: "Acme",
+                existingKey: null,
+                identityEvidence: null,
+              },
+            ],
+            claims: [
+              {
+                subject: "nadia",
+                predicate: "WORKS_AT",
+                object: "acme",
+                value: null,
+                evidence: context.source.text,
+                validFrom: null,
+                validUntil: null,
+              },
+            ],
+          };
+        },
+      }),
       events: new EventService(store, key, origin),
       getProfile: async (id) => ({ id, name: id, email: id + "@example.com" }),
       verifyToken: async (token) =>
@@ -41,7 +77,11 @@ test("real database API and both MCP protocols enforce identity, revisions and c
                 extra: { userId: token },
               },
             }
-          : { ok: false as const, code: "invalid_token" as const, message: "invalid_token" },
+          : {
+              ok: false as const,
+              code: "invalid_token" as const,
+              message: "invalid_token",
+            },
       dashboardAuthenticate: async (req) =>
         ["user_a", "user_b"].includes(req.get("authorization") ?? "")
           ? {
@@ -404,6 +444,41 @@ test("real database API and both MCP protocols enforce identity, revisions and c
         })
       ).body.error,
     );
+    // Legacy plain-save clients receive structured claims through both protocols and dashboard.
+    for (const version of ["2026-07-28", "2025-11-25"]) {
+      const automatic = await rpc(
+        "user_a",
+        "tools/call",
+        {
+          name: "remember",
+          arguments: {
+            ...i,
+            text: "Nadia works at Acme.",
+            evidence: "Nadia works at Acme.",
+            entities: [],
+            idempotencyKey: "automatic-protocol-" + version,
+          },
+        },
+        version,
+      );
+      assert.equal(
+        automatic.body.result.structuredContent.ontology.status,
+        "structured",
+      );
+      assert.equal(
+        automatic.body.result.structuredContent.ontology.claimIds.length,
+        1,
+      );
+    }
+    const automaticDashboard = await api("user_a", "remember", {
+      ...i,
+      text: "Nadia works at Acme.",
+      evidence: "Nadia works at Acme.",
+      entities: [],
+      idempotencyKey: "automatic-dashboard-01",
+    });
+    assert.equal(automaticDashboard.body.ontology.status, "structured");
+    assert.equal(automaticDashboard.body.ontology.claimIds.length, 1);
   } finally {
     await new Promise<void>((r) => server.close(() => r()));
     await store.graph.delete();

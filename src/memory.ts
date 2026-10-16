@@ -139,6 +139,7 @@ export class MemoryStore {
       "KnowledgeClaim",
       "KnowledgeEntity",
       "KnowledgeBatch",
+      "OntologyJob",
       "Publication",
     ]) {
       try {
@@ -219,6 +220,8 @@ export class MemoryStore {
       MERGE (p)-[:AUTHORED]->(m)
       MERGE (r:Revision {id:$revisionId}) ON CREATE SET r.text=m.text,r.kind=m.kind,r.basis=m.basis,r.entities=m.entities,r.evidence=m.evidence,r.sourceClient=m.sourceClient,r.revision=1,r.createdAt=$now,r.eventAt=m.eventAt
       MERGE (m)-[:HAS_REVISION]->(r)
+      MERGE (job:OntologyJob {id:$revisionId}) ON CREATE SET job.owner=$user,job.revision=1,job.status='pending',job.attempts=0,job.nextAt=0
+      MERGE (job)-[:SUPPORTED_BY]->(m)
       FOREACH (i IN range(0,size($entityIds)-1) | MERGE (e:Entity {id:$entityIds[i]}) ON CREATE SET e.name=$names[i],e.kind=$types[i] MERGE (m)-[:ABOUT]->(e))
       RETURN properties(m) AS value`,
       {
@@ -349,6 +352,8 @@ export class MemoryStore {
       SET m.text=$text,m.kind=$kind,m.basis=$basis,m.entities=$entities,m.evidence=$evidence,m.eventAt=$eventAt,m.sourceClient=$client,m.updatedAt=$now,m.revision=$rev
       CREATE (r:Revision {id:$rid,text:$text,kind:$kind,basis:$basis,entities:$entities,evidence:$evidence,eventAt:$eventAt,sourceClient:$client,createdAt:$now,revision:$rev,requestHash:$hash})
       CREATE (m)-[:HAS_REVISION]->(r)
+      CREATE (job:OntologyJob {id:$rid,owner:$user,revision:$rev,status:'pending',attempts:0,nextAt:0})
+      CREATE (job)-[:SUPPORTED_BY]->(m)
       WITH m OPTIONAL MATCH (m)-[link:ABOUT]->(:Entity) DELETE link
       WITH DISTINCT m
       FOREACH (i IN range(0,size($entityIds)-1) | MERGE (e:Entity {id:$entityIds[i]}) ON CREATE SET e.name=$names[i],e.kind=$types[i] MERGE (m)-[:ABOUT]->(e))
@@ -410,6 +415,10 @@ export class MemoryStore {
       WITH DISTINCT c OPTIONAL MATCH (p:Publication)-[:DERIVED_FROM]->(c)
       SET p.payload=NULL,p.active=false`,
       { id, user: actor.userId, now: Date.now() },
+    );
+    await this.query(
+      `MATCH (job:OntologyJob)-[:SUPPORTED_BY]->(m:Memory {id:$id}) WHERE m.owner=$user SET job.plan=NULL,job.status='forgotten',job.lease=NULL`,
+      { id, user: actor.userId },
     );
     await this.query(
       `MATCH (d:KnowledgeSearchDocument)-[:INDEXES]->(c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory {id:$id}) WHERE m.owner=$user DETACH DELETE d`,
