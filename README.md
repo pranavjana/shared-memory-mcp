@@ -16,10 +16,9 @@ OAuth requirements (do not weaken these) — working Muse / public-client shape:
 |-----------|--------|
 | MCP resource | exactly `https://shared-memory-mcp-production.up.railway.app/mcp` |
 | `resource=` | required on **authorize and token** (and retained on refresh); RFC 8707 |
-| Minimum scopes | `profile email` |
-| Host refresh / OIDC | some hosts also need `openid` and `offline_access` (Muse used `openid profile email offline_access`) |
+| Working scopes | `openid profile email offline_access` (service minimum is `profile email`; Muse needed all four for OIDC/refresh) |
 | Public client auth | PKCE `S256`, `token_endpoint_auth_method: none` (no client secret) |
-| DCR | `POST https://organic-buck-9271.clerk.accounts.dev/oauth/register` when advertised |
+| DCR | use `registration_endpoint` from **oauth-authorization-server** metadata (prod: `https://organic-buck-9271.clerk.accounts.dev/oauth/register`) |
 
 Client registration:
 
@@ -27,13 +26,13 @@ Client registration:
 - CIMD is also fine when `client_id_metadata_document_supported` is true. Leave manually entered client ID and secret blank for DCR/CIMD.
 - If the host cannot use DCR/CIMD, register a **public** OAuth application in the Clerk Dashboard (see below) and configure the host with that client ID only (no secret).
 
-A 401 `invalid_token` / audience mismatch means the access token was not bound to this MCP URL (usually missing DCR and/or missing `resource=`). That is a client configuration error, not host admin policy. Reconnect with DCR + `resource=` rather than broadening scopes alone.
+A 401 `invalid_token` / audience mismatch means the access token was not bound to this MCP URL (usually missing DCR and/or missing `resource=`). That is a client configuration error, not host admin policy. On 401/403, check DCR, `resource=`, audience, and scopes first; do not blame workspace policy until those are correct. Reconnect with DCR + `resource=` + `openid profile email offline_access` rather than broadening unrelated scopes alone.
 
 For ChatGPT users, open [ChatGPT Plugins](https://chatgpt.com/plugins), choose **+ → Add custom MCP server**, enter the endpoint and OAuth settings, create and install the plugin, then authorize the connection. Availability depends on the host's workspace permissions. Select the installed plugin with `@` in a chat.
 
 The owner account can install the existing private [Shared Memory plugin](https://chatgpt.com/plugins/plugins_6ad00b37b7148191a76953dc3d1bcad0). It bundles the operating skill and Railway MCP connection. This USER-scoped private link is not a public install link for other accounts. Public directory distribution requires submission and review. Saving or updating a plugin does not itself install it or authorize its server.
 
-Use **Copy MCP install prompt** in Connections step 1 to ask an agent to configure the MCP, complete OAuth, and verify the signed-in account. `/setup/prompt` serves this connection-only request. It explicitly excludes skill installation, memory writes, sharing, and monitoring. If the host cannot manage MCP settings, the agent must provide manual steps and report installation as pending.
+Use **Copy MCP install prompt** in Connections step 1 to ask an agent to configure the MCP with the working recipe (DCR + `resource=` + `openid profile email offline_access`), then verify the signed-in account. `/setup/prompt` serves this connection-only request. It explicitly excludes skill installation, memory writes, sharing, and monitoring. If the host cannot manage MCP settings, the agent must provide manual steps and report installation as pending.
 
 Step 2 installs the operating skill separately. `/skill`, the skill download, and `memory_instructions` expose the canonical `skills/shared-memory/SKILL.md`. The guide is also included in `plugin/shared-memory/skills/shared-memory/SKILL.md`; keep both copies identical when releasing a plugin update.
 

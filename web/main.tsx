@@ -828,12 +828,13 @@ function Dashboard({ config }: { config: Config }) {
                       </button>
                     </div>
                     <p className="setup-note">
-                      Prefer DCR (Clerk <code>…/oauth/register</code> from
-                      authorization-server metadata — OIDC discovery may omit
-                      it). Public clients: PKCE, no secret. Send this MCP URL as{" "}
-                      <code>resource</code> on authorize and token. Minimum
-                      scopes <code>profile email</code>; some hosts also need{" "}
-                      <code>openid</code> / <code>offline_access</code>.
+                      Working recipe: DCR via Clerk{" "}
+                      <code>…/oauth/register</code> (from
+                      oauth-authorization-server metadata, not OIDC alone);
+                      public client + PKCE; send this MCP URL as{" "}
+                      <code>resource</code> on authorize and token; scopes{" "}
+                      <code>openid profile email offline_access</code>. On
+                      401/403, fix those before blaming workspace policy.
                     </p>
                     <details className="setup-help chatgpt-setup">
                       <summary>Using ChatGPT?</summary>
