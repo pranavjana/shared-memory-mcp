@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "shared-spaces-sandbox",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Test shared spaces from your own sandbox account with a synthetic demo teammate.",
   "author": {
     "name": "Pranav Janakiraman",
