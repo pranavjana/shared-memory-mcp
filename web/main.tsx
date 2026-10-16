@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { ClerkProvider, useAuth, SignInButton, UserButton } from "@clerk/react";
 import "@fontsource-variable/geist";
@@ -362,6 +362,17 @@ function Dashboard({ config }: { config: Config }) {
   const reload = useCallback(async () => {
     setData(await request("overview"));
   }, [request]);
+  const initialSpaceLink = useRef(false);
+  useEffect(() => {
+    if (!data || initialSpaceLink.current) return;
+    initialSpaceLink.current = true;
+    const id = new URLSearchParams(location.search).get("space");
+    const space = data.spaces.find((s) => s.id === id);
+    if (space) {
+      setSelectedSpace(space);
+      setSection("spaces");
+    }
+  }, [data]);
   useEffect(() => {
     reload().catch((e) => setError(e.message));
   }, [reload]);
@@ -829,11 +840,10 @@ function Dashboard({ config }: { config: Config }) {
                     </div>
                     <p className="setup-note">
                       The copyable prompt is generated for this deployment’s MCP
-                      URL. It requires DCR + PKCE,{" "}
-                      <code>?resource=</code> inside both authorize and token
-                      URLs (no separate field), scopes{" "}
-                      <code>openid profile email offline_access</code>, and
-                      success only via authenticated{" "}
+                      URL. It requires DCR + PKCE, <code>?resource=</code>{" "}
+                      inside both authorize and token URLs (no separate field),
+                      scopes <code>openid profile email offline_access</code>,
+                      and success only via authenticated{" "}
                       <code>get_connection_status</code>.
                     </p>
                     <details className="setup-help chatgpt-setup">
@@ -932,13 +942,13 @@ function Dashboard({ config }: { config: Config }) {
               <details className="connection-help">
                 <summary>Shared-space notifications</summary>
                 <p>
-                  After joining a shared space, ask your dot to monitor{" "}
-                  <code>memory.changed</code> for that space ID and notify you
-                  about shared updates.
+                  Open a shared space and expand Agent notifications for Muse or
+                  Dot setup. Subscribe to <code>memory.changed</code> and{" "}
+                  <code>knowledge.changed</code> for that space.
                 </p>
                 <p>
                   A connection alone does not start monitoring. Activity shows
-                  webhook receipt; it does not confirm that your dot sent a
+                  webhook receipt; it does not confirm that your agent sent a
                   message.
                 </p>
               </details>
@@ -1216,7 +1226,10 @@ function Dashboard({ config }: { config: Config }) {
                               : title(d.status)}
                           </strong>
                           <small>
-                            {d.memoryId} · {d.attempts} attempt
+                            {d.publicationId
+                              ? "Selected claim"
+                              : "Shared memory"}{" "}
+                            · {d.attempts} attempt
                             {d.attempts === 1 ? "" : "s"} · HTTP{" "}
                             {d.httpStatus ?? "—"}
                           </small>

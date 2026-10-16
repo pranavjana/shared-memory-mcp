@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { NotificationSetup } from "./NotificationSetup";
 
 type Space = { id: string; name: string; role: string; owner: string };
 type Memory = {
@@ -311,6 +312,10 @@ export function SpaceView({
           {notice}
         </p>
       )}
+      <details className="space-notifications">
+        <summary>Agent notifications</summary>
+        <NotificationSetup spaceId={space.id} action={action} />
+      </details>
       <div className="space-layout">
         <section aria-label="Memories shared in this space">
           {!feed && !error && (

@@ -72,6 +72,7 @@ export interface Subscription {
   owner: string;
   clientId: string;
   spaceId: string;
+  eventName?: string;
   url: string;
   secret: string;
   previousSecret?: string;
@@ -83,7 +84,8 @@ export interface Subscription {
 }
 export interface Change {
   id: string;
-  memoryId: string;
+  memoryId?: string;
+  publicationId?: string;
   spaceId: string;
   actorId: string;
   actorName: string;
@@ -644,9 +646,17 @@ export class MemoryStore {
         sub.spaceId,
       );
       if (change.kind === "retracted") return true;
+      if (change.publicationId) {
+        const rows = await this.query(
+          `MATCH (p:Publication {id:$id})-[:PUBLISHED_IN]->(:Space {id:$space}), (p)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE p.active=true AND m.deletedAt IS NULL RETURN p.id AS id`,
+          { id: change.publicationId, space: sub.spaceId },
+          true,
+        );
+        return rows.length > 0;
+      }
       const rows = await this.query(
         `MATCH (m:Memory {id:$id})-[:SHARED_IN {active:true}]->(:Space {id:$space}) WHERE m.deletedAt IS NULL RETURN m.id AS id`,
-        { id: change.memoryId, space: sub.spaceId },
+        { id: change.memoryId ?? "", space: sub.spaceId },
         true,
       );
       return rows.length > 0;
@@ -665,9 +675,12 @@ export class MemoryStore {
   }
   async saveSubscription(sub: Subscription) {
     await this.query(
-      `MERGE (s:Subscription {id:$id}) SET s.owner=$owner,s.clientId=$clientId,s.spaceId=$spaceId,s.url=$url,s.secret=$secret,s.previousSecret=$previousSecret,s.rotationUntil=$rotationUntil,s.expiresAt=$expiresAt,s.active=true,s.grantToken=$grantToken,s.createdAt=coalesce(s.createdAt,$now)`,
+      `MERGE (s:Subscription {id:$id})
+       WITH s,CASE WHEN s.active=true AND s.expiresAt>$now THEN coalesce(s.createdAt,$now) ELSE $now END AS since
+       SET s.owner=$owner,s.clientId=$clientId,s.spaceId=$spaceId,s.eventName=$eventName,s.url=$url,s.secret=$secret,s.previousSecret=$previousSecret,s.rotationUntil=$rotationUntil,s.expiresAt=$expiresAt,s.active=true,s.grantToken=$grantToken,s.createdAt=since`,
       {
         ...sub,
+        eventName: sub.eventName ?? "memory.changed",
         grantToken: sub.grantToken ?? null,
         previousSecret: sub.previousSecret ?? null,
         rotationUntil: sub.rotationUntil ?? null,
@@ -684,12 +697,14 @@ export class MemoryStore {
   async pendingChanges(sub: Subscription) {
     return (
       await this.query<{ value: Change }>(
-        `MATCH (c:Change) WHERE c.spaceId=$space AND c.createdAt >= $created
+        `MATCH (c:Change) WHERE c.spaceId=$space AND c.actorId<>$recipient AND c.createdAt >= $created AND (($eventName='memory.changed' AND c.publicationId IS NULL) OR ($eventName='knowledge.changed' AND c.publicationId IS NOT NULL))
     OPTIONAL MATCH (d:Delivery) WHERE d.subscriptionId=$sub AND d.eventId=c.id
     WITH c,d WHERE d IS NULL OR (d.status IN ['pending','retry'] AND d.nextAt<=$now AND (d.leaseUntil IS NULL OR d.leaseUntil<$now))
     RETURN properties(c) AS value ORDER BY c.createdAt ASC LIMIT 50`,
         {
           space: sub.spaceId,
+          eventName: sub.eventName ?? "memory.changed",
+          recipient: sub.owner,
           sub: sub.id,
           created: sub.createdAt ?? Date.now(),
           now: Date.now(),
@@ -763,7 +778,7 @@ export class MemoryStore {
     const id = digest(sub.id + "|" + event.id);
     const now = Date.now();
     const rows = await this.query<{ attempts: number }>(
-      `MERGE (d:Delivery {id:$id}) ON CREATE SET d.subscriptionId=$sub,d.owner=$owner,d.eventId=$event,d.memoryId=$memory,d.spaceId=$space,d.actorId=$actor,d.attempts=0,d.status='pending',d.nextAt=0,d.createdAt=$now
+      `MERGE (d:Delivery {id:$id}) ON CREATE SET d.subscriptionId=$sub,d.owner=$owner,d.eventId=$event,d.memoryId=$memory,d.publicationId=$publication,d.spaceId=$space,d.actorId=$actor,d.attempts=0,d.status='pending',d.nextAt=0,d.createdAt=$now
       WITH d WHERE d.status IN ['pending','retry'] AND d.nextAt<=$now AND (d.leaseUntil IS NULL OR d.leaseUntil<$now)
       SET d.leaseUntil=$lease,d.attempts=d.attempts+1 RETURN d.attempts AS attempts`,
       {
@@ -771,7 +786,8 @@ export class MemoryStore {
         sub: sub.id,
         owner: sub.owner,
         event: event.id,
-        memory: event.memoryId,
+        memory: event.memoryId ?? null,
+        publication: event.publicationId ?? null,
         space: event.spaceId,
         actor: event.actorId,
         now,

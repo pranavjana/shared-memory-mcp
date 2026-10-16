@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 import { MemoryStore, DomainError, type Actor } from "./memory.js";
-import { EventService, eventDefinition } from "./events.js";
+import { EventService, eventDefinitions } from "./events.js";
 import { memoryTools, operatingInstructions, runTool } from "./tools.js";
 import { dashboardApi } from "./api.js";
 import { mcpInstallPrompt } from "./onboarding.js";
@@ -174,7 +174,13 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     ? readFileSync(skillPath, "utf8")
     : operatingInstructions;
   const tools = dependencies.memory
-    ? memoryTools(dependencies.memory, skill, dependencies.automaticOntology)
+    ? memoryTools(
+        dependencies.memory,
+        skill,
+        dependencies.automaticOntology,
+        resource,
+        Boolean(dependencies.events),
+      )
     : [];
   app.get("/api/config", (_req, res) =>
     res.json({
@@ -394,7 +400,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
           };
         else if (method === "events/list")
           result = {
-            events: dependencies.events ? [eventDefinition] : [],
+            events: dependencies.events ? eventDefinitions : [],
             ttlMs: 0,
             cacheScope: "private",
           };
