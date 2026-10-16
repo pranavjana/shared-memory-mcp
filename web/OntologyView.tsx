@@ -5,6 +5,8 @@ import {
   Controls,
   MarkerType,
   Position,
+  Handle,
+  type NodeProps,
   useNodesState,
   useEdgesState,
   type Node,
@@ -37,64 +39,166 @@ const colors: Record<string, string> = {
   decision: "#8c83a4",
 };
 const label = (s: string) => s.replaceAll("_", " ").toLowerCase();
-function layout(claims: Claim[], narrow: boolean) {
-  const entities = new Map<string, { name: string; type: string }>();
+const attributeName = (predicate: string) =>
+  label(predicate.replace(/^HAS_/, ""));
+const maxVisibleAttributes = 5;
+const quantity = (n: number, singular: string, plural = singular + "s") =>
+  `${n} ${n === 1 ? singular : plural}`;
+type EntityCardData = {
+  name: string;
+  entityType: string;
+  attributes: Claim[];
+  attributeTypes: Record<string, string>;
+  inspect: (id: string) => void;
+};
+type EntityClassNode = Node<EntityCardData, "entityClass">;
+function EntityClassCard({
+  id,
+  data,
+  sourcePosition,
+  targetPosition,
+}: NodeProps<EntityClassNode>) {
+  return (
+    <>
+      <Handle type="target" position={targetPosition ?? Position.Left} />
+      <div className="kg-class-heading">
+        <span className="kg-node-type">
+          <i style={{ background: colors[data.entityType] ?? "#999" }} />
+          {`«${data.entityType}»`}
+        </span>
+        <strong title={data.name}>{data.name}</strong>
+      </div>
+      {data.attributes.length > 0 && (
+        <div
+          className="kg-class-attributes"
+          aria-label={`${data.name} attributes`}
+        >
+          {data.attributes.slice(0, maxVisibleAttributes).map((c) => (
+            <button
+              key={c.id}
+              className={`kg-class-attribute nodrag nopan${c.basis === "inferred" ? " inferred" : ""}`}
+              aria-label={`Inspect ${attributeName(c.predicate)}: ${c.value}`}
+              title={`${c.authorName} · ${c.basis} · ${c.status}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                data.inspect(c.id);
+              }}
+            >
+              <span className="kg-attribute-key">
+                <code>{attributeName(c.predicate)}</code>
+                <small>
+                  {data.attributeTypes[c.predicate] ?? "string"}
+                  {c.basis === "inferred"
+                    ? " · inferred"
+                    : c.status === "disputed"
+                      ? " · disputed"
+                      : ""}
+                </small>
+              </span>
+              <span className="kg-attribute-value">{c.value}</span>
+            </button>
+          ))}
+          {data.attributes.length > maxVisibleAttributes && (
+            <button
+              className="kg-more-attributes nodrag nopan"
+              onClick={(e) => {
+                e.stopPropagation();
+                data.inspect(id);
+              }}
+            >
+              + {data.attributes.length - maxVisibleAttributes} more attributes
+            </button>
+          )}
+        </div>
+      )}
+      <Handle type="source" position={sourcePosition ?? Position.Right} />
+    </>
+  );
+}
+const nodeTypes = { entityClass: EntityClassCard };
+function layout(
+  claims: Claim[],
+  narrow: boolean,
+  inspect: (id: string) => void,
+  attributeTypes: Record<string, string>,
+) {
+  const entities = new Map<
+    string,
+    { name: string; type: string; attributes: Claim[] }
+  >();
   const graph = new dagre.graphlib.Graph({ multigraph: true })
     .setGraph({
       rankdir: narrow ? "TB" : "LR",
       nodesep: 45,
-      ranksep: 95,
+      ranksep: 110,
       marginx: 60,
       marginy: 60,
     })
     .setDefaultEdgeLabel(() => ({}));
+  const addEntity = (e: Claim["subject"]) => {
+    if (!entities.has(e.id))
+      entities.set(e.id, { name: e.name, type: e.type, attributes: [] });
+    return entities.get(e.id)!;
+  };
   for (const c of claims) {
-    entities.set(c.subject.id, c.subject);
-    const target = c.object?.id ?? "value:" + c.id;
-    entities.set(target, c.object ?? { name: c.value ?? "", type: "value" });
-    graph.setEdge(c.subject.id, target, {}, c.id);
+    const subject = addEntity(c.subject);
+    if (c.object) {
+      addEntity(c.object);
+      graph.setEdge(c.subject.id, c.object.id, {}, c.id);
+    } else if (c.value !== undefined) subject.attributes.push(c);
   }
-  for (const [id] of entities) graph.setNode(id, { width: 180, height: 62 });
+  for (const [id, e] of entities) {
+    const heading = 56 + Math.min(3, Math.ceil(e.name.length / 26)) * 18;
+    graph.setNode(id, {
+      width: 248,
+      height:
+        heading +
+        Math.min(e.attributes.length, maxVisibleAttributes) * 72 +
+        (e.attributes.length > maxVisibleAttributes ? 30 : 0),
+    });
+  }
   dagre.layout(graph);
   const nodes: Node[] = [...entities].map(([id, e]) => ({
     id,
-    position: { x: graph.node(id).x - 90, y: graph.node(id).y - 31 },
+    type: "entityClass",
+    position: {
+      x: graph.node(id).x - 124,
+      y: graph.node(id).y - graph.node(id).height / 2,
+    },
     sourcePosition: narrow ? Position.Bottom : Position.Right,
     targetPosition: narrow ? Position.Top : Position.Left,
     data: {
-      label: (
-        <>
-          <span className="kg-node-type">
-            <i style={{ background: colors[e.type] ?? "#999" }} />
-            {e.type}
-          </span>
-          <strong>{e.name}</strong>
-        </>
-      ),
+      name: e.name,
+      entityType: e.type,
+      attributes: e.attributes,
+      attributeTypes,
+      inspect,
     },
-    className: "kg-node",
+    className: "kg-node kg-class-node",
   }));
-  const edges: Edge[] = claims.map((c) => ({
-    id: c.id,
-    source: c.subject.id,
-    target: c.object?.id ?? "value:" + c.id,
-    label: label(c.predicate),
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      width: 14,
-      height: 14,
-      color: "#a8a8a8",
-    },
-    style: {
-      stroke: c.basis === "inferred" ? "#b194c3" : "#bcbcbc",
-      strokeWidth: 1,
-      ...(c.basis === "inferred" ? { strokeDasharray: "4 4" } : {}),
-    },
-    labelStyle: { fontSize: 11, fill: "#696969" },
-    labelBgStyle: { fill: "#fafafa" },
-    labelBgPadding: [6, 3],
-    labelBgBorderRadius: 3,
-  }));
+  const edges: Edge[] = claims
+    .filter((c) => c.object)
+    .map((c) => ({
+      id: c.id,
+      source: c.subject.id,
+      target: c.object!.id,
+      label: label(c.predicate),
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 14,
+        height: 14,
+        color: "#a8a8a8",
+      },
+      style: {
+        stroke: c.basis === "inferred" ? "#b194c3" : "#bcbcbc",
+        strokeWidth: 1,
+        ...(c.basis === "inferred" ? { strokeDasharray: "4 4" } : {}),
+      },
+      labelStyle: { fontSize: 11, fill: "#696969" },
+      labelBgStyle: { fill: "#fafafa" },
+      labelBgPadding: [6, 3],
+      labelBgBorderRadius: 3,
+    }));
   return { nodes, edges };
 }
 export function OntologyView({ request, action, spaces, userId }: Props) {
@@ -183,7 +287,26 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
       ),
     [claims, type],
   );
-  const drawn = useMemo(() => layout(visible, narrow), [visible, narrow]);
+  const inspect = useCallback((id: string) => {
+    setSelected(id);
+    setNotice("");
+  }, []);
+  const attributeTypes = useMemo(
+    () =>
+      Object.fromEntries(
+        (schema?.relationships ?? [])
+          .filter((r) => r.value)
+          .map((r) => [r.id, r.value!.type]),
+      ),
+    [schema],
+  );
+  const drawn = useMemo(
+    () => layout(visible, narrow, inspect, attributeTypes),
+    [visible, narrow, inspect, attributeTypes],
+  );
+  const attributeCount = visible.filter(
+    (c) => !c.object && c.value !== undefined,
+  ).length;
   useEffect(() => {
     setNodes(drawn.nodes);
     setEdges(drawn.edges);
@@ -193,16 +316,12 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
   const chosenName =
     visible
       .flatMap((c) => [c.subject, ...(c.object ? [c.object] : [])])
-      .find((e) => e.id === selected)?.name ?? "Value";
+      .find((e) => e.id === selected)?.name ?? "Entity";
   const neighbors = chosenNode
     ? visible.filter(
         (c) => c.subject.id === chosenNode.id || c.object?.id === chosenNode.id,
       )
     : [];
-  const inspect = useCallback((id: string) => {
-    setSelected(id);
-    setNotice("");
-  }, []);
   const publish = async (c: Claim, spaceId: string, enabled = true) => {
     setError("");
     try {
@@ -215,7 +334,7 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
       });
       setNotice(
         r.published
-          ? "Selected relationship shared as a snapshot."
+          ? `Selected ${c.object ? "relationship" : "attribute"} shared as a snapshot.`
           : "Snapshot retracted.",
       );
       setRevision((n) => n + 1);
@@ -288,6 +407,7 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
         <div className="kg-canvas" aria-label="Personal knowledge graph">
           <ReactFlow
             key={scope + ":" + query + ":" + type + ":" + revision}
+            nodeTypes={nodeTypes}
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
@@ -310,7 +430,7 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
           <div className="kg-count">
             {loading
               ? "Loading…"
-              : `${nodes.length} nodes · ${edges.length} relationships`}
+              : `${quantity(nodes.length, "entity", "entities")} · ${quantity(edges.length, "relationship")} · ${quantity(attributeCount, "attribute")}`}
           </div>
           {!loading && !visible.length && (
             <div className="kg-empty">
@@ -339,11 +459,17 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
             </button>
             {chosen ? (
               <>
-                <span className="kg-eyebrow">Relationship</span>
+                <span className="kg-eyebrow">
+                  {chosen.object ? "Relationship" : "Attribute"}
+                </span>
                 <h2>{chosen.subject.name}</h2>
                 <div className="kg-assertion">
-                  <code>{chosen.predicate}</code>
-                  <span>→</span>
+                  <code>
+                    {chosen.object
+                      ? chosen.predicate
+                      : attributeName(chosen.predicate)}
+                  </code>
+                  <span>{chosen.object ? "→" : "="}</span>
                   <strong>{chosen.object?.name ?? chosen.value}</strong>
                 </div>
                 <blockquote>{chosen.evidence}</blockquote>
@@ -397,7 +523,8 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
                           ))}
                       </select>
                       <button className="button small">
-                        Share this relationship
+                        Share this{" "}
+                        {chosen.object ? "relationship" : "attribute"}
                       </button>
                     </form>
                   )}
@@ -422,7 +549,10 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
                   >
                     <strong>{c.subject.name}</strong>
                     <span>
-                      {label(c.predicate)} → {c.object?.name ?? c.value}
+                      {c.object
+                        ? label(c.predicate)
+                        : attributeName(c.predicate)}{" "}
+                      {c.object ? "→" : "="} {c.object?.name ?? c.value}
                     </span>
                   </button>
                 ))}
@@ -432,7 +562,10 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
         )}
       </div>
       <div className="kg-footer">
-        <span>Drag to explore · select a relationship for evidence</span>
+        <span>
+          Attributes inside cards · arrows connect entities · select either for
+          evidence
+        </span>
         <span>
           {truncated
             ? "Showing a bounded view. Search to narrow it."
