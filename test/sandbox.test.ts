@@ -8,6 +8,8 @@ test("sandbox operator refuses production and mixed environment targets before c
   const sandbox = {
     APP_ENV: "sandbox",
     RAILWAY_ENVIRONMENT_NAME: "sandbox",
+    RAILWAY_ENVIRONMENT_ID: "2ef88b92-bf75-4b31-ac2b-0c5b61627732",
+    RAILWAY_PROJECT_ID: "e13f89d3-e41a-4e89-96b8-dbdc0b1f87cd",
     FALKORDB_GRAPH: "sandbox_profiles",
     FALKORDB_MEMORY_GRAPH: "sandbox_memory",
     SANDBOX_CLERK_APP_ID: "app_3Kkji888RWnY1TIAjHITY6ZaF92",
@@ -18,6 +20,8 @@ test("sandbox operator refuses production and mixed environment targets before c
   assert.doesNotThrow(() => assertSandbox(sandbox));
   for (const overrides of [
     { RAILWAY_ENVIRONMENT_NAME: "production" },
+    { RAILWAY_ENVIRONMENT_ID: "production-id" },
+    { RAILWAY_PROJECT_ID: "another-project" },
     { APP_ENV: "production" },
     { FALKORDB_GRAPH: "shared_memory" },
     { FALKORDB_MEMORY_GRAPH: "production_memory" },

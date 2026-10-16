@@ -24,6 +24,8 @@ Railway environment ID: `2ef88b92-bf75-4b31-ac2b-0c5b61627732`. The sandbox Cler
 
 Use separate browser profiles for Alice and Bob when testing simultaneously. Switching between production and sandbox is a new login because they use separate Clerk instances. No production auth bypass or impersonation endpoint exists.
 
+`main` has branch protection enforced for administrators too: a pull request and an up-to-date passing `checks` result are required, and force pushes/deletion are blocked. A second person's approval is optional for this small team. Both Railway API environments wait for GitHub checks. Direct CLI deployments are still possible for an authenticated Railway operator, so use the branch workflow for routine changes; this is a deployment guard, not a restriction on the workspace owner's Railway access.
+
 ## Test accounts
 
 | Account | Email | Initial access |
@@ -42,10 +44,13 @@ The deployed container contains an idempotent fixture script. With the Railway C
 
 ```sh
 railway ssh --project e13f89d3-e41a-4e89-96b8-dbdc0b1f87cd \
-  --environment sandbox --service shared-memory-mcp -- npm run sandbox:seed
+  --environment sandbox --service shared-memory-mcp \
+  -i ~/.ssh/id_ed25519_shared_memory_railway -- npm run sandbox:seed
 ```
 
 Apply it by appending `-- --apply` after `npm run sandbox:seed`. It validates the Railway environment, exact graph names, sandbox publishable-key issuer, configured app/instance IDs, and the live Clerk instance before creating anything. It refuses a production or mixed target. The default is read-only; it has no reset/delete command. Run one seed operation at a time. Existing test users and memories are reused; rerunning does not erase experiments or undo edits/retractions.
+
+The identity path above is the dedicated Railway development key registered from this laptop. Another developer must register their own key with their Railway account; never share the private key. Use a current Railway CLI with `ssh --identity-file` support (setup used 5.69.0).
 
 To test a fresh scenario, create a new space or synthetic memory. Do not use the production friend's account. If a full reset is needed later, target only this environment's two graphs after verifying its environment ID and private database host. Removing the sandbox volume destroys sandbox data; ordinary deployments preserve it.
 
@@ -58,3 +63,5 @@ For local work, use a local FalkorDB and the sandbox Clerk keys, a separate loca
 Sandbox database references such as `${{falkordb.RAILWAY_PRIVATE_DOMAIN}}` resolve inside the **sandbox environment**. There are no explicit cross-environment production references. The DB has no public endpoint. Its volume mounts at `/var/lib/falkordb/data`, with password authentication and append-only persistence. Both environments consume resources in the same Railway Hobby workspace.
 
 GitHub CI has no deployment keys or Clerk secrets. Tests use synthetic identities and an ephemeral database. Railway's GitHub integration performs deployments. Database/ontology changes must be backward compatible or have an explicit migration plan before promotion; a code rollback does not undo database writes.
+
+Sandbox Clerk OAuth registration, PKCE, audience enforcement, and email-code login are configured. The Clerk lifecycle webhook subscription has not been connected in this new app yet: the seed writes test profiles directly, normal dashboard access refreshes a profile, and service startup backfills users. Testing immediate provider-side profile deletion propagation still requires adding the sandbox `/webhooks/clerk` endpoint for `user.created`, `user.updated`, and `user.deleted`, then setting that endpoint's signing secret in **sandbox** `CLERK_WEBHOOK_SIGNING_SECRET`. Event subscriptions for shared-memory changes are a separate feature and are enabled by the sandbox event encryption key.

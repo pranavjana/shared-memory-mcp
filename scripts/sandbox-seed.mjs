@@ -6,6 +6,8 @@ export function assertSandbox(env) {
   if (
     env.APP_ENV !== "sandbox" ||
     env.RAILWAY_ENVIRONMENT_NAME !== "sandbox" ||
+    env.RAILWAY_ENVIRONMENT_ID !== "2ef88b92-bf75-4b31-ac2b-0c5b61627732" ||
+    env.RAILWAY_PROJECT_ID !== "e13f89d3-e41a-4e89-96b8-dbdc0b1f87cd" ||
     env.FALKORDB_GRAPH !== "sandbox_profiles" ||
     env.FALKORDB_MEMORY_GRAPH !== "sandbox_memory" ||
     env.SANDBOX_CLERK_APP_ID !== "app_3Kkji888RWnY1TIAjHITY6ZaF92" ||
