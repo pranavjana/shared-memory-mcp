@@ -34,7 +34,7 @@ The owner account can install the existing private [Shared Memory plugin](https:
 
 Use **Copy MCP install prompt** in Connections step 1 (or `GET /setup/prompt`) to give an agent the canonical setup recipe for **this deployment’s** MCP URL: DCR, `?resource=<ENDPOINT>` embedded in both `authorization_url` and `token_url` (no separate field), scopes `openid profile email offline_access`, then authenticated `get_connection_status`. Browser sign-in alone is not success. The prompt excludes skill installation, memory writes, sharing, and monitoring.
 
-Step 2 installs the operating skill separately. `/skill`, the skill download, and `memory_instructions` expose the canonical `skills/shared-memory/SKILL.md`. The guide is also included in `plugin/shared-memory/skills/shared-memory/SKILL.md`; keep both copies identical when releasing a plugin update.
+Step 2 installs the operating skill separately. `/skill`, the skill download, and `memory_instructions` expose the canonical `skills/shared-memory/SKILL.md` (MCP returns that file only). Packaged installs may also load `skills/shared-memory/references/`. Keep the canonical `skills/shared-memory/` tree and `plugin/shared-memory/skills/shared-memory/` identical when releasing a plugin update (plugin may add host-only `agents/`).
 
 For reuse across chats, install the bundled skill or save the guide in the host's supported persistent instructions. A prompt pasted into one chat does not establish cross-chat persistence, bypass host approvals, or guarantee background monitoring. A host must actually invoke tools; connecting does not ingest entire chats or guarantee automatic saves.
 
