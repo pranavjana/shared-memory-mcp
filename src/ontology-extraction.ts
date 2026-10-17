@@ -350,7 +350,13 @@ export class AutomaticOntology {
       if (keys.has(e.key)) throw new Error("Duplicate extraction key");
       keys.add(e.key);
       let key = "auto:" + digest(source.id + ":" + e.key).slice(0, 32);
-      if (e.key === "self" && e.type === "person") key = "auto:self";
+      // The author's own full name is the author, like first-person "self".
+      if (
+        e.type === "person" &&
+        (e.key === "self" ||
+          normalize(e.name) === normalize(source.authorName ?? ""))
+      )
+        key = "auto:self";
       if (e.existingKey !== null) {
         const matches = candidates.filter(
           (c) =>
@@ -391,16 +397,19 @@ export class AutomaticOntology {
       mappings.set(e.key, key);
       return { key, type: e.type, name: e.name, aliases: [], properties: {} };
     });
-    if (
-      new Set(entities.map((e) => e.type + ":" + e.key)).size !==
-      entities.length
-    )
+    // "self" and the author's name may both be declared; they are one person.
+    const unique = entities.filter(
+      (e, i) =>
+        e.key !== "auto:self" ||
+        entities.findIndex((x) => x.key === "auto:self") === i,
+    );
+    if (new Set(unique.map((e) => e.type + ":" + e.key)).size !== unique.length)
       throw new Error("Ambiguous extraction identity");
     const proposed = {
       sourceMemoryId: source.id,
       sourceRevision: source.revision,
       idempotencyKey: "automatic-ontology:" + source.id + ":" + source.revision,
-      entities,
+      entities: unique,
       claims: separateLiterals(
         output.claims.map((c) => ({
           ...c,

@@ -354,7 +354,9 @@ test("provisional relationships, negation, review and ontology gaps work end to 
     const seen = await call("user_b", "recall_knowledge", {
       spaceId: space.id,
     });
-    assert.deepEqual(facts(seen.claims), ["not Pranav SPEAKS Tamil"]);
+    // In the space, the author's "self" is shown as that member (named user_a here).
+    assert.deepEqual(facts(seen.claims), ["not user_a SPEAKS Tamil"]);
+    assert.equal(seen.claims[0].subject.memberId, "user_a");
 
     // 6. A memory with no claims is flagged, and only its owner can retry it.
     const joke = await save(

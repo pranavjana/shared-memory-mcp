@@ -9,7 +9,11 @@ import {
 } from "./ontology.js";
 import { PredicateRegistry } from "./predicates.js";
 
-type Entity = KnowledgeInput["entities"][number] & { id: string };
+type Entity = KnowledgeInput["entities"][number] & {
+  id: string;
+  /** Set on a shared snapshot when this person is a member of the space. */
+  memberId?: string;
+};
 export interface Claim {
   id: string;
   predicate: string;
@@ -35,6 +39,64 @@ export interface Claim {
 }
 const entityId = (owner: string, type: string, key: string) =>
   "ke_" + digest(JSON.stringify([owner, type, key]));
+type Member = { id: string; name: string };
+const personName = (s: string) =>
+  s.normalize("NFKC").toLocaleLowerCase().trim().replace(/\s+/g, " ");
+/** The space member a shared person mention refers to, when that is unambiguous:
+ *  the claim's own author ("self" or their own name), or the only member whose
+ *  full or first name matches. Two members with that name link to neither. */
+export function memberFor(
+  e: Pick<Entity, "type" | "key" | "name">,
+  claim: Pick<Claim, "authorId" | "authorName">,
+  members: Member[],
+) {
+  if (e.type !== "person") return;
+  const name = personName(e.name);
+  const author = members.find((m) => m.id === claim.authorId);
+  if (
+    author &&
+    (e.key === "auto:self" || name === personName(claim.authorName))
+  )
+    return author;
+  const matches = members.filter((m) => {
+    const full = personName(m.name ?? "");
+    return (
+      full === name || (!name.includes(" ") && full.split(" ")[0] === name)
+    );
+  });
+  return matches.length === 1 ? matches[0] : undefined;
+}
+/** A claim entity as it appears in a space: one node per member, otherwise one
+ *  node per original entity. Never private aliases or properties. */
+const spaceEntity = (
+  spaceId: string,
+  e: Entity,
+  claim: Pick<Claim, "authorId" | "authorName">,
+  members: Member[],
+): Entity => {
+  const member = memberFor(e, claim, members);
+  if (!member) {
+    const id = entityId(spaceId, e.type, e.id);
+    return {
+      id,
+      key: id,
+      type: e.type,
+      name: e.name,
+      aliases: [],
+      properties: {},
+    };
+  }
+  const id = entityId(spaceId, "person", "member:" + member.id);
+  return {
+    id,
+    key: id,
+    type: "person",
+    name: member.name,
+    aliases: personName(e.name) === personName(member.name) ? [] : [e.name],
+    properties: {},
+    memberId: member.id,
+  };
+};
 export class KnowledgeStore {
   private search: KnowledgeSearch;
   readonly predicates: PredicateRegistry;
@@ -569,6 +631,71 @@ export class KnowledgeStore {
     }
     return { published, retracted };
   }
+  private spaceMembers(spaceId: string) {
+    return this.store.query<Member>(
+      "MATCH (p:Person)-[:MEMBER_OF {active:true}]->(:Space {id:$space}) RETURN p.id AS id,p.name AS name",
+      { space: spaceId },
+      true,
+    );
+  }
+  /** Re-resolve people in a space's snapshots after membership changes, so every
+   *  mention of a member is one node. Only entity identity changes; the assertion,
+   *  evidence and attribution of each snapshot stay as published. */
+  async relinkSpace(spaceId: string) {
+    const members = await this.spaceMembers(spaceId);
+    const rows = await this.store.query<{
+      id: string;
+      owner: string;
+      payload: string;
+      source: string;
+    }>(
+      `MATCH (:Space {id:$space})<-[:PUBLISHED_IN]-(p:Publication)-[:DERIVED_FROM]->(c:KnowledgeClaim) WHERE p.active=true RETURN p.id AS id,p.owner AS owner,p.payload AS payload,c.payload AS source`,
+      { space: spaceId },
+      true,
+    );
+    let relinked = 0;
+    for (const row of rows) {
+      const snapshot = JSON.parse(row.payload) as Claim;
+      const source = JSON.parse(row.source) as Claim;
+      const subject = spaceEntity(spaceId, source.subject, snapshot, members);
+      const object = source.object
+        ? spaceEntity(spaceId, source.object, snapshot, members)
+        : undefined;
+      if (
+        subject.id === snapshot.subject.id &&
+        subject.name === snapshot.subject.name &&
+        object?.id === snapshot.object?.id &&
+        object?.name === snapshot.object?.name
+      )
+        continue;
+      const updated: Claim = {
+        ...snapshot,
+        subject,
+        ...(object ? { object } : {}),
+      };
+      await this.store.query(
+        `MATCH (p:Publication {id:$id}) SET p.payload=$payload
+         WITH p OPTIONAL MATCH (p)-[r:SUBJECT|OBJECT]->() DELETE r
+         WITH DISTINCT p MERGE (subject:KnowledgeEntity {id:$subjectId}) ON CREATE SET subject.kind=$subjectType,subject.spaceId=$space
+         MERGE (p)-[:SUBJECT]->(subject)
+         FOREACH (_ IN CASE WHEN $objectId='' THEN [] ELSE [1] END | MERGE (object:KnowledgeEntity {id:$objectId}) ON CREATE SET object.kind=$objectType,object.spaceId=$space MERGE (p)-[:OBJECT]->(object))`,
+        {
+          id: row.id,
+          space: spaceId,
+          payload: JSON.stringify(updated),
+          subjectId: subject.id,
+          subjectType: subject.type,
+          objectId: object?.id ?? "",
+          objectType: object?.type ?? "",
+        },
+      );
+      await this.search
+        .index({ userId: row.owner, clientId: "relink" }, updated)
+        .catch(() => undefined);
+      relinked++;
+    }
+    return { relinked };
+  }
   async publish(
     actor: Actor,
     raw: unknown,
@@ -624,14 +751,9 @@ export class KnowledgeStore {
     if (!rows[0])
       throw new DomainError(404, "Current authored claim not found");
     const c = JSON.parse(rows[0].payload) as Claim;
-    const sharedEntity = (e: Entity): Entity => ({
-      id: entityId(input.spaceId, e.type, e.id),
-      key: entityId(input.spaceId, e.type, e.id),
-      type: e.type,
-      name: e.name,
-      aliases: [],
-      properties: {},
-    });
+    const members = await this.spaceMembers(input.spaceId);
+    const sharedEntity = (e: Entity) =>
+      spaceEntity(input.spaceId, e, c, members);
     // Publish only the selected assertion and its entity names, never private aliases,
     // entity properties, source IDs, replacement IDs, or adjacent source text.
     const snapshot: Claim = {
