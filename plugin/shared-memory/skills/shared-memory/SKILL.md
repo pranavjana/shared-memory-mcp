@@ -16,7 +16,8 @@ description: >-
 
 - The user states a durable preference, fact, event, goal, task, decision, or relationship worth keeping across chats or assistants.
 - An answer or plan depends on prior preferences, projects, people, commitments, or decisions — call recall (and structured knowledge tools when useful) first.
-- The user asks to share, retract, correct, or forget Shared Memory content, or asks what changed in a shared space.
+- The user asks to share, retract, correct, or forget Shared Memory content, or asks what changed in a shared space (one-off).
+- The user wants recurring space notifications — Muse `shared-space-watch-muse`, Grok Bot `shared-space-watch-grok`, ChatGPT Dot `shared-space-watch-dot` (those skills also contain this operating guide).
 - Tools are connected but behavior is unclear — call `memory_instructions` (or reload this skill) before improvising.
 
 Do **not** treat installing this skill as connecting MCP, or connecting MCP as installing this skill. They are separate host steps.
@@ -129,9 +130,12 @@ Readers can retrieve; contributors and owners can share their own memories. Do n
 
 ## Shared updates (summary)
 
-Shared Memory does not currently push updates to other members’ agents, and there is no background monitoring. Do not claim a normal chat runs in the background or invent a monitoring tool.
+Shared Memory does not push into hosts. Do not invent webhooks or `notification_setup`.
 
-To read a shared update: call `get_shared_update` with the space ID as `spaceId` and the memory or publication ID as `id` → tell **your own** user. Never auto-reply to the sender or save the update back as a new memory. Do not retrieve a private source ID for a selected claim, even if another tool can access it in a different scope. A share receipt ≠ “your friend was notified.” Full procedure → [references/sharing-and-events.md](references/sharing-and-events.md).
+- **One-off:** `get_shared_update` with `spaceId` and memory or publication `id` → tell **your own** user. Never auto-reply to the sender or save the update as their fact. Do not retrieve a private source ID for a selected claim. A share receipt ≠ “your friend was notified.”
+- **Every X minutes:** Muse `shared-space-watch-muse`, Grok Bot `shared-space-watch-grok`, or ChatGPT Dot `shared-space-watch-dot` (tick procedure is inside that skill).
+
+Details → [references/sharing-and-events.md](references/sharing-and-events.md).
 
 ## Persistence
 

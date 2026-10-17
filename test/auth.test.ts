@@ -121,6 +121,20 @@ test("OAuth discovery, access checks, and concurrent users stay isolated", async
       (await fetch(`${base}/setup/recall-prompt/unknown`)).status,
       404,
     );
+    const skillNames = {
+      dot: "shared-space-watch-dot",
+      muse: "shared-space-watch-muse",
+      "grok-bot": "shared-space-watch-grok",
+    } as const;
+    for (const host of ["dot", "muse", "grok-bot"] as const) {
+      const skillRes = await fetch(`${base}/skill/${host}`);
+      assert.equal(skillRes.status, 200);
+      const skillText = await skillRes.text();
+      assert.ok(skillText.includes(`name: ${skillNames[host]}`));
+      assert.ok(skillText.includes("Watch tick"));
+      assert.ok(skillText.includes("Shared Memory operating guide"));
+    }
+    assert.equal((await fetch(`${base}/skill/unknown`)).status, 404);
     const prompt = await fetch(`${base}/setup/prompt`, {
       headers: { Host: "attacker.example" },
     });

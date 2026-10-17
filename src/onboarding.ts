@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
 /** Connection setup only. The operating skill is installed separately.
  *  Source of truth: Project store internal/shared-memory-agent-setup-prompt.md
  *  Served text substitutes this deployment's MCP resource for the template ENDPOINT.
@@ -95,4 +98,25 @@ Rules for every run:
 - If a call fails with 401 or a revoked connection, pause the schedule and tell me to reconnect.
 
 Finish with a short report: the schedule's name, its actual interval, where I can see or stop it, and the result of a first run. Say "Proactive recall is on" only if the schedule was actually created.`;
+}
+
+export const agentSkillDirs: Record<AgentHost, string> = {
+  dot: "shared-space-watch-dot",
+  muse: "shared-space-watch-muse",
+  "grok-bot": "shared-space-watch-grok",
+};
+
+/** Clipboard bundle for Connections step 2: the selected host's skill plus its operating guide and tick. */
+export function hostSkillInstructions(host: AgentHost): string | null {
+  const dir = resolve("skills", agentSkillDirs[host]);
+  const skillPath = join(dir, "SKILL.md");
+  const operatingPath = join(dir, "references", "operating-guide.md");
+  const tickPath = join(dir, "references", "tick.md");
+  if (![skillPath, operatingPath, tickPath].every((p) => existsSync(p)))
+    return null;
+  return [
+    readFileSync(skillPath, "utf8").trim(),
+    readFileSync(operatingPath, "utf8").trim(),
+    readFileSync(tickPath, "utf8").trim(),
+  ].join("\n\n---\n\n");
 }

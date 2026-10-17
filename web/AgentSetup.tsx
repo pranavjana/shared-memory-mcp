@@ -321,11 +321,12 @@ export function AgentSetup({
               2
             </span>
             <div className="setup-content">
-              <h2>Install the memory skill</h2>
+              <h2>Install the {agent.name} skill</h2>
               <p>
                 Teach {agent.name} when to save, recall, correct, and share
-                memories. Add it through skill support or persistent
-                instructions; a chat paste applies to that chat only.
+                memories, and how to check shared spaces on a schedule. Add it
+                through skill support or persistent instructions; a chat paste
+                applies to that chat only.
               </p>
               <div className="button-row">
                 <button
@@ -333,8 +334,12 @@ export function AgentSetup({
                   disabled={busy}
                   onClick={() =>
                     copy(
-                      () => fetchText("/skill", "memory skill"),
-                      "Memory skill instructions copied",
+                      () =>
+                        fetchText(
+                          `/skill/${agent.id}`,
+                          `${agent.name} skill`,
+                        ),
+                      `${agent.name} skill instructions copied`,
                     )
                   }
                 >
