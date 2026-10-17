@@ -314,16 +314,6 @@ export function AgentSetup({
                   <CopyIcon />
                 </button>
               </div>
-              <details className="setup-help setup-prompt">
-                <summary>View install prompt</summary>
-                {installPrompt ? (
-                  <pre tabIndex={0} aria-label="MCP install prompt">
-                    {installPrompt}
-                  </pre>
-                ) : (
-                  <p>Loading the install prompt…</p>
-                )}
-              </details>
             </div>
           </li>
           <li>
@@ -388,16 +378,6 @@ export function AgentSetup({
                 Checks every 30 minutes and stays silent when nothing is new.
                 Each check uses your agent’s own usage. {agent.manage}
               </p>
-              <details className="setup-help setup-prompt">
-                <summary>View recall prompt</summary>
-                {recallPrompt ? (
-                  <pre tabIndex={0} aria-label={`${agent.name} recall prompt`}>
-                    {recallPrompt}
-                  </pre>
-                ) : (
-                  <p>Loading the recall prompt…</p>
-                )}
-              </details>
             </div>
           </li>
         </ol>

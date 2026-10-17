@@ -481,19 +481,6 @@
   .setup-content p.setup-note {
     @apply text-xs;
   }
-  .setup-help {
-    @apply mt-5 text-xs text-secondary;
-  }
-  .setup-help summary {
-    @apply w-fit cursor-pointer rounded-sm leading-6 hover:text-ink;
-  }
-  .setup-help blockquote {
-    @apply mx-0 my-3 border-l-2 border-[#e5e5e5] pl-4 text-sm leading-6;
-  }
-  .setup-prompt pre {
-    @apply my-3 max-h-[360px] overflow-y-auto rounded-md bg-white p-4 text-xs leading-6 whitespace-pre-wrap shadow-line;
-    overflow-wrap: anywhere;
-  }
   .agent-setup {
     @apply mt-10;
   }
@@ -581,9 +568,6 @@
   .agent-steps q {
     @apply text-ink;
     overflow-wrap: anywhere;
-  }
-  .agent-panel .setup-prompt pre {
-    @apply bg-canvas;
   }
   @media (max-width: 560px) {
     .agent-tab {
