@@ -6,6 +6,23 @@ Dashboard: https://shared-memory-mcp-production.up.railway.app/dashboard
 
 MCP: https://shared-memory-mcp-production.up.railway.app/mcp
 
+## Graph Hacks 2026
+
+| | |
+|---|---|
+| Team | Santology: Afshal Gulam, Pranav Janakiraman, Roshan Premil |
+| Track | Agent Memory and Coordination |
+| Live deployment | Dashboard and MCP endpoint above |
+| Graph data model | [Memory and graph model](#memory-and-graph-model), with the full diagram in [docs/cypher.md](docs/cypher.md#graph-model) |
+| Cypher queries the product depends on | [docs/cypher.md](docs/cypher.md) |
+| Run it locally | [Quick start](#quick-start) |
+
+**What it is:** one memory that every assistant you connect shares. ChatGPT, Claude, Muse, Grok and other MCP clients sign in to the same account, save and recall the same memories, and share selected memories with teammates' assistants through permissioned spaces.
+
+**Why FalkorDB:** memories, people, spaces, shares, typed claims and search documents are all nodes and edges in one FalkorDB graph. Permissions are graph paths that are re-checked on every read, recall expands through shared entities and spaces, and claim search uses FalkorDB's full-text and vector indexes filtered by those same paths. Without FalkorDB the product has no storage, no permissions and no search.
+
+**AI assistance:** we used AI coding assistants (OpenAI Codex, Cursor and Claude Code) while building this. The team chose the graph model and architecture, and reviewed and tested the code. Changes were merged through pull requests and are covered by the automated tests in `test/`.
+
 ## Connect an assistant
 
 Create an account in the dashboard. In Connections, add the MCP URL to your assistant using Streamable HTTP and OAuth, then sign in with the same account. Connecting grants the client access to that account's memory tools; individual clients can be revoked in Connections.
@@ -70,6 +87,31 @@ For the isolated Railway sandbox, synthetic multi-user accounts, and the develop
 
 The dashboard uses Vite, React, TypeScript, and Tailwind's official Vite plugin. `web/style.css` defines the monochrome design tokens and reusable Tailwind component styles; Geist Sans and Geist Mono are bundled locally. Screen layouts adapt for phones, tablets, and desktops, with keyboard focus rings and dialog focus handling.
 
+### Quick start
+
+You need Node 24, Docker, and a free [Clerk](https://clerk.com) application for sign-in.
+
+```bash
+# 1. Start FalkorDB with a password (data persists in the falkordb_data volume)
+docker run -d --name falkordb -p 127.0.0.1:6379:6379 \
+  -e REDIS_ARGS="--requirepass change-me" \
+  -v falkordb_data:/var/lib/falkordb/data \
+  falkordb/falkordb:latest
+
+# 2. Configure: copy the template, then set CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY,
+#    CLERK_ACCOUNT_PORTAL_URL (all from your Clerk application) and FALKORDB_PASSWORD=change-me
+cp .env.example .env.local
+
+# 3. Install, build and run
+npm ci
+npm run build
+npm run dev   # dashboard at http://localhost:3000/dashboard, MCP at http://localhost:3000/mcp
+```
+
+Embeddings and automatic claim extraction are off by default (`EMBEDDING_PROVIDER=disabled`, `ONTOLOGY_PROVIDER=disabled`); keyword search and the graph features work without them. To connect an assistant over OAuth, configure the Clerk OAuth settings in [Clerk OAuth dashboard (MCP)](#clerk-oauth-dashboard-mcp).
+
+### Details
+
 Use Node 24. Copy `.env.example` to `.env.local` and supply the dedicated personal Clerk application's keys. Start FalkorDB locally with password authentication and set `FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_PASSWORD`, `FALKORDB_GRAPH` (profiles) and `FALKORDB_MEMORY_GRAPH` (application graph).
 
 Run `npm ci`, `npm run build` and `npm run dev`. For frontend development run `npm run dev:web` in a second terminal; Vite forwards API requests to port 3000. Set `PUBLIC_URL` to the actual browser origin so Clerk authorized-party checks match. Production serves the built frontend from Express.
@@ -109,7 +151,14 @@ Optional env: `MCP_URL` (default production `/mcp`), `CLIENT_ID` (skip DCR), `RE
 
 `npm run build`, `npm run check:web` and `npm test` check compilation, frontend types, OAuth isolation and signed Clerk webhooks.
 
-Start an isolated FalkorDB on `127.0.0.1:16379` with password `local-verification`. Then run `npm run test:graph` and `node --import tsx --test test/api.integration.ts`. Tests create unique synthetic graphs and delete them afterward. Graph tests accept `FALKORDB_TEST_HOST`, `FALKORDB_TEST_PORT`, and `FALKORDB_TEST_PASSWORD` overrides.
+Start an isolated FalkorDB on `127.0.0.1:16379` with password `local-verification`:
+
+```bash
+docker run -d --name falkordb-test -p 127.0.0.1:16379:6379 \
+  -e REDIS_ARGS="--requirepass local-verification" falkordb/falkordb:latest
+```
+
+Then run `npm run test:graph` and `node --import tsx --test test/api.integration.ts`. Tests create unique synthetic graphs and delete them afterward. Graph tests accept `FALKORDB_TEST_HOST`, `FALKORDB_TEST_PORT`, and `FALKORDB_TEST_PASSWORD` overrides.
 
 The checks cover concurrent deduplication, stale revisions, private retrieval, relationship expansion, invitations, sharing/retraction, rules, client revocation, space-scoped shared-update reads, and both MCP protocol paths. Clerk dashboard sessions additionally require a valid session token, matching browser origin and an active provider session.
 
