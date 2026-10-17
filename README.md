@@ -42,6 +42,8 @@ Ask the assistant to remember a stated preference, then ask another connected as
 
 ## Memory and graph model
 
+The full graph model and every Cypher query the product depends on are in [Cypher queries and graph algorithms](docs/cypher.md).
+
 `Person -[:AUTHORED]-> Memory -[:HAS_REVISION]-> Revision` tracks ownership and changes. `Memory -[:ABOUT]-> Entity` connects people, projects, organizations, places and topics. Memory kinds are fact, preference, event, goal, task, decision and relationship. Evidence excerpts and authenticated client attribution are retained; an agent-reported outcome is not independently verified by this service. Event time and recorded time are separate.
 
 Retrieval combines authorized keyword/entity matches with native graph expansion through shared entities and shared spaces. Related context can be returned even without keyword overlap. V1 does not generate embeddings or promote inferred guesses into established facts. Background inference, reconciliation and memory aging are later milestones.
