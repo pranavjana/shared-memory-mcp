@@ -189,6 +189,29 @@ test("tool results carry an inbox footer and check_inbox is exposed", async () =
     await call(receiver, "mark_inbox_seen", { changeIds: [box.items[0].changeId] });
     assert.ok(!("inbox" in (await call(receiver, "list_spaces"))));
 
+    // check_inbox returns short previews, 10 by default, to keep host context small.
+    const long = "Q4 plan: " + "detail ".repeat(100);
+    for (let n = 0; n < 12; n++) {
+      const item = (await s.remember(sender, note(n === 0 ? long : `Update number ${n}`, "preview-" + n))).memory;
+      await s.share(sender, item.id, space.id, true, "preview-share-" + n);
+    }
+    const previews = await call(receiver, "check_inbox");
+    assert.equal(previews.unread, 12);
+    assert.equal(previews.items.length, 10, "Ten items by default");
+    const longItem = (await call(receiver, "check_inbox", { limit: 50 })).items.find(
+      (i: any) => i.update.memory.text.startsWith("Q4 plan:"),
+    );
+    assert.equal(longItem.update.memory.text.length, 301, "300 characters plus an ellipsis");
+    assert.ok(longItem.update.memory.text.endsWith("…"));
+    assert.equal(longItem.update.memory.truncated, true);
+    assert.ok(!("evidence" in longItem.update.memory), "Evidence is left for get_shared_update");
+    const full: any = await runToolWithInbox(tools, s, receiver, "get_shared_update", {
+      id: longItem.update.memory.id,
+      spaceId: space.id,
+    });
+    assert.equal(full.update.memory.text, long.trim(), "The full note is one call away");
+    await call(receiver, "mark_inbox_seen", { all: true });
+
     // A broken inbox lookup never breaks the underlying tool.
     const broken = Object.create(s, {
       inboxCount: { value: async () => { throw new Error("boom"); } },

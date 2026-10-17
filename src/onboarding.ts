@@ -89,7 +89,7 @@ ${connect}
   return `Set up Shared Memory updates for me in my Dot, so you tell me when someone shares something in my spaces.
 
 ${connect}
-2. Create a recurring background check at the shortest interval your scheduler supports, but no more often than every 5 minutes. Each run: call Shared Memory check_inbox. If there are unread updates, message me briefly: who shared what, in which space, anything about me first. Then call mark_inbox_seen with the changeIds you told me about. ${reportRule}
+2. Create a recurring background check at the shortest interval your scheduler supports, ideally every minute. A run with nothing unread should stay silent and add nothing. Each run: call Shared Memory check_inbox. If there are unread updates, message me briefly: who shared what, in which space, anything about me first. Then call mark_inbox_seen with the changeIds you told me about. ${reportRule}
 3. Also call check_inbox at the start of our conversations and whenever a Shared Memory tool result includes an inbox field.
 4. Report the schedule you actually created. Do not say it works until you have seen its first run.`;
 }
