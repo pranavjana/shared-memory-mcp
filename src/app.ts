@@ -5,7 +5,12 @@ import { z } from "zod";
 import { MemoryStore, DomainError, type Actor } from "./memory.js";
 import { memoryTools, operatingInstructions, runTool } from "./tools.js";
 import { dashboardApi } from "./api.js";
-import { mcpInstallPrompt } from "./onboarding.js";
+import {
+  agentHosts,
+  mcpInstallPrompt,
+  proactiveRecallPrompt,
+  type AgentHost,
+} from "./onboarding.js";
 import { ontology } from "./ontology.js";
 import cors from "cors";
 import helmet from "helmet";
@@ -184,6 +189,14 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
   app.get("/setup/prompt", (_req, res) =>
     res.type("text/plain").send(mcpInstallPrompt(resource)),
   );
+  app.get("/setup/recall-prompt/:host", (req, res) => {
+    const host = req.params.host as AgentHost;
+    if (!agentHosts.includes(host)) {
+      res.status(404).type("text/plain").send("Unknown agent");
+      return;
+    }
+    res.type("text/plain").send(proactiveRecallPrompt(resource, host));
+  });
   app.get("/skill/SKILL.md", (_req, res) =>
     res.attachment("SKILL.md").type("text/plain").send(skill),
   );

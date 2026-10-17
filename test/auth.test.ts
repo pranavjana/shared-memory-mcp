@@ -106,6 +106,21 @@ test("OAuth discovery, access checks, and concurrent users stay isolated", async
     assert.deepEqual(body.bearer_methods_supported, ["header"]);
     assert.equal(body.resource_name, "Shared Memory MCP");
     assert.equal(metadata.headers.get("access-control-allow-origin"), "*");
+    for (const host of ["dot", "muse", "grok-bot"]) {
+      const recall = await fetch(`${base}/setup/recall-prompt/${host}`, {
+        headers: { Host: "attacker.example" },
+      });
+      assert.equal(recall.status, 200);
+      const text = await recall.text();
+      assert.ok(text.includes(`ENDPOINT: ${mcpResource}`));
+      assert.ok(text.includes("get_connection_status"));
+      assert.ok(text.includes("end the run silently"));
+      assert.ok(text.includes("Never reply to the person who shared"));
+    }
+    assert.equal(
+      (await fetch(`${base}/setup/recall-prompt/unknown`)).status,
+      404,
+    );
     const prompt = await fetch(`${base}/setup/prompt`, {
       headers: { Host: "attacker.example" },
     });
