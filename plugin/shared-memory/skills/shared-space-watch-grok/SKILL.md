@@ -31,13 +31,12 @@ Examples, ontology, sharing, evals: [references/examples.md](references/examples
 - [ ] Interval X minutes (Grok minimum 5)
 - [ ] Routine on this Bot
 - [ ] When to run + time zone confirmed
-- [ ] Preference saved
 - [ ] Test or first tick
 ```
 
 Ask space if ambiguous. Ask X if missing (default **15**). **≥ 5 minutes apart.** Cap **1440**. Zone = this Bot unless they name one.
 
-`remember` after confirm, `idempotencyKey` `space-watch-grok:<spaceId>` — not the routine.
+Watch settings live only in the routine's payload. Never `remember`, `revise_memory`, or share watch settings, routines, or seen lists — Shared Memory holds the user's knowledge, not watch state.
 
 ## Arm (this Bot only)
 

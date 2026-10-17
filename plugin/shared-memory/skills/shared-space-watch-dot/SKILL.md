@@ -31,13 +31,12 @@ Examples, ontology, sharing, evals: [references/examples.md](references/examples
 - [ ] Interval X minutes + time zone
 - [ ] Recurring task saved
 - [ ] User can see it in Scheduled
-- [ ] Preference saved
 - [ ] First tick now
 ```
 
 Ask space if ambiguous. Ask X if missing (default **15**). Floor **5** (Free/Go may only allow daily — save the coarsest allowed). Cap **1440**. Deliver in **this Dot / ChatGPT conversation**. Notify only on new other-member updates.
 
-`remember` after confirm, `idempotencyKey` `space-watch-dot:<spaceId>` — not the schedule. Connecting the plugin is not a watch.
+Watch settings live only in the schedule's payload. Never `remember`, `revise_memory`, or share watch settings, schedules, or seen lists — Shared Memory holds the user's knowledge, not watch state. Connecting the plugin is not a watch.
 
 ## Arm (this Dot only)
 

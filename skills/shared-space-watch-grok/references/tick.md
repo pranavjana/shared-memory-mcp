@@ -2,16 +2,16 @@
 
 Load on every scheduled wake of **this host skill**. Do not ask setup questions.
 
-Required from the prompt or saved preference: `spaceId`, `spaceName`, `intervalMinutes`. If `spaceId` is missing, skip with one sentence — do not interview.
+Required from the tick payload: `spaceId`, `spaceName`, `intervalMinutes`. If `spaceId` is missing, skip with one sentence — do not interview.
 
 ## Checklist
 
 ```
 - [ ] Still this user and still a member of spaceId
 - [ ] Fetch candidates
-- [ ] Diff against cursor (skip own)
+- [ ] Diff against the seen list (skip own)
 - [ ] Tell this user only if there are new other-member updates
-- [ ] Advance cursor
+- [ ] Carry the seen list forward (never in Shared Memory)
 - [ ] Do not re-arm a duplicate schedule
 ```
 
@@ -36,9 +36,9 @@ No dashboard HTTP. No invented space-feed tool. No `notification_setup`.
 
 ## Diff and notify
 
-Fingerprint: `id + ":" + (revision or updatedAt or publishedAt or createdAt)`. New = not in cursor. Skip this signed-in user’s own items.
+Fingerprint: `id + ":" + (revision or updatedAt or publishedAt or createdAt)`. New = not in the seen list. Skip this signed-in user’s own items.
 
-Cursor: next-wake prompt `seen:` list (max ~40) if the host allows a varying prompt; otherwise one `remember`/`revise_memory` with `idempotencyKey` `space-watch-cursor:<spaceId>` (fingerprints only).
+Seen list: carry it in the next-wake prompt as `seen:` (max ~40) if the host allows a varying prompt, or in the host's own schedule notes. If neither is possible, treat items updated within the last `intervalMinutes` + 2 minutes as new. Never `remember`, `revise_memory`, or `record_knowledge` a seen list, cursor, or watch state: a tick is read-only in Shared Memory.
 
 - None new → silent (or `No new updates in <spaceName>.` if the host requires a reply).
 - Some → this user only, max 5: author, space, short current text. Then `and N more` if needed.
