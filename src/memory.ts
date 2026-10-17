@@ -161,6 +161,7 @@ export class MemoryStore {
       "Publication",
       "Doorbell",
       "DoorbellRing",
+      "PulseLink",
     ]) {
       try {
         await this.graph.createNodeRangeIndex(label, "id");
@@ -199,14 +200,18 @@ export class MemoryStore {
     await this.query(
       `MATCH (s:Subscription) WHERE s.active=true OR s.secret IS NOT NULL OR s.previousSecret IS NOT NULL OR s.grantToken IS NOT NULL SET s.active=false,s.secret=NULL,s.previousSecret=NULL,s.grantToken=NULL`,
     );
-    // Inbox reads filter changes by space; this index keeps them from scanning every change.
-    try {
-      await this.graph.createNodeRangeIndex("Change", "spaceId");
-    } catch (e) {
-      // The pinned server says "already indexed"; FalkorDB's client docs say "already exists".
-      if (!(e instanceof Error) || !/already (indexed|exists)/i.test(e.message))
-        throw e;
-    }
+    // Inbox reads filter changes by space; pulse reads look links up by token hash.
+    for (const [label, property] of [
+      ["Change", "spaceId"],
+      ["PulseLink", "tokenHash"],
+    ])
+      try {
+        await this.graph.createNodeRangeIndex(label, property);
+      } catch (e) {
+        // The pinned server says "already indexed"; FalkorDB's client docs say "already exists".
+        if (!(e instanceof Error) || !/already (indexed|exists)/i.test(e.message))
+          throw e;
+      }
     for (let attempt = 0; attempt < 100; attempt++) {
       const cs = await this.query<{ status: string }>(
         "CALL db.constraints()",

@@ -35,7 +35,8 @@ Use the Shared Memory MCP server’s tools by their exact names. When the host r
 | `recall` / `get_memory` / `explain_memory` | Read path |
 | `list_spaces` / `share_memory` | Authorized whole-memory sharing |
 | `check_inbox` / `mark_inbox_seen` | Unread updates other members shared with the user; mark the ones you reported as seen |
-| `assistant_setup` | Host-specific steps for a Grok Bot doorbell or a Dot scheduled check (changes nothing itself) |
+| `assistant_setup` | Host-specific steps for a Grok Bot doorbell, a Muse hook or a Dot scheduled check (changes nothing itself) |
+| `create_pulse_link` | Private counter-only URL for a polling check such as a Muse hook (revocable in the dashboard) |
 | `get_shared_update` | Current authorized shared memory or selected claim for a space |
 | `get_ontology` / `record_knowledge` / `recall_knowledge` / `index_knowledge` / `publish_claim` | Structured ontology (when present) |
 
@@ -133,7 +134,7 @@ Readers can retrieve; contributors and owners can share their own memories. Do n
 
 ## Shared updates (summary)
 
-Shared Memory never pushes update content to agents. A member can give their own assistant a lookout: `assistant_setup` returns host-specific steps, either a Grok Bot routine triggered "When a webhook fires" (a doorbell Shared Memory rings with IDs only) or a Dot scheduled check. Follow the steps only when the user asks to be notified, and report only what the host actually created. When a doorbell rings or a scheduled check runs, call `check_inbox`. Do not claim monitoring is active until a test or first run reached the user, and never invent a monitoring tool.
+Shared Memory never pushes update content to agents. A member can give their own assistant a lookout: `assistant_setup` returns host-specific steps, a Grok Bot routine triggered "When a webhook fires" (a doorbell Shared Memory rings with IDs only), a Muse hook that polls a pulse link from `create_pulse_link` (it shows only an unread counter), or a Dot scheduled check. Follow the steps only when the user asks to be notified, and report only what the host actually created. When a doorbell rings or a scheduled check runs, call `check_inbox`. Do not claim monitoring is active until a test or first run reached the user, and never invent a monitoring tool.
 
 Other members' shares, revisions and selected-claim publications in the user's spaces collect in the user's inbox. Call `check_inbox` at the start of a conversation, and whenever a Shared Memory tool result includes an `inbox` field with unread updates. Tell the user briefly who shared what and in which space, putting anything that concerns them first; one short summary can cover several updates. Then call `mark_inbox_seen` with the `changeIds` you reported, so the same update is not repeated here or by another assistant. Do not mark an update seen that you did not tell the user about.
 

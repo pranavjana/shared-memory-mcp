@@ -11,7 +11,12 @@ interface Doorbell {
   lastSuccessAt: number | null;
   needsAttention: boolean;
 }
-type Host = "grok" | "dot";
+type Host = "grok" | "muse" | "dot";
+interface PulseLink {
+  id: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
 
 const hosts: { id: Host; name: string; blurb: string }[] = [
   {
@@ -19,6 +24,12 @@ const hosts: { id: Host; name: string; blurb: string }[] = [
     name: "Grok Bot",
     blurb:
       "Instant. Your Bot creates a webhook routine; paste its URL and Authorization header below.",
+  },
+  {
+    id: "muse",
+    name: "Muse",
+    blurb:
+      "About a minute. Muse creates a private check link and a hook that wakes it when something new arrives.",
   },
   {
     id: "dot",
@@ -51,12 +62,18 @@ export function AssistantsView({
   onError: (message: string) => void;
 }) {
   const [doorbells, setDoorbells] = useState<Doorbell[]>([]);
+  const [links, setLinks] = useState<PulseLink[]>([]);
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState("");
   const [authorization, setAuthorization] = useState("");
   const [label, setLabel] = useState("");
   const load = useCallback(async () => {
-    setDoorbells((await action("doorbells", {})).doorbells ?? []);
+    const [bells, pulse] = await Promise.all([
+      action("doorbells", {}),
+      action("pulse_links", {}),
+    ]);
+    setDoorbells(bells.doorbells ?? []);
+    setLinks(pulse.links ?? []);
   }, [action]);
   useEffect(() => {
     load().catch((e) => onError(e.message));
@@ -101,6 +118,34 @@ export function AssistantsView({
             >
               Copy setup prompt
             </button>
+            {h.id === "muse" && links.length > 0 && (
+              <div className="doorbell-list" aria-label="Check links">
+                {links.map((l) => (
+                  <div className="record-row" key={l.id}>
+                    <div>
+                      <strong>Check link from {when(l.createdAt)}</strong>
+                      <small>
+                        {l.lastUsedAt
+                          ? `Last checked ${when(l.lastUsedAt)}`
+                          : "Not checked yet"}
+                      </small>
+                    </div>
+                    <button
+                      className="text-button"
+                      disabled={busy}
+                      onClick={() =>
+                        run(
+                          () => action("revoke_pulse_link", { id: l.id }),
+                          "Check link revoked. Muse can no longer use it.",
+                        )
+                      }
+                    >
+                      Revoke
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             {h.id === "grok" &&
               (doorbellsAvailable ? (
                 <>

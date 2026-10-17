@@ -384,6 +384,30 @@ test("real database API and both MCP protocols enforce identity, revisions and c
       (await api("user_a", "remove_doorbell", { id: bell.body.id })).body.removed,
       false,
     );
+    const museSetup = await rpc("user_b", "tools/call", {
+      name: "assistant_setup",
+      arguments: { host: "muse" },
+    });
+    assert.match(museSetup.body.result.structuredContent.prompt, /create_pulse_link/);
+    const created = await rpc("user_b", "tools/call", {
+      name: "create_pulse_link",
+      arguments: {},
+    });
+    const pulseUrl: string = created.body.result.structuredContent.url;
+    assert.ok(pulseUrl.startsWith(origin + "/pulse/smp_"));
+    const pulsePath = new URL(pulseUrl).pathname;
+    const pulseRead = await fetch(base + pulsePath);
+    assert.equal(pulseRead.status, 200);
+    assert.equal(pulseRead.headers.get("cache-control"), "no-store");
+    const pulseBody = await pulseRead.json();
+    assert.deepEqual(Object.keys(pulseBody).sort(), ["unread", "version"]);
+    assert.ok(pulseBody.unread >= 1);
+    assert.equal((await fetch(base + "/pulse/smp_" + "B".repeat(43))).status, 404);
+    const linkList = await api("user_b", "pulse_links");
+    assert.equal(linkList.body.links.length, 1);
+    assert.ok(!JSON.stringify(linkList.body).includes(pulsePath.split("/").pop()!));
+    await api("user_b", "revoke_pulse_link", { id: linkList.body.links[0].id });
+    assert.equal((await fetch(base + pulsePath)).status, 404);
     const cleared = await rpc("user_b", "tools/call", {
       name: "mark_inbox_seen",
       arguments: { all: true },

@@ -34,6 +34,7 @@ import { fromClerkUser, fromClerkWebhook } from "./clerk-users.js";
 import type { UserStore } from "./users.js";
 import type { AutomaticOntology } from "./ontology-extraction.js";
 import type { DoorbellService } from "./doorbells.js";
+import { PulseService } from "./pulse.js";
 
 export interface Config {
   publicUrl: string;
@@ -176,10 +177,14 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
   const skill = existsSync(skillPath)
     ? readFileSync(skillPath, "utf8")
     : operatingInstructions;
+  const pulse = dependencies.memory
+    ? new PulseService(dependencies.memory, config.publicUrl.replace(/\/$/, ""))
+    : undefined;
   const tools = dependencies.memory
     ? memoryTools(dependencies.memory, skill, dependencies.automaticOntology, {
         resource,
         doorbells: dependencies.doorbells,
+        pulse,
       })
     : [];
   app.get("/api/config", (_req, res) =>
@@ -191,6 +196,40 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     }),
   );
   app.get("/skill", (_req, res) => res.type("text/plain").send(skill));
+  // Pulse links are read by credential-less pollers (for example Muse hooks).
+  // They reveal only an unread counter and a version, never content.
+  if (pulse)
+    app.get(
+      "/pulse/:token",
+      // Many hosts (e.g. Muse VMs) may share egress IPs, so the main limit is per
+      // link; a looser per-IP limit still stops anyone scanning for tokens.
+      rateLimit({
+        windowMs: 60_000,
+        limit: 600,
+        standardHeaders: "draft-8",
+        legacyHeaders: false,
+      }),
+      rateLimit({
+        windowMs: 60_000,
+        limit: 30,
+        standardHeaders: "draft-8",
+        legacyHeaders: false,
+        keyGenerator: (req) => "pulse:" + String(req.params.token),
+      }),
+      async (req, res) => {
+        res.set({
+          "Cache-Control": "no-store",
+          "Referrer-Policy": "no-referrer",
+          "X-Robots-Tag": "noindex",
+        });
+        const result = await pulse.read(String(req.params.token));
+        if (!result) {
+          res.status(404).json({ error: "Not found" });
+          return;
+        }
+        res.json(result);
+      },
+    );
   app.get("/setup/prompt", (_req, res) =>
     res.type("text/plain").send(mcpInstallPrompt(resource)),
   );
@@ -212,6 +251,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         tools,
         dependencies.dashboardAuthenticate,
         dependencies.doorbells,
+        pulse,
       ),
     );
   app.get("/privacy", (_req, res) =>

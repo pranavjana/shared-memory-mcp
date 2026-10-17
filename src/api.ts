@@ -5,6 +5,7 @@ import { z } from "zod";
 import { DomainError, MemoryStore, type Actor } from "./memory.js";
 import { runTool, type Tool } from "./tools.js";
 import type { DoorbellService } from "./doorbells.js";
+import type { PulseService } from "./pulse.js";
 import { ontology } from "./ontology.js";
 export function dashboardApi(
   config: { secretKey: string; publishableKey: string; publicUrl: string },
@@ -12,6 +13,7 @@ export function dashboardApi(
   tools: Tool[],
   authenticate?: (req: express.Request) => Promise<Actor | undefined>,
   doorbells?: DoorbellService,
+  pulse?: PulseService,
 ) {
   const requireDoorbells = () => {
     if (!doorbells)
@@ -191,6 +193,16 @@ export function dashboardApi(
       case "test_doorbell": {
         const i = z.object({ id: z.string().min(1).max(100) }).parse(input);
         result = await requireDoorbells().test(actor, i.id);
+        break;
+      }
+      case "pulse_links": {
+        result = { links: pulse ? await pulse.list(actor) : [] };
+        break;
+      }
+      case "revoke_pulse_link": {
+        const i = z.object({ id: z.string().min(1).max(100) }).parse(input);
+        if (!pulse) throw new DomainError(503, "Pulse links are unavailable");
+        result = await pulse.revoke(actor, i.id);
         break;
       }
       case "set_connection": {
