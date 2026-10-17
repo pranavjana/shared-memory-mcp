@@ -6,7 +6,6 @@ type QueryParams = NonNullable<
   >["params"]
 >;
 import { z } from "zod";
-import { entityTypes } from "./ontology.js";
 
 export const kinds = [
   "fact",
@@ -19,7 +18,7 @@ export const kinds = [
 ] as const;
 export const entitySchema = z
   .object({
-    type: z.enum(entityTypes),
+    type: z.enum(["person", "project", "organization", "place", "topic"]),
     name: z.string().trim().min(1).max(120),
   })
   .strict();
@@ -67,10 +66,23 @@ export interface Space {
   createdAt: number;
   role?: string;
 }
+export interface Subscription {
+  id: string;
+  owner: string;
+  clientId: string;
+  spaceId: string;
+  url: string;
+  secret: string;
+  previousSecret?: string;
+  rotationUntil?: number;
+  expiresAt: number;
+  active: boolean;
+  createdAt?: number;
+  grantToken?: string;
+}
 export interface Change {
   id: string;
-  memoryId?: string;
-  publicationId?: string;
+  memoryId: string;
   spaceId: string;
   actorId: string;
   actorName: string;
@@ -117,15 +129,11 @@ export class MemoryStore {
       "Entity",
       "Space",
       "Invitation",
+      "Subscription",
       "Change",
+      "Delivery",
       "Connection",
       "SharingRule",
-      "KnowledgeSearchDocument",
-      "KnowledgeClaim",
-      "KnowledgeEntity",
-      "KnowledgeBatch",
-      "OntologyJob",
-      "Publication",
     ]) {
       try {
         await this.graph.createNodeRangeIndex(label, "id");
@@ -160,10 +168,6 @@ export class MemoryStore {
         }
       }
     }
-    // Webhook event subscriptions were removed; clear stored callback secrets and grants.
-    await this.query(
-      `MATCH (s:Subscription) WHERE s.active=true OR s.secret IS NOT NULL OR s.previousSecret IS NOT NULL OR s.grantToken IS NOT NULL SET s.active=false,s.secret=NULL,s.previousSecret=NULL,s.grantToken=NULL`,
-    );
     for (let attempt = 0; attempt < 100; attempt++) {
       const cs = await this.query<{ status: string }>(
         "CALL db.constraints()",
@@ -209,8 +213,6 @@ export class MemoryStore {
       MERGE (p)-[:AUTHORED]->(m)
       MERGE (r:Revision {id:$revisionId}) ON CREATE SET r.text=m.text,r.kind=m.kind,r.basis=m.basis,r.entities=m.entities,r.evidence=m.evidence,r.sourceClient=m.sourceClient,r.revision=1,r.createdAt=$now,r.eventAt=m.eventAt
       MERGE (m)-[:HAS_REVISION]->(r)
-      MERGE (job:OntologyJob {id:$revisionId}) ON CREATE SET job.owner=$user,job.revision=1,job.status='pending',job.attempts=0,job.nextAt=0
-      MERGE (job)-[:SUPPORTED_BY]->(m)
       FOREACH (i IN range(0,size($entityIds)-1) | MERGE (e:Entity {id:$entityIds[i]}) ON CREATE SET e.name=$names[i],e.kind=$types[i] MERGE (m)-[:ABOUT]->(e))
       RETURN properties(m) AS value`,
       {
@@ -341,8 +343,6 @@ export class MemoryStore {
       SET m.text=$text,m.kind=$kind,m.basis=$basis,m.entities=$entities,m.evidence=$evidence,m.eventAt=$eventAt,m.sourceClient=$client,m.updatedAt=$now,m.revision=$rev
       CREATE (r:Revision {id:$rid,text:$text,kind:$kind,basis:$basis,entities:$entities,evidence:$evidence,eventAt:$eventAt,sourceClient:$client,createdAt:$now,revision:$rev,requestHash:$hash})
       CREATE (m)-[:HAS_REVISION]->(r)
-      CREATE (job:OntologyJob {id:$rid,owner:$user,revision:$rev,status:'pending',attempts:0,nextAt:0})
-      CREATE (job)-[:SUPPORTED_BY]->(m)
       WITH m OPTIONAL MATCH (m)-[link:ABOUT]->(:Entity) DELETE link
       WITH DISTINCT m
       FOREACH (i IN range(0,size($entityIds)-1) | MERGE (e:Entity {id:$entityIds[i]}) ON CREATE SET e.name=$names[i],e.kind=$types[i] MERGE (m)-[:ABOUT]->(e))
@@ -398,24 +398,8 @@ export class MemoryStore {
       OPTIONAL MATCH (m)-[:HAS_REVISION]->(r:Revision)
       SET r.text=NULL,r.evidence=NULL,r.entities=NULL,r.eventAt=NULL,m.text=NULL,m.evidence=NULL,m.entities='[]',m.eventAt=NULL,m.deletedAt=$now
       WITH DISTINCT m OPTIONAL MATCH (m)-[share:SHARED_IN]->(:Space) SET share.active=false
-      WITH DISTINCT m OPTIONAL MATCH (m)-[link:ABOUT]->(:Entity) DELETE link
-      WITH DISTINCT m OPTIONAL MATCH (c:KnowledgeClaim)-[:SUPPORTED_BY]->(m)
-      SET c.payload=NULL,c.status='forgotten'
-      WITH DISTINCT c OPTIONAL MATCH (p:Publication)-[:DERIVED_FROM]->(c)
-      SET p.payload=NULL,p.active=false`,
+      WITH DISTINCT m OPTIONAL MATCH (m)-[link:ABOUT]->(:Entity) DELETE link`,
       { id, user: actor.userId, now: Date.now() },
-    );
-    await this.query(
-      `MATCH (job:OntologyJob)-[:SUPPORTED_BY]->(m:Memory {id:$id}) WHERE m.owner=$user SET job.plan=NULL,job.status='forgotten',job.lease=NULL`,
-      { id, user: actor.userId },
-    );
-    await this.query(
-      `MATCH (d:KnowledgeSearchDocument)-[:INDEXES]->(c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory {id:$id}) WHERE m.owner=$user DETACH DELETE d`,
-      { id, user: actor.userId },
-    );
-    await this.query(
-      `MATCH (d:KnowledgeSearchDocument)-[:INDEXES]->(:Publication)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory {id:$id}) WHERE m.owner=$user DETACH DELETE d`,
-      { id, user: actor.userId },
     );
     await this.query(
       "MATCH (e:Entity) OPTIONAL MATCH (m:Memory)-[:ABOUT]->(e) WITH e,count(m) AS refs WHERE refs=0 DELETE e",
@@ -450,37 +434,6 @@ export class MemoryStore {
       { id, name, user: actor.userId, personName: actor.name ?? "Member", now },
     );
     return { id, name, owner: actor.userId, role: "owner", createdAt: now };
-  }
-  async spaceMemories(
-    actor: Actor,
-    spaceId: string,
-    limit = 30,
-    cursor?: { updatedAt: number; id: string },
-  ) {
-    const space = await this.requireSpace(actor, spaceId);
-    const rows = await this.query<{ value: Memory }>(
-      `MATCH (:Person {id:$user})-[:MEMBER_OF {active:true}]->(s:Space {id:$space})<-[:SHARED_IN {active:true}]-(m:Memory)
-       WHERE m.deletedAt IS NULL AND ($before IS NULL OR m.updatedAt<$before OR (m.updatedAt=$before AND m.id<$beforeId))
-       WITH DISTINCT m RETURN properties(m) AS value ORDER BY m.updatedAt DESC,m.id DESC LIMIT $limit`,
-      {
-        user: actor.userId,
-        space: spaceId,
-        before: cursor?.updatedAt ?? null,
-        beforeId: cursor?.id ?? "",
-        limit: limit + 1,
-      },
-      true,
-    );
-    const page = rows.slice(0, limit).map((r) => r.value);
-    const last = page.at(-1);
-    return {
-      space,
-      memories: page.map((m) => this.publicMemory(m)),
-      nextCursor:
-        rows.length > limit && last
-          ? { updatedAt: last.updatedAt, id: last.id }
-          : null,
-    };
   }
   async invite(
     actor: Actor,
@@ -550,7 +503,7 @@ export class MemoryStore {
         "The owner cannot revoke their own membership",
       );
     await this.query(
-      `MATCH (s:Space {id:$space})<-[member:MEMBER_OF]-(p:Person {id:$target}) WHERE s.owner=$user SET member.active=false`,
+      `MATCH (s:Space {id:$space})<-[member:MEMBER_OF]-(p:Person {id:$target}) WHERE s.owner=$user SET member.active=false WITH s OPTIONAL MATCH (sub:Subscription) WHERE sub.spaceId=$space AND sub.owner=$target SET sub.active=false,sub.secret=NULL,sub.previousSecret=NULL,sub.grantToken=NULL`,
       { space: spaceId, target: userId, user: actor.userId },
     );
     return { revoked: true };
@@ -604,7 +557,88 @@ export class MemoryStore {
       memoryId: id,
       spaceId,
       eventId,
+      delivery: "queued_for_active_subscribers",
     };
+  }
+  async canReceive(sub: Subscription, change: Change) {
+    if (sub.spaceId !== change.spaceId || sub.owner === change.actorId)
+      return false;
+    try {
+      const active = await this.query(
+        `MATCH (s:Subscription {id:$id}) WHERE s.active=true AND s.expiresAt>$now AND s.owner=$owner AND s.clientId=$client AND s.spaceId=$space AND s.url=$url RETURN s.id AS id`,
+        {
+          id: sub.id,
+          now: Date.now(),
+          owner: sub.owner,
+          client: sub.clientId,
+          space: sub.spaceId,
+          url: sub.url,
+        },
+        true,
+      );
+      if (
+        !active.length ||
+        !(await this.clientEnabled(sub.owner, sub.clientId))
+      )
+        return false;
+      await this.requireSpace(
+        { userId: sub.owner, clientId: sub.clientId },
+        sub.spaceId,
+      );
+      if (change.kind === "retracted") return true;
+      const rows = await this.query(
+        `MATCH (m:Memory {id:$id})-[:SHARED_IN {active:true}]->(:Space {id:$space}) WHERE m.deletedAt IS NULL RETURN m.id AS id`,
+        { id: change.memoryId, space: sub.spaceId },
+        true,
+      );
+      return rows.length > 0;
+    } catch {
+      return false;
+    }
+  }
+  async subscriptions(userId?: string) {
+    return (
+      await this.query<{ value: Subscription }>(
+        `MATCH (s:Subscription) WHERE s.active=true AND s.expiresAt>$now ${userId ? "AND s.owner=$user" : ""} RETURN properties(s) AS value`,
+        { now: Date.now(), user: userId ?? "" },
+        true,
+      )
+    ).map((r) => r.value);
+  }
+  async saveSubscription(sub: Subscription) {
+    await this.query(
+      `MERGE (s:Subscription {id:$id}) SET s.owner=$owner,s.clientId=$clientId,s.spaceId=$spaceId,s.url=$url,s.secret=$secret,s.previousSecret=$previousSecret,s.rotationUntil=$rotationUntil,s.expiresAt=$expiresAt,s.active=true,s.grantToken=$grantToken,s.createdAt=coalesce(s.createdAt,$now)`,
+      {
+        ...sub,
+        grantToken: sub.grantToken ?? null,
+        previousSecret: sub.previousSecret ?? null,
+        rotationUntil: sub.rotationUntil ?? null,
+        now: Date.now(),
+      },
+    );
+  }
+  async unsubscribe(userId: string, id: string) {
+    await this.query(
+      `MATCH (s:Subscription {id:$id}) WHERE s.owner=$user SET s.active=false,s.secret=NULL,s.previousSecret=NULL,s.grantToken=NULL`,
+      { id, user: userId },
+    );
+  }
+  async pendingChanges(sub: Subscription) {
+    return (
+      await this.query<{ value: Change }>(
+        `MATCH (c:Change) WHERE c.spaceId=$space AND c.createdAt >= $created
+    OPTIONAL MATCH (d:Delivery) WHERE d.subscriptionId=$sub AND d.eventId=c.id
+    WITH c,d WHERE d IS NULL OR (d.status IN ['pending','retry'] AND d.nextAt<=$now AND (d.leaseUntil IS NULL OR d.leaseUntil<$now))
+    RETURN properties(c) AS value ORDER BY c.createdAt ASC LIMIT 50`,
+        {
+          space: sub.spaceId,
+          sub: sub.id,
+          created: sub.createdAt ?? Date.now(),
+          now: Date.now(),
+        },
+        true,
+      )
+    ).map((r) => r.value);
   }
   async authorizeClient(actor: Actor) {
     const id = digest(actor.userId + "|" + actor.clientId);
@@ -633,7 +667,7 @@ export class MemoryStore {
   }
   async setConnection(actor: Actor, id: string, enabled: boolean) {
     await this.query(
-      `MATCH (c:Connection {id:$id}) WHERE c.owner=$user SET c.enabled=$enabled`,
+      `MATCH (c:Connection {id:$id}) WHERE c.owner=$user SET c.enabled=$enabled WITH c OPTIONAL MATCH (s:Subscription) WHERE s.owner=$user AND s.clientId=c.clientId FOREACH (_ IN CASE WHEN $enabled=false THEN [1] ELSE [] END | SET s.active=false,s.secret=NULL,s.previousSecret=NULL,s.grantToken=NULL)`,
       { id, user: actor.userId, enabled },
     );
     return { enabled };
@@ -662,6 +696,57 @@ export class MemoryStore {
       `MATCH (c:Connection) WHERE c.owner=$user SET c.enabled=false`,
       { user: userId },
     );
+    await this.query(
+      `MATCH (s:Subscription) WHERE s.owner=$user SET s.active=false,s.secret=NULL,s.previousSecret=NULL,s.grantToken=NULL`,
+      { user: userId },
+    );
+  }
+  async claimDelivery(sub: Subscription, event: Change) {
+    const id = digest(sub.id + "|" + event.id);
+    const now = Date.now();
+    const rows = await this.query<{ attempts: number }>(
+      `MERGE (d:Delivery {id:$id}) ON CREATE SET d.subscriptionId=$sub,d.owner=$owner,d.eventId=$event,d.memoryId=$memory,d.spaceId=$space,d.actorId=$actor,d.attempts=0,d.status='pending',d.nextAt=0,d.createdAt=$now
+      WITH d WHERE d.status IN ['pending','retry'] AND d.nextAt<=$now AND (d.leaseUntil IS NULL OR d.leaseUntil<$now)
+      SET d.leaseUntil=$lease,d.attempts=d.attempts+1 RETURN d.attempts AS attempts`,
+      {
+        id,
+        sub: sub.id,
+        owner: sub.owner,
+        event: event.id,
+        memory: event.memoryId,
+        space: event.spaceId,
+        actor: event.actorId,
+        now,
+        lease: now + 30000,
+      },
+    );
+    return rows[0] ? { id, attempts: rows[0].attempts } : undefined;
+  }
+  async finishDelivery(
+    id: string,
+    status: string,
+    code: number,
+    attempts: number,
+  ) {
+    await this.query(
+      `MATCH (d:Delivery {id:$id}) SET d.status=$status,d.httpStatus=$code,d.leaseUntil=NULL,d.nextAt=$next,d.updatedAt=$now`,
+      {
+        id,
+        status,
+        code,
+        next: Date.now() + Math.min(900000, 5000 * 2 ** attempts),
+        now: Date.now(),
+      },
+    );
+  }
+  async deliveries(actor: Actor) {
+    return (
+      await this.query<{ value: Record<string, unknown> }>(
+        `MATCH (d:Delivery) WHERE d.owner=$user OR d.actorId=$user RETURN properties(d) AS value ORDER BY d.createdAt DESC LIMIT 100`,
+        { user: actor.userId },
+        true,
+      )
+    ).map((r) => r.value);
   }
   async rules(actor: Actor) {
     return (
