@@ -49,7 +49,7 @@ const agents: Agent[] = [
       href: "https://chatgpt.com/plugins",
     },
     recall:
-      "It also gives your dot a standing responsibility to check your shared spaces and message you when a teammate shares something.",
+      "It also lets your dot watch a shared space as a Scheduled task and message you in ChatGPT when a teammate shares something.",
     manage: "Ask your dot to show, change, or stop the check at any time.",
   },
   {
@@ -73,7 +73,7 @@ const agents: Agent[] = [
       </>,
     ],
     recall:
-      "It also sets up a recurring Muse task, which runs even when the app is closed and messages you in your Muse conversation.",
+      "It also lets Muse watch a shared space as a recurring task and message you in your Muse conversation.",
     manage: "Find or cancel the check in Muse’s Upcoming tab.",
   },
   {
@@ -99,7 +99,7 @@ const agents: Agent[] = [
       </>,
     ],
     recall:
-      "It also creates a Grok Bot routine that checks your shared spaces in the cloud, even when your devices are off.",
+      "It also lets Grok Bot watch a shared space with a routine that runs in the cloud, even when your devices are off.",
     manage: "Review, edit, or stop the routine from any device with Grok Bot.",
   },
 ];
@@ -171,7 +171,7 @@ export function AgentSetup({
   useEffect(() => {
     if (skills[selected]) return;
     let current = true;
-    fetchText(`/setup/skill/${selected}`, "instructions skill")
+    fetchText(`/skill/${selected}`, "instructions skill")
       .then((text) => current && setSkills((p) => ({ ...p, [selected]: text })))
       .catch(() => undefined);
     return () => {
@@ -207,7 +207,7 @@ export function AgentSetup({
         <h2 id="agent-setup-title">Set up your agent</h2>
         <p>
           Every agent connects the same way. The instructions skill uses each
-          agent’s own scheduler for proactive recall, so pick the one you use.
+          agent’s own scheduler to watch shared spaces, so pick the one you use.
         </p>
       </header>
       <div
@@ -330,7 +330,7 @@ export function AgentSetup({
                       const text =
                         agentSkill ||
                         (await fetchText(
-                          `/setup/skill/${agent.id}`,
+                          `/skill/${agent.id}`,
                           "instructions skill",
                         ));
                       setSkills((p) => ({ ...p, [agent.id]: text }));
@@ -344,9 +344,10 @@ export function AgentSetup({
               </div>
               <p className="setup-note">
                 Add it through skill support or persistent instructions; a chat
-                paste applies to that chat only. The check runs every 30
-                minutes, stays silent when nothing is new, and uses your agent’s
-                own usage. {agent.manage}
+                paste applies to that chat only. Then ask {agent.name} to watch
+                a shared space. It asks how often to check (every 15 minutes by
+                default), stays silent when nothing is new, and uses your
+                agent’s own usage. {agent.manage}
               </p>
             </div>
           </li>

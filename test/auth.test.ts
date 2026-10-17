@@ -106,24 +106,24 @@ test("OAuth discovery, access checks, and concurrent users stay isolated", async
     assert.deepEqual(body.bearer_methods_supported, ["header"]);
     assert.equal(body.resource_name, "Shared Memory MCP");
     assert.equal(metadata.headers.get("access-control-allow-origin"), "*");
-    for (const host of ["dot", "muse", "grok-bot"]) {
-      const agentSkill = await fetch(`${base}/setup/skill/${host}`, {
-        headers: { Host: "attacker.example" },
-      });
-      assert.equal(agentSkill.status, 200);
-      const text = await agentSkill.text();
-      assert.ok(text.startsWith("---\nname: shared-memory"));
-      assert.ok(text.includes("# Shared Memory operating guide"));
-      assert.ok(text.includes("## Proactive recall in"));
-      assert.ok(text.includes(`ENDPOINT: ${mcpResource}`));
-      assert.ok(text.includes("get_connection_status"));
-      assert.ok(text.includes("end the run silently"));
-      assert.ok(text.includes("Never reply to the person who shared"));
-    }
     assert.equal(
-      (await fetch(`${base}/setup/skill/unknown`)).status,
+      (await fetch(`${base}/setup/recall-prompt/dot`)).status,
       404,
     );
+    const skillNames = {
+      dot: "shared-space-watch-dot",
+      muse: "shared-space-watch-muse",
+      "grok-bot": "shared-space-watch-grok",
+    } as const;
+    for (const host of ["dot", "muse", "grok-bot"] as const) {
+      const skillRes = await fetch(`${base}/skill/${host}`);
+      assert.equal(skillRes.status, 200);
+      const skillText = await skillRes.text();
+      assert.ok(skillText.includes(`name: ${skillNames[host]}`));
+      assert.ok(skillText.includes("Watch tick"));
+      assert.ok(skillText.includes("Shared Memory operating guide"));
+    }
+    assert.equal((await fetch(`${base}/skill/unknown`)).status, 404);
     const prompt = await fetch(`${base}/setup/prompt`, {
       headers: { Host: "attacker.example" },
     });

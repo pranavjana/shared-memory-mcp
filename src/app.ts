@@ -7,8 +7,8 @@ import { memoryTools, operatingInstructions, runTool } from "./tools.js";
 import { dashboardApi } from "./api.js";
 import {
   agentHosts,
+  hostSkillInstructions,
   mcpInstallPrompt,
-  agentSkill,
   type AgentHost,
 } from "./onboarding.js";
 import { ontology } from "./ontology.js";
@@ -189,17 +189,22 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
   app.get("/setup/prompt", (_req, res) =>
     res.type("text/plain").send(mcpInstallPrompt(resource)),
   );
-  app.get("/setup/skill/:host", (req, res) => {
+  app.get("/skill/SKILL.md", (_req, res) =>
+    res.attachment("SKILL.md").type("text/plain").send(skill),
+  );
+  app.get("/skill/:host", (req, res) => {
     const host = req.params.host as AgentHost;
     if (!agentHosts.includes(host)) {
       res.status(404).type("text/plain").send("Unknown agent");
       return;
     }
-    res.type("text/plain").send(agentSkill(skill, resource, host));
+    const text = hostSkillInstructions(host);
+    if (!text) {
+      res.status(404).type("text/plain").send("Skill not found");
+      return;
+    }
+    res.type("text/plain").send(text);
   });
-  app.get("/skill/SKILL.md", (_req, res) =>
-    res.attachment("SKILL.md").type("text/plain").send(skill),
-  );
   if (dependencies.memory)
     app.use(
       "/api",
