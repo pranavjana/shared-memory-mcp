@@ -14,7 +14,7 @@
     "build:server": "tsc",
     "dev:web": "vite",
     "check:web": "tsc -p tsconfig.web.json",
-    "test:graph": "node --import tsx --test test/memory.integration.ts test/ontology-extraction.integration.ts test/shared-updates.integration.ts test/shared-ontology.integration.ts test/provisional-predicates.integration.ts",
+    "test:graph": "node --import tsx --test test/memory.integration.ts test/ontology-extraction.integration.ts test/shared-updates.integration.ts test/shared-ontology.integration.ts test/provisional-predicates.integration.ts test/ontology-e2e.integration.ts",
     "sandbox:seed": "node scripts/sandbox-seed.mjs"
   },
   "dependencies": {

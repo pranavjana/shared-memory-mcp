@@ -130,6 +130,28 @@ const answers: Record<string, unknown> = {
     ],
   },
 };
+// Models sometimes negate the other party or an unstated relationship.
+answers["Lee owes me 20 for lunch."] = {
+  entities: [
+    entity("self", "person", "Pranav"),
+    entity("lee", "person", "Lee"),
+    entity("debt", "obligation", "Lunch debt"),
+  ],
+  claims: [
+    claim("lee", "OWES", "debt", "Lee owes me 20 for lunch."),
+    claim("self", "OWES", "debt", "Lee owes me 20 for lunch.", {
+      negated: true,
+    }),
+  ],
+};
+answers["Roshan doesn't drink coffee."] = {
+  entities: [entity("r", "person", "Roshan"), entity("c", "item", "coffee")],
+  claims: [
+    claim("r", "DISLIKES", "c", "Roshan doesn't drink coffee.", {
+      negated: true,
+    }),
+  ],
+};
 const extractor: OntologyExtractor = {
   async extract(context) {
     const known = answers[context.source.text];
@@ -198,6 +220,13 @@ test("extraction proposes, reuses and limits provisional relationships, and reco
       custom.map((p) => [p.id, p.status]),
       [["SPEAKS", "provisional"]],
     );
+    // A negation must quote a negation of that relationship's own verb.
+    await remember("provisional-owes-01", "Lee owes me 20 for lunch.");
+    await remember("provisional-coffee-01", "Roshan doesn't drink coffee.");
+    const facts = await own(k);
+    assert.ok(facts.includes("OWES:Lunch debt"));
+    assert.ok(!facts.some((f) => f.startsWith("not OWES")));
+    assert.ok(!facts.some((f) => f.includes("DISLIKES")));
     // An instruction-like name never becomes schema.
     const blocked = await remember(
       "provisional-blocked-01",
