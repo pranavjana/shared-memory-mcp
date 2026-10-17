@@ -51,8 +51,6 @@ type Overview = {
     entityName: string;
     entityType: string;
   }[];
-  deliveries: any[];
-  subscriptions: any[];
   connections?: Connection[];
   rules?: any[];
 };
@@ -126,7 +124,6 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
         <path d="m9 11 6-4m-6 6 6 4" />
       </>
     ),
-    activity: <path d="M3 12h4l3-8 4 16 3-8h4" />,
     arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
     plus: <path d="M12 5v14M5 12h14" />,
     refresh: (
@@ -496,7 +493,6 @@ function Dashboard({ config }: { config: Config }) {
             ["connections", "graph", "Connections"],
             ["spaces", "share", "Shared spaces"],
             ["ontology", "graph", "Ontology"],
-            ["activity", "activity", "Activity"],
           ].map(([id, icon, label]) => (
             <button
               key={id}
@@ -755,7 +751,7 @@ function Dashboard({ config }: { config: Config }) {
                           aria-label={`${c.enabled ? "Revoke" : "Enable"} ${assistant.name}`}
                           title={
                             c.enabled
-                              ? "Stop memory access and event subscriptions"
+                              ? "Stop memory access"
                               : "Allow memory access"
                           }
                           onClick={() =>
@@ -938,48 +934,6 @@ function Dashboard({ config }: { config: Config }) {
                   </div>
                 </li>
               </ol>
-
-              <details className="connection-help">
-                <summary>Shared-space notifications</summary>
-                <p>
-                  Open a shared space and expand Agent notifications for Muse or
-                  Dot setup. Subscribe to <code>memory.changed</code> and{" "}
-                  <code>knowledge.changed</code> for that space.
-                </p>
-                <p>
-                  A connection alone does not start monitoring. Activity shows
-                  webhook receipt; it does not confirm that your agent sent a
-                  message.
-                </p>
-              </details>
-              {!!data?.subscriptions.length && (
-                <section className="panel spaced">
-                  <h2>Active event subscriptions</h2>
-                  {data.subscriptions.map((s) => (
-                    <div className="record-row" key={s.id}>
-                      <div>
-                        <strong>
-                          {data.spaces.find((p) => p.id === s.spaceId)?.name ??
-                            s.spaceId}
-                        </strong>
-                        <small>Expires {date(s.expiresAt)}</small>
-                      </div>
-                      <button
-                        className="text-button danger"
-                        disabled={busy}
-                        onClick={() =>
-                          perform(
-                            () => action("unsubscribe", { id: s.id }),
-                            "Subscription stopped",
-                          )
-                        }
-                      >
-                        Stop
-                      </button>
-                    </div>
-                  ))}
-                </section>
-              )}
             </div>
           )}
           {section === "spaces" && (
@@ -1209,50 +1163,6 @@ function Dashboard({ config }: { config: Config }) {
                 userId={data?.actor.id ?? ""}
               />
             </React.Suspense>
-          )}
-          {section === "activity" && (
-            <>
-              <section className="panel">
-                <h2>Delivery activity</h2>
-                {data?.deliveries.length ? (
-                  <div className="activity-list">
-                    {data.deliveries.map((d) => (
-                      <div className="record-row" key={d.id}>
-                        <span className={"status-dot " + d.status} />
-                        <div>
-                          <strong>
-                            {d.status === "accepted"
-                              ? "Webhook received"
-                              : title(d.status)}
-                          </strong>
-                          <small>
-                            {d.publicationId
-                              ? "Selected claim"
-                              : "Shared memory"}{" "}
-                            · {d.attempts} attempt
-                            {d.attempts === 1 ? "" : "s"} · HTTP{" "}
-                            {d.httpStatus ?? "—"}
-                          </small>
-                        </div>
-                        <span className="subtle">
-                          {date(d.updatedAt ?? d.createdAt)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state compact">
-                    <Icon name="activity" size={28} />
-                    <h2>No deliveries yet.</h2>
-                    <p>
-                      When someone shares a memory in a subscribed space,
-                      <br />
-                      its delivery trace appears here.
-                    </p>
-                  </div>
-                )}
-              </section>
-            </>
           )}
         </div>
       </main>

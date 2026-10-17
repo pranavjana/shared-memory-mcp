@@ -3,14 +3,12 @@ import { createClerkClient } from "@clerk/express";
 import { verifyToken } from "@clerk/backend";
 import { z } from "zod";
 import { DomainError, MemoryStore, type Actor } from "./memory.js";
-import type { EventService } from "./events.js";
 import { runTool, type Tool } from "./tools.js";
 import { ontology } from "./ontology.js";
 export function dashboardApi(
   config: { secretKey: string; publishableKey: string; publicUrl: string },
   store: MemoryStore,
   tools: Tool[],
-  events?: EventService,
   authenticate?: (req: express.Request) => Promise<Actor | undefined>,
 ) {
   const api = express.Router();
@@ -65,20 +63,10 @@ export function dashboardApi(
   api.get("/ontology", (_req, res) => res.json(ontology));
   api.get("/overview", async (_req, res) => {
     const actor = res.locals.actor as Actor;
-    const [
-      memories,
-      spaces,
-      graph,
-      deliveries,
-      subscriptions,
-      connections,
-      rules,
-    ] = await Promise.all([
+    const [memories, spaces, graph, connections, rules] = await Promise.all([
       store.recall(actor, "", 50),
       store.spaces(actor),
       store.graphView(actor),
-      store.deliveries(actor),
-      events?.listSubscriptions(actor) ?? [],
       store.connections(actor),
       store.rules(actor),
     ]);
@@ -87,8 +75,6 @@ export function dashboardApi(
       ...memories,
       spaces,
       graph,
-      deliveries,
-      subscriptions,
       connections,
       rules,
     });
@@ -187,12 +173,6 @@ export function dashboardApi(
           .object({ id: z.string(), enabled: z.boolean() })
           .parse(input);
         result = await store.setConnection(actor, i.id, i.enabled);
-        break;
-      }
-      case "unsubscribe": {
-        const i = z.object({ id: z.string() }).parse(input);
-        await store.unsubscribe(actor.userId, i.id);
-        result = { unsubscribed: true };
         break;
       }
       default:

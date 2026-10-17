@@ -46,27 +46,19 @@ Ask the assistant to remember a stated preference, then ask another connected as
 
 Retrieval combines authorized keyword/entity matches with native graph expansion through shared entities and shared spaces. Related context can be returned even without keyword overlap. V1 does not generate embeddings or promote inferred guesses into established facts. Background inference, reconciliation and memory aging are later milestones.
 
-Writes use parameterized Cypher, unique constraints, deterministic retry IDs and compare-and-swap revisions. Author-only revision history prevents private historic versions leaking through a newly shared reference. Forgetting removes text, evidence and revision contents, withdraws shares and removes orphan entity records; minimal IDs and operational delivery metadata remain.
+Writes use parameterized Cypher, unique constraints, deterministic retry IDs and compare-and-swap revisions. Author-only revision history prevents private historic versions leaking through a newly shared reference. Forgetting removes text, evidence and revision contents, withdraws shares and removes orphan entity records; minimal IDs and operational metadata remain.
 
 ## Shared spaces and permissions
 
 A space owner creates a reader or contributor invitation addressed to a verified primary email. The invited person accepts while signed in with that email. Contributors can share their own memories; they cannot edit somebody else's source memory. Owners can revoke members. Existing accepted invitation links cannot reactivate revoked access; a new invitation is required.
 
-A shared reference uses `Memory -[:SHARED_IN {active:true}]-> Space <-[:MEMBER_OF {active:true}]- Person`. Each read, graph expansion and webhook delivery checks current access. Source corrections appear on the next read. Retraction stops future retrieval; content already received by another host cannot be recalled.
+A shared reference uses `Memory -[:SHARED_IN {active:true}]-> Space <-[:MEMBER_OF {active:true}]- Person`. Each read and graph expansion checks current access. Source corrections appear on the next read. Retraction stops future retrieval; content already received by another host cannot be recalled.
 
 Sharing happens on an explicit request or through a dashboard-enabled rule matching a memory kind and optional entity name. Rules apply to future saves, do not backfill existing memories, and stop when disabled or permission is lost. Stopping a rule does not retract earlier shares.
 
-## Proactive events
+## Shared updates
 
-The same authenticated endpoint implements stateless `2026-07-28` discovery and tools alongside legacy MCP `2025-11-25` support. `events/list`, `events/subscribe` and `events/unsubscribe` expose `memory.changed` for whole-memory shares and `knowledge.changed` for selected-claim publications, filtered by `space_id`.
-
-Open a space → Agent notifications for a space-specific Muse or Dot setup prompt and actual subscription status. Dot/Cloud Work supports native MCP Events; Muse must demonstrate a persistent callback and wake-up support before claiming monitoring. Ask the receiving agent to monitor both events in an authorized space and notify its own user. The intended flow is: Pranav shares an update; Roshan's subscribed agent retrieves current context and messages Roshan. No automatic response to Pranav is required.
-
-Subscriptions persist in FalkorDB and expire no later than their authorizing access token; the host must refresh them. Signing secrets and authorizing tokens are encrypted using AES-256-GCM. The worker rechecks client revocation, OAuth authorization and space access. It verifies signed callback challenges and pins validated public DNS addresses for each HTTPS connection. Private destinations and redirects are blocked. Stable event IDs survive retries; transient failures use bounded exponential backoff. Sender echoes are suppressed. `accepted` means the receiver acknowledged the webhook, not that an agent ran or sent a message. The dashboard distinguishes those states.
-
-The protocol does not offer historical replay (`cursor: null`). Subscribe before generating updates. Real Muse/Dot subscriptions, automatic tool invocation, and event-to-user-message behavior need host acceptance testing; simulated webhook receipt alone does not verify them. Muse connects successfully when the host uses DCR plus `resource=` on authorize/token (with scopes such as `openid profile email offline_access`).
-
-Reference: https://developers.openai.com/plugins/build/mcp-events
+The same authenticated endpoint implements stateless `2026-07-28` discovery and tools alongside legacy MCP `2025-11-25` support. Members read shared memories and selected claims on demand with `recall`, `recall_knowledge` and `get_shared_update`, scoped to the exact space. The server does not currently push updates to other members' agents; webhook-based MCP Events were removed. Muse connects successfully when the host uses DCR plus `resource=` on authorize/token (with scopes such as `openid profile email offline_access`).
 
 ## Local development
 
@@ -77,8 +69,6 @@ The dashboard uses Vite, React, TypeScript, and Tailwind's official Vite plugin.
 Use Node 24. Copy `.env.example` to `.env.local` and supply the dedicated personal Clerk application's keys. Start FalkorDB locally with password authentication and set `FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_PASSWORD`, `FALKORDB_GRAPH` (profiles) and `FALKORDB_MEMORY_GRAPH` (application graph).
 
 Run `npm ci`, `npm run build` and `npm run dev`. For frontend development run `npm run dev:web` in a second terminal; Vite forwards API requests to port 3000. Set `PUBLIC_URL` to the actual browser origin so Clerk authorized-party checks match. Production serves the built frontend from Express.
-
-Generate `EVENT_ENCRYPTION_KEY` once as 32 random bytes encoded in base64. Preserve it across restarts; losing it makes existing event credentials unreadable. If absent, event subscriptions are not advertised. Never expose it to frontend code or commit environment files.
 
 The dedicated personal Clerk application is `app_3KhaoAVxRR0XFfeOzTL2AqaNZoF`. Its development instance is used for this preview. A production Clerk instance needs domain configuration for a broader launch. Never use another application's keys.
 
@@ -117,12 +107,12 @@ Optional env: `MCP_URL` (default production `/mcp`), `CLIENT_ID` (skip DCR), `RE
 
 Start an isolated FalkorDB on `127.0.0.1:16379` with password `local-verification`. Then run `npm run test:graph` and `node --import tsx --test test/api.integration.ts`. Tests create unique synthetic graphs and delete them afterward. Graph tests accept `FALKORDB_TEST_HOST`, `FALKORDB_TEST_PORT`, and `FALKORDB_TEST_PASSWORD` overrides.
 
-The checks cover concurrent deduplication, stale revisions, private retrieval, relationship expansion, invitations, sharing/retraction, rules, client revocation, encrypted subscriptions, callback retries, origin echo suppression, and both MCP protocol paths. They also stop or expire a subscription after a delivery lease is acquired, verifying that the worker rechecks current subscription state before sending. Clerk dashboard sessions additionally require a valid session token, matching browser origin and an active provider session.
+The checks cover concurrent deduplication, stale revisions, private retrieval, relationship expansion, invitations, sharing/retraction, rules, client revocation, space-scoped shared-update reads, and both MCP protocol paths. Clerk dashboard sessions additionally require a valid session token, matching browser origin and an active provider session.
 
 ## Railway
 
 Project `e13f89d3-e41a-4e89-96b8-dbdc0b1f87cd` is in Pranav's personal Hobby workspace. `shared-memory-mcp` builds the Dockerfile; `falkordb` runs the official server image privately. The API binds to `0.0.0.0` and honors Railway's `PORT`.
 
-Database variables reference `${{falkordb.RAILWAY_PRIVATE_DOMAIN}}` and `${{falkordb.FALKORDB_PASSWORD}}`. A volume at `/var/lib/falkordb/data` and append-only persistence preserve records. `/health` checks database connectivity. The API worker uses durable leases so overlapping deployments do not routinely send the same delivery twice; delivery remains at-least-once, with stable IDs for receiver deduplication.
+Database variables reference `${{falkordb.RAILWAY_PRIVATE_DOMAIN}}` and `${{falkordb.FALKORDB_PASSWORD}}`. A volume at `/var/lib/falkordb/data` and append-only persistence preserve records. `/health` checks database connectivity.
 
 The approved scope and acceptance plan are in `docs/implementation-plan.md`. The original broader notification adapters and proactive inference engine are not represented as completed host integrations.

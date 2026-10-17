@@ -207,9 +207,6 @@
   .icon-button:hover {
     @apply bg-[#f2f2f2] text-ink;
   }
-  .status-dot {
-    @apply inline-block size-1.5 shrink-0 rounded-full bg-[#398e4a];
-  }
   .subtle,
   .muted {
     @apply text-xs text-secondary;
@@ -587,16 +584,6 @@
   .form-inline input {
     @apply min-w-0 flex-1 text-xs;
   }
-  .status-dot {
-    background: #ff990a;
-  }
-  .status-dot.accepted {
-    background: #398e4a;
-  }
-  .status-dot.failed,
-  .status-dot.revoked {
-    background: #e5484d;
-  }
   .error-banner,
   .invite-banner {
     @apply mb-6 flex items-center justify-between gap-5 rounded-lg bg-white p-4 text-sm shadow-line;
@@ -835,48 +822,4 @@
     scroll-behavior: auto !important;
     transition: none !important;
   }
-}
-
-.space-notifications {
-  margin: 0 0 24px;
-}
-.space-notifications > summary {
-  cursor: pointer;
-  color: var(--color-secondary);
-  font-size: 13px;
-  padding: 10px 0;
-}
-.notification-setup {
-  margin-top: 8px;
-}
-.notification-setup h3,
-.notification-setup h4 {
-  font-size: 13px;
-  font-weight: 500;
-  margin: 0;
-}
-.notification-setup > p,
-.notification-setup > details,
-.notification-subscriptions {
-  margin-top: 14px;
-}
-.notification-setup button[aria-pressed="true"] {
-  color: var(--color-ink);
-  text-decoration: underline;
-  text-underline-offset: 5px;
-}
-.notification-prompt {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-family: inherit;
-  font-size: 12px;
-  max-height: 280px;
-  overflow: auto;
-  padding: 12px;
-  background: var(--color-canvas);
-  border: 1px solid #e5e5e5;
-  border-radius: 6px;
-}
-.notification-subscriptions h4 {
-  margin-bottom: 10px;
 }
