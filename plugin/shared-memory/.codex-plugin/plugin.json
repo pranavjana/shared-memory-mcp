@@ -6,12 +6,12 @@
     "defaultPrompt": [
       "Recall relevant context about my current projects.",
       "Help me connect my personal memory across assistants.",
-      "Show my shared spaces and what was recently shared in them."
+      "Show my shared spaces and help me choose one to monitor."
     ],
     "developerName": "Pranav Janakiraman",
     "displayName": "Shared Memory",
     "logo": "./assets/logo.svg",
-    "longDescription": "Remember explicit facts, preferences, events, goals, tasks, and decisions across connected assistants. Inspect sources and relationships in your dashboard. Share selected memories in authorized spaces. Members read shared updates on demand.",
+    "longDescription": "Remember explicit facts, preferences, events, goals, tasks, and decisions across connected assistants. Inspect sources and relationships in your dashboard. Share selected memories in authorized spaces. Supported event hosts can monitor shared spaces and notify their own user when another member shares an update.",
     "shortDescription": "Memory across your assistants"
   },
   "name": "shared-memory",

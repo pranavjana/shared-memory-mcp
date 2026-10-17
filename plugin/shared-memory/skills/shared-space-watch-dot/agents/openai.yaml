@@ -1,6 +1,0 @@
-interface:
-  display_name: Shared space watch (Dot)
-  short_description: Recurring Shared Memory space checks on this Dot
-  default_prompt: Watch my Shared Memory space on a schedule I choose and message me here when someone else shares an update.
-policy:
-  allow_implicit_invocation: true

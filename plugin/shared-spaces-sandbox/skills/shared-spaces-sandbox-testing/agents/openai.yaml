@@ -1,6 +1,0 @@
-interface:
-  display_name: Shared Spaces Sandbox
-  short_description: Test with your own sandbox account
-  default_prompt: Verify my own sandbox account and guide me through testing shared memories with my demo teammate without switching users.
-policy:
-  allow_implicit_invocation: false
