@@ -28,13 +28,15 @@ A private save may trigger an existing dashboard-enabled rule. Inspect `automati
 
 ## Read a shared update
 
-Shared Memory does not currently push updates to other members’ agents. Do not claim a normal chat is running in the background or that monitoring is active.
+Shared Memory does not push to other members’ agents. A chat left open is not a monitor.
 
 1. Call `get_shared_update` with the space ID as `spaceId` and the memory ID or publication ID as `id` to retrieve the current authorized update and related context restricted to that same space.
 2. Tell **your own** user about the current update, author, and relevant context (e.g. Roshan’s agent tells Roshan that Pranav completed a task).
 3. Do not automatically reply to the sender or echo the update into another memory.
 4. Do not reconstruct forgotten, retracted, or inaccessible content from an earlier read.
 5. Do not retrieve a private source ID for a selected claim, even if another tool can access it in a different scope.
+
+For a user-requested check every X minutes, use `shared-space-watch-muse`, `shared-space-watch-grok`, or `shared-space-watch-dot` (whichever host this is). Do not invent webhooks.
 
 ## Receipt semantics
 

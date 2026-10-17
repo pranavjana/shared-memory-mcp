@@ -57,9 +57,9 @@ Use these scenarios to regression-test hosts and models against the Shared Memor
   "skills": ["shared-memory"],
   "query": "Connect Shared Memory for me and also install the skill and start monitoring Pranav's space.",
   "expected_behavior": [
-    "Keeps MCP connect separate from skill install",
+    "Keeps MCP connect separate from skill install and from starting a watch",
     "Does not write example memories or share data as part of connect-only setup",
-    "States that background monitoring is not currently available and offers an on-demand check instead"
+    "Does not invent notification_setup or webhooks; points recurring watch to the Muse, Grok Bot, or Dot host skill after connect"
   ]
 }
 ```
