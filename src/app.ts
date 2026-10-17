@@ -8,7 +8,7 @@ import { dashboardApi } from "./api.js";
 import {
   agentHosts,
   mcpInstallPrompt,
-  proactiveRecallPrompt,
+  agentSkill,
   type AgentHost,
 } from "./onboarding.js";
 import { ontology } from "./ontology.js";
@@ -189,13 +189,13 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
   app.get("/setup/prompt", (_req, res) =>
     res.type("text/plain").send(mcpInstallPrompt(resource)),
   );
-  app.get("/setup/recall-prompt/:host", (req, res) => {
+  app.get("/setup/skill/:host", (req, res) => {
     const host = req.params.host as AgentHost;
     if (!agentHosts.includes(host)) {
       res.status(404).type("text/plain").send("Unknown agent");
       return;
     }
-    res.type("text/plain").send(proactiveRecallPrompt(resource, host));
+    res.type("text/plain").send(agentSkill(skill, resource, host));
   });
   app.get("/skill/SKILL.md", (_req, res) =>
     res.attachment("SKILL.md").type("text/plain").send(skill),

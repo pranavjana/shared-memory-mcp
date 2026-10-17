@@ -107,18 +107,21 @@ test("OAuth discovery, access checks, and concurrent users stay isolated", async
     assert.equal(body.resource_name, "Shared Memory MCP");
     assert.equal(metadata.headers.get("access-control-allow-origin"), "*");
     for (const host of ["dot", "muse", "grok-bot"]) {
-      const recall = await fetch(`${base}/setup/recall-prompt/${host}`, {
+      const agentSkill = await fetch(`${base}/setup/skill/${host}`, {
         headers: { Host: "attacker.example" },
       });
-      assert.equal(recall.status, 200);
-      const text = await recall.text();
+      assert.equal(agentSkill.status, 200);
+      const text = await agentSkill.text();
+      assert.ok(text.startsWith("---\nname: shared-memory"));
+      assert.ok(text.includes("# Shared Memory operating guide"));
+      assert.ok(text.includes("## Proactive recall in"));
       assert.ok(text.includes(`ENDPOINT: ${mcpResource}`));
       assert.ok(text.includes("get_connection_status"));
       assert.ok(text.includes("end the run silently"));
       assert.ok(text.includes("Never reply to the person who shared"));
     }
     assert.equal(
-      (await fetch(`${base}/setup/recall-prompt/unknown`)).status,
+      (await fetch(`${base}/setup/skill/unknown`)).status,
       404,
     );
     const prompt = await fetch(`${base}/setup/prompt`, {

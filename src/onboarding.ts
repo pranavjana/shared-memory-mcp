@@ -1,4 +1,4 @@
-/** Connection setup only. The operating skill is installed separately.
+/** Connection setup only. The instructions skill is installed separately.
  *  Source of truth: Project store internal/shared-memory-agent-setup-prompt.md
  *  Served text substitutes this deployment's MCP resource for the template ENDPOINT.
  */
@@ -67,16 +67,23 @@ const recallHosts: Record<AgentHost, { name: string; schedule: string }> = {
   },
 };
 
-/** Proactive recall uses the host's own scheduler; the server never wakes an agent. */
-export function proactiveRecallPrompt(
+/** The memory skill plus a proactive recall section for the host's own scheduler.
+ *  The server never wakes an agent; the check exists only if the agent creates it.
+ */
+export function agentSkill(
+  skill: string,
   resource: string,
   host: AgentHost,
 ): string {
   const endpoint = new URL(resource).href.replace(/\/$/, "");
   const { name, schedule } = recallHosts[host];
-  return `Turn on proactive recall for Shared Memory in ${name}.
+  return `${skill.trimEnd()}
+
+## Proactive recall in ${name}
 
 ENDPOINT: ${endpoint}
+
+When these instructions are installed, set up proactive recall once. If a schedule named "Shared Memory check" already exists, keep it and do not create a duplicate.
 
 Reuse my existing Shared Memory connection to this exact ENDPOINT. Call get_connection_status first and confirm the signed-in account with me. Do not switch accounts, create a second connection, or ask me for tokens in chat. If Shared Memory is not connected yet, stop and tell me to finish the MCP install prompt first.
 
@@ -94,5 +101,8 @@ Rules for every run:
 - Do not share, publish, revise, or forget anything as part of this check.
 - If a call fails with 401 or a revoked connection, pause the schedule and tell me to reconnect.
 
-Finish with a short report: the schedule's name, its actual interval, where I can see or stop it, and the result of a first run. Say "Proactive recall is on" only if the schedule was actually created.`;
+This schedule is the only background check. It runs in ${name}'s own scheduler, not in Shared Memory, and it does not make a normal chat run in the background.
+
+After installing, report briefly: where these instructions were saved, the schedule's name, its actual interval, where I can see or stop it, and the result of a first run. Say "Proactive recall is on" only if the schedule was actually created.
+`;
 }
