@@ -108,6 +108,11 @@ test("ontology claims enforce provenance, scoped identity, corrections and froze
       }),
     );
     const saved = await k.record(alice, data);
+    // claimIds[i] must identify claims[i]; agents select claims by position.
+    assert.deepEqual(
+      saved.claimIds,
+      data.claims.map((_, i) => saved.receipt + ":" + i),
+    );
     assert.deepEqual(await k.record(alice, data), saved);
     await assert.rejects(
       k.record(alice, {
