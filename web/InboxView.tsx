@@ -34,7 +34,7 @@ function preview(item: InboxItem) {
   if (item.update.type === "memory") return item.update.memory.text;
   const c = item.update.claim;
   const predicate = (c.predicate ?? "").toLowerCase().replaceAll("_", " ");
-  return [c.subject?.name, predicate, c.object?.name ?? c.value]
+  return [c.subject?.name, predicate, c.object?.name ?? c.value?.replaceAll("_", " ")]
     .filter(Boolean)
     .join(" ");
 }

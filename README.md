@@ -58,7 +58,7 @@ Sharing happens on an explicit request or through a dashboard-enabled rule match
 
 ## Shared updates
 
-The same authenticated endpoint implements stateless `2026-07-28` discovery and tools alongside legacy MCP `2025-11-25` support. Members read shared memories and selected claims on demand with `recall`, `recall_knowledge` and `get_shared_update`, scoped to the exact space. The server does not currently push updates to other members' agents; webhook-based MCP Events were removed. Muse connects successfully when the host uses DCR plus `resource=` on authorize/token (with scopes such as `openid profile email offline_access`).
+The same authenticated endpoint implements stateless `2026-07-28` discovery and tools alongside legacy MCP `2025-11-25` support. Members read shared memories and selected claims with `recall`, `recall_knowledge` and `get_shared_update`, scoped to the exact space. Each member also has an inbox of other members' unread updates (`check_inbox`, `mark_inbox_seen`), and every tool result mentions unread updates. Content is never pushed: a member's own assistant installs a lookout from the dashboard's Assistants page (a Grok Bot webhook routine that Shared Memory rings with IDs only, a Muse hook polling a counter-only pulse link, or a Dot schedule) and then reads through `check_inbox`. Updates that name the member ring immediately; the rest wait for a daily digest unless the member chooses every update. Webhook-based MCP Events were removed. See [docs/proactive-delivery.md](docs/proactive-delivery.md). Muse connects successfully when the host uses DCR plus `resource=` on authorize/token (with scopes such as `openid profile email offline_access`).
 
 ## Local development
 

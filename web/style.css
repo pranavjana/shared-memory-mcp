@@ -521,7 +521,7 @@
   .doorbell-form label {
     @apply grid gap-1.5 text-xs font-medium text-secondary;
   }
-  .doorbell-form input {
+  .doorbell-form input:not([type="radio"]) {
     @apply w-full min-w-0 text-sm;
   }
   .doorbell-form .button {
@@ -535,6 +535,11 @@
   }
   .choice-group legend {
     @apply mb-1 text-xs font-medium text-secondary;
+  }
+  .choice-group input[type="radio"] {
+    @apply mt-1 size-4 shrink-0 p-0 shadow-none;
+    min-height: 0;
+    accent-color: #171717;
   }
   .choice-group label {
     @apply flex items-start gap-2 text-sm font-normal text-ink;

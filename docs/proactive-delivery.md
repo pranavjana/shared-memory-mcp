@@ -8,7 +8,7 @@ Hosts differ in how they can be woken. Shared Memory therefore keeps one **inbox
 
 | Host | Fastest wake | Source | Setup by the member |
 |---|---|---|---|
-| Dot (OpenAI) | Scheduled check, minutes | MCP Events webhooks were removed in #16 after they did not deliver reliably on Dot | Paste the setup prompt; the dot creates its own schedule |
+| Dot (OpenAI) | Scheduled check, as often as its scheduler allows (ideally every minute) | MCP Events webhooks were removed in #16 after they did not deliver reliably on Dot | Paste the setup prompt; the dot creates its own schedule |
 | Grok Bot (xAI) | Routine "When a webhook fires", seconds | Product feature; URL and key shown in the desktop app 0.53+ (Cursor forum, Sept 2026). Slack and GitHub event triggers are documented. | Paste the prompt, copy the routine's URL and key into the dashboard |
 | Muse (Meta) | Hook polling a content-free pulse, about a minute (unverified) | Official docs describe background monitoring only; hooks, crons and services come from an unofficial export of the Muse VM | Paste the prompt |
 | Any host | Inbox footer on every Shared Memory tool result | This service | None |
@@ -64,13 +64,13 @@ All additions are new labels, relationships and properties. Existing records are
 
 | Tool | Read-only | Purpose |
 |---|---|---|
-| `check_inbox` | yes | Unread updates with their current authorized content. Optional `includeSeen`. Does not mark anything read. |
+| `check_inbox` | yes | Unread updates as previews (300 characters, 10 items by default; full text via `get_shared_update`), about-you first, with `dueNow` and `nextDigestAt`. Optional `includeSeen`. Does not mark anything read. |
 | `mark_inbox_seen` | no | Mark specific `changeIds`, or `all`, as read. |
 | Footer | n/a | Object results of every other tool gain `inbox: {unread}` when the caller has unread items. A footer failure never fails the tool call. |
 
 ## Status (October 2026)
 
-Phases 1 to 4 are implemented on `codex/proactive-inbox`. Phase 5 is not started.
+Phases 1 to 4 are implemented on `codex/proactive-inbox` (PR #15). Phase 5 is not started. Real-host acceptance (Grok routine webhook format, Muse hooks, Dot schedule interval) is pending; see the sandbox test checklist.
 
 ## Phases
 

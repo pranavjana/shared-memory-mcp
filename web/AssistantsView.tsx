@@ -19,11 +19,7 @@ interface Preferences {
   quietStart: number | null;
   quietEnd: number | null;
 }
-const hourLabel = (h: number) =>
-  new Date(Date.UTC(2026, 0, 1, h)).toLocaleTimeString([], {
-    hour: "numeric",
-    timeZone: "UTC",
-  });
+const hourLabel = (h: number) => `${String(h).padStart(2, "0")}:00`;
 const hoursList = Array.from({ length: 24 }, (_, h) => h);
 const browserTimezone = () => {
   try {
