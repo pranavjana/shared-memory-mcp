@@ -186,7 +186,19 @@ test("real database API and both MCP protocols enforce identity, revisions and c
     const schema = await fetch(base + "/api/ontology", {
       headers: { Authorization: "user_a" },
     }).then((r) => r.json());
-    assert.equal(schema.version, "1.1.0");
+    assert.equal(schema.version, "1.2.0");
+    // Reviewing relationships changes the shared ontology; ordinary users cannot.
+    assert.equal(schema.canReview, false);
+    assert.deepEqual(schema.custom, []);
+    assert.equal(
+      (
+        await api("user_a", "review_predicate", {
+          id: "SPEAKS",
+          action: "approve",
+        })
+      ).status,
+      403,
+    );
     const knowledge = {
       sourceMemoryId: id,
       sourceRevision: 1,
@@ -209,7 +221,7 @@ test("real database API and both MCP protocols enforce identity, revisions and c
         { name: "get_ontology", arguments: {} },
         version,
       );
-      assert.equal(registry.body.result.structuredContent.version, "1.1.0");
+      assert.equal(registry.body.result.structuredContent.version, "1.2.0");
       const structured = await rpc(
         "user_a",
         "tools/call",

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { DomainError, MemoryStore, type Actor } from "./memory.js";
 import { runTool, type Tool } from "./tools.js";
 import { ontology } from "./ontology.js";
+import { PredicateRegistry } from "./predicates.js";
 export function dashboardApi(
   config: { secretKey: string; publishableKey: string; publicUrl: string },
   store: MemoryStore,
@@ -12,6 +13,16 @@ export function dashboardApi(
   authenticate?: (req: express.Request) => Promise<Actor | undefined>,
 ) {
   const api = express.Router();
+  const predicates = new PredicateRegistry(store);
+  // Relationship review changes the shared ontology, so it is limited to configured reviewers.
+  const reviewers = new Set(
+    (process.env.ONTOLOGY_ADMIN_EMAILS ?? "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const canReview = (actor: Actor) =>
+    !!actor.email && reviewers.has(actor.email.toLowerCase());
   const clerk = createClerkClient({
     secretKey: config.secretKey,
     publishableKey: config.publishableKey,
@@ -60,7 +71,22 @@ export function dashboardApi(
       res.status(401).json({ error: "Session expired. Sign in again." });
     }
   });
-  api.get("/ontology", (_req, res) => res.json(ontology));
+  api.get("/ontology", async (_req, res) => {
+    const actor = res.locals.actor as Actor;
+    const [custom, usage] = await Promise.all([
+      predicates.all(),
+      predicates.usage(),
+    ]);
+    res.json({
+      ...ontology,
+      custom: custom.map((p) => ({
+        ...p,
+        claims: usage.find((u) => u.id === p.id)?.claims ?? 0,
+        authors: usage.find((u) => u.id === p.id)?.authors ?? 0,
+      })),
+      canReview: canReview(actor),
+    });
+  });
   api.get("/overview", async (_req, res) => {
     const actor = res.locals.actor as Actor;
     const [memories, spaces, graph, connections, rules] = await Promise.all([
@@ -73,6 +99,10 @@ export function dashboardApi(
     res.json({
       actor: { id: actor.userId, name: actor.name },
       ...memories,
+      ontologyStatus: await store.ontologyStatus(
+        actor,
+        memories.memories.map((m) => m.id),
+      ),
       spaces,
       graph,
       connections,
@@ -142,6 +172,24 @@ export function dashboardApi(
           .object({ spaceId: z.string(), userId: z.string() })
           .parse(input);
         result = await store.revoke(actor, i.spaceId, i.userId);
+        break;
+      }
+      case "retry_ontology": {
+        const i = z.object({ id: z.string().min(1) }).parse(input);
+        result = await store.retryOntology(actor, i.id);
+        break;
+      }
+      case "review_predicate": {
+        if (!canReview(actor))
+          throw new DomainError(403, "Only ontology reviewers can do this");
+        const i = z
+          .object({
+            id: z.string().min(1),
+            action: z.enum(["approve", "reject", "merge"]),
+            into: z.string().min(1).optional(),
+          })
+          .parse(input);
+        result = await predicates.review(i);
         break;
       }
       case "add_sharing_rule": {

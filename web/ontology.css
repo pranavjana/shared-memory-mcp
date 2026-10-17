@@ -511,3 +511,43 @@
   font-size: 10px;
   cursor: pointer;
 }
+.kg-schema-modal .kg-status {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f1f1f1;
+  color: #777;
+  font-size: 10px;
+}
+.kg-schema-modal .kg-status.provisional {
+  background: #fbf3e4;
+  color: #9a6b1f;
+}
+.kg-schema-modal .kg-status.approved {
+  background: #eaf4ec;
+  color: #3f7a4c;
+}
+.kg-review {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.kg-review button,
+.kg-review select {
+  font: inherit;
+  font-size: 11px;
+  padding: 5px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  color: #444;
+  cursor: pointer;
+}
+.kg-review button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.kg-review button.danger {
+  color: #b5483c;
+}

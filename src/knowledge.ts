@@ -3,15 +3,17 @@ import { KnowledgeSearch, claimText, searchTerms } from "./knowledge-search.js";
 import type { Embedder } from "./embeddings.js";
 import { DomainError, digest, type Actor, type MemoryStore } from "./memory.js";
 import {
-  knowledgeInput,
+  knowledgeInputFor,
   knowledgeQuery,
   type KnowledgeInput,
 } from "./ontology.js";
+import { PredicateRegistry } from "./predicates.js";
 
 type Entity = KnowledgeInput["entities"][number] & { id: string };
 export interface Claim {
   id: string;
   predicate: string;
+  negated?: true;
   subject: Entity;
   object?: Entity;
   value?: string;
@@ -35,17 +37,19 @@ const entityId = (owner: string, type: string, key: string) =>
   "ke_" + digest(JSON.stringify([owner, type, key]));
 export class KnowledgeStore {
   private search: KnowledgeSearch;
+  readonly predicates: PredicateRegistry;
   constructor(
     private store: MemoryStore,
     embedder?: Embedder,
   ) {
     this.search = new KnowledgeSearch(store, embedder);
+    this.predicates = new PredicateRegistry(store);
   }
   async index(actor: Actor, limit = 20) {
     return this.search.backfill(actor, limit);
   }
   async record(actor: Actor, raw: unknown) {
-    const input = knowledgeInput.parse(raw);
+    const input = knowledgeInputFor(await this.predicates.active()).parse(raw);
     const source = await this.store.get(actor, input.sourceMemoryId);
     if (source.owner !== actor.userId)
       throw new DomainError(
@@ -214,7 +218,7 @@ export class KnowledgeStore {
           status: string;
           current: boolean;
         }>(
-          `MATCH (c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE c.owner=$user AND m.deletedAt IS NULL AND ($entity='' OR c.subjectId=$entity OR c.objectId=$entity) AND ($history OR (c.sourceRevision=m.revision AND c.status<>'superseded')) RETURN c.payload AS payload,c.status AS status,c.sourceRevision=m.revision AS current ORDER BY c.recordedAt DESC,c.id DESC LIMIT 501`,
+          `MATCH (c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE c.owner=$user AND m.deletedAt IS NULL AND ($entity='' OR c.subjectId=$entity OR c.objectId=$entity) AND ($history OR (c.sourceRevision=m.revision AND NOT c.status IN ['superseded','retired'])) RETURN c.payload AS payload,c.status AS status,c.sourceRevision=m.revision AS current ORDER BY c.recordedAt DESC,c.id DESC LIMIT 501`,
           {
             user: actor.userId,
             history: input.includeHistory,
@@ -498,6 +502,12 @@ export class KnowledgeStore {
         true,
       )
     ).map((r) => r.id);
+    // A claim the user already published on its own is not shown a second time.
+    const explicit = await this.store.query<{ claim: string; space: string }>(
+      `MATCH (p:Publication)-[:DERIVED_FROM]->(c:KnowledgeClaim)-[:SUPPORTED_BY]->(:Memory {id:$id}),(p)-[:PUBLISHED_IN]->(s:Space) WHERE p.owner=$user AND p.active=true AND coalesce(p.viaShare,false)=false RETURN DISTINCT c.id AS claim,s.id AS space`,
+      { id: memoryId, user: actor.userId },
+      true,
+    );
     const existing = await this.store.query<{
       id: string;
       space: string;
@@ -516,13 +526,20 @@ export class KnowledgeStore {
         share.active && ["owner", "contributor"].includes(share.role);
       // Each share epoch gets fresh snapshot IDs, so re-sharing never needs to revive a retraction.
       const wanted = new Map(
-        (writable ? claims : []).map((claim) => [
-          "pub_" +
-            digest(
-              JSON.stringify([share.space, claim, "share", share.epoch ?? 0]),
-            ),
-          claim,
-        ]),
+        (writable ? claims : [])
+          .filter(
+            (claim) =>
+              !explicit.some(
+                (e) => e.claim === claim && e.space === share.space,
+              ),
+          )
+          .map((claim) => [
+            "pub_" +
+              digest(
+                JSON.stringify([share.space, claim, "share", share.epoch ?? 0]),
+              ),
+            claim,
+          ]),
       );
       for (const [publicationId, claimId] of wanted) {
         if (existing.some((p) => p.id === publicationId)) continue;
@@ -620,6 +637,7 @@ export class KnowledgeStore {
     const snapshot: Claim = {
       id: publicationId,
       predicate: c.predicate,
+      ...(c.negated ? { negated: true as const } : {}),
       subject: sharedEntity(c.subject),
       ...(c.object ? { object: sharedEntity(c.object) } : {}),
       ...(c.value ? { value: c.value } : {}),
