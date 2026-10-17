@@ -3,10 +3,16 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 import { MemoryStore, DomainError, type Actor } from "./memory.js";
-import { EventService, eventDefinition } from "./events.js";
 import { memoryTools, operatingInstructions, runTool } from "./tools.js";
 import { dashboardApi } from "./api.js";
-import { mcpInstallPrompt } from "./onboarding.js";
+import {
+  agentHosts,
+  hostSkillInstructions,
+  mcpInstallPrompt,
+  proactiveRecallPrompt,
+  type AgentHost,
+} from "./onboarding.js";
+import { ontology } from "./ontology.js";
 import cors from "cors";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
@@ -20,12 +26,15 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import {
+  audienceMismatchMessage,
   createClerkVerifier,
+  mcpResourceFromPublicUrl,
   requiredScopes,
   type TokenVerifier,
 } from "./auth.js";
 import { fromClerkUser, fromClerkWebhook } from "./clerk-users.js";
 import type { UserStore } from "./users.js";
+import type { AutomaticOntology } from "./ontology-extraction.js";
 
 export interface Config {
   publicUrl: string;
@@ -44,7 +53,7 @@ interface Dependencies {
   getProfile?: (userId: string) => Promise<Profile>;
   users?: UserStore;
   memory?: MemoryStore;
-  events?: EventService;
+  automaticOntology?: AutomaticOntology;
   dashboardAuthenticate?: (req: express.Request) => Promise<Actor | undefined>;
 }
 
@@ -60,7 +69,7 @@ const escapeHtml = (value: string) =>
 export function createApp(config: Config, dependencies: Dependencies = {}) {
   const app = express();
   const origin = new URL(config.publicUrl).origin;
-  const resource = `${origin}/mcp`;
+  const resource = mcpResourceFromPublicUrl(config.publicUrl);
   const metadataUrl = `${origin}/.well-known/oauth-protected-resource/mcp`;
   const clerk = createClerkClient({
     secretKey: config.secretKey,
@@ -122,7 +131,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         service: "shared-memory-mcp",
         version: "0.2.0",
         memory: Boolean(dependencies.memory),
-        events: Boolean(dependencies.events),
+        ontologyVersion: dependencies.memory ? ontology.version : null,
         database: dependencies.users ? "connected" : "not_configured",
       });
     } catch {
@@ -168,7 +177,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     ? readFileSync(skillPath, "utf8")
     : operatingInstructions;
   const tools = dependencies.memory
-    ? memoryTools(dependencies.memory, skill)
+    ? memoryTools(dependencies.memory, skill, dependencies.automaticOntology)
     : [];
   app.get("/api/config", (_req, res) =>
     res.json({
@@ -181,9 +190,30 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
   app.get("/setup/prompt", (_req, res) =>
     res.type("text/plain").send(mcpInstallPrompt(resource)),
   );
+  app.get("/setup/recall-prompt/:host", (req, res) => {
+    const host = req.params.host as AgentHost;
+    if (!agentHosts.includes(host)) {
+      res.status(404).type("text/plain").send("Unknown agent");
+      return;
+    }
+    res.type("text/plain").send(proactiveRecallPrompt(resource, host));
+  });
   app.get("/skill/SKILL.md", (_req, res) =>
     res.attachment("SKILL.md").type("text/plain").send(skill),
   );
+  app.get("/skill/:host", (req, res) => {
+    const host = req.params.host as AgentHost;
+    if (!agentHosts.includes(host)) {
+      res.status(404).type("text/plain").send("Unknown agent");
+      return;
+    }
+    const text = hostSkillInstructions(host);
+    if (!text) {
+      res.status(404).type("text/plain").send("Skill not found");
+      return;
+    }
+    res.type("text/plain").send(text);
+  });
   if (dependencies.memory)
     app.use(
       "/api",
@@ -197,7 +227,6 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         config,
         dependencies.memory,
         tools,
-        dependencies.events,
         dependencies.dashboardAuthenticate,
       ),
     );
@@ -205,7 +234,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     res
       .type("text")
       .send(
-        "Clerk manages authentication. Shared Memory stores your basic profile and memories you or connected assistants submit, including source excerpts, typed entities, revisions and times. Private memories are accessible only to their owner and authorized connected clients. Selected memories may be shared in explicitly authorized spaces. Revocation stops future reads and webhook delivery, but cannot recall content already received by another assistant. Forgetting removes memory text, evidence and revision content; minimal IDs and delivery metadata remain. Hosting providers may retain operational metadata. The service does not automatically receive entire chats. Agent-supplied observations are not independently verified.",
+        "Clerk manages authentication. Shared Memory stores your basic profile and memories you or connected assistants submit, including source excerpts, typed entities, revisions and times. Private memories are accessible only to their owner and authorized connected clients. Selected memories may be shared in explicitly authorized spaces. Revocation stops future reads, but cannot recall content already received by another assistant. Forgetting removes memory text, evidence and revision content; minimal IDs and sharing metadata remain. Hosting providers may retain operational metadata. Configured model providers process submitted source excerpts and limited matching entity context to structure memories, and generate retrieval embeddings. The service does not automatically receive entire chats. Agent-supplied observations are not independently verified.",
       ),
   );
   app.use(express.static(resolve("public")));
@@ -272,38 +301,68 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
   app.use("/mcp", async (req, res, next) => {
     res.set("Cache-Control", "no-store");
     const match = /^Bearer ([^\s]+)$/i.exec(req.get("authorization") ?? "");
-    const unauthorized = (error?: string) =>
-      res
-        .status(401)
-        .set(
-          "WWW-Authenticate",
-          `Bearer resource_metadata="${metadataUrl}", scope="${requiredScopes.join(" ")}"${error ? `, error="${error}"` : ""}`,
-        )
-        .json({
-          error: "unauthorized",
-          message: "Connect your account using OAuth.",
-        });
+    const quoteParam = (value: string) =>
+      `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    const unauthorized = (opts?: {
+      error?: string;
+      description?: string;
+      message?: string;
+    }) => {
+      const error = opts?.error;
+      const description = opts?.description;
+      let www = `Bearer resource_metadata=${quoteParam(metadataUrl)}, scope=${quoteParam(requiredScopes.join(" "))}`;
+      if (error) www += `, error=${quoteParam(error)}`;
+      if (description) www += `, error_description=${quoteParam(description)}`;
+      res.status(401).set("WWW-Authenticate", www).json({
+        error: error ?? "unauthorized",
+        message:
+          opts?.message ??
+          description ??
+          "Connect your account using OAuth.",
+        ...(description ? { detail: description } : {}),
+      });
+    };
     if (!match) {
       unauthorized();
       return;
     }
     try {
-      const auth = await verifyToken(match[1]);
+      const result = await verifyToken(match[1]);
+      if (!result.ok) {
+        if (result.code === "audience_mismatch") {
+          unauthorized({
+            error: "invalid_token",
+            description: result.message,
+            message: result.message,
+          });
+          return;
+        }
+        unauthorized({ error: "invalid_token" });
+        return;
+      }
+      const auth = result.auth;
+      if (auth.resource?.href !== resource) {
+        const detail = audienceMismatchMessage(resource);
+        unauthorized({
+          error: "invalid_token",
+          description: detail,
+          message: detail,
+        });
+        return;
+      }
       if (
-        !auth ||
         !auth.extra?.userId ||
         !requiredScopes.every((scope) => auth.scopes.includes(scope)) ||
-        auth.resource?.href !== resource ||
         !auth.expiresAt ||
         auth.expiresAt <= Date.now() / 1000
       ) {
-        unauthorized("invalid_token");
+        unauthorized({ error: "invalid_token" });
         return;
       }
       res.locals.authInfo = auth;
       next();
     } catch {
-      unauthorized("invalid_token");
+      unauthorized({ error: "invalid_token" });
     }
   });
   app.post("/mcp", express.json({ limit: "64kb" }), async (req, res, next) => {
@@ -326,8 +385,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     }
     if (
       req.body?.method === "server/discover" ||
-      req.get("MCP-Protocol-Version") === "2026-07-28" ||
-      String(req.body?.method ?? "").startsWith("events/")
+      req.get("MCP-Protocol-Version") === "2026-07-28"
     ) {
       const { id, method, params = {} } = req.body ?? {};
       if (
@@ -349,23 +407,10 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
             supportedVersions: ["2026-07-28"],
             serverInfo: { name: "shared-memory-mcp", version: "0.2.0" },
             instructions: operatingInstructions,
-            capabilities: {
-              tools: {},
-              ...(dependencies.events ? { events: {} } : {}),
-            },
+            capabilities: { tools: {} },
             ttlMs: 0,
             cacheScope: "private",
           };
-        else if (method === "events/list")
-          result = {
-            events: dependencies.events ? [eventDefinition] : [],
-            ttlMs: 0,
-            cacheScope: "private",
-          };
-        else if (method === "events/subscribe" && dependencies.events)
-          result = await dependencies.events.subscribe(actor, params);
-        else if (method === "events/unsubscribe" && dependencies.events)
-          result = await dependencies.events.unsubscribe(actor, params);
         else if (method === "tools/list")
           result = {
             resultType: "complete",
@@ -402,7 +447,6 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
                     authentication: true,
                     userManagement: !!dependencies.users,
                     memory: !!dependencies.memory,
-                    events: !!dependencies.events,
                   },
                 }
               : await runTool(tools, actor, params.name, params.arguments);
@@ -473,7 +517,6 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
             authentication: true,
             userManagement: Boolean(dependencies.users),
             memory: Boolean(dependencies.memory),
-            events: Boolean(dependencies.events),
           },
         };
         return {
