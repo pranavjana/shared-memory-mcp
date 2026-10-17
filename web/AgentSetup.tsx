@@ -49,7 +49,7 @@ const agents: Agent[] = [
       href: "https://chatgpt.com/plugins",
     },
     recall:
-      "Your dot keeps working between conversations. This gives it a standing responsibility to check your shared spaces and message you when a teammate shares something.",
+      "It also lets your dot watch a shared space as a Scheduled task and message you in ChatGPT when a teammate shares something.",
     manage: "Ask your dot to show, change, or stop the check at any time.",
   },
   {
@@ -73,7 +73,7 @@ const agents: Agent[] = [
       </>,
     ],
     recall:
-      "Muse runs recurring tasks even when the app is closed. This sets up a custom-interval check that messages you in your Muse conversation.",
+      "It also lets Muse watch a shared space as a recurring task and message you in your Muse conversation.",
     manage: "Find or cancel the check in Muse’s Upcoming tab.",
   },
   {
@@ -99,7 +99,7 @@ const agents: Agent[] = [
       </>,
     ],
     recall:
-      "Grok Bot routines run in the cloud, even when your devices are off. This creates a routine that checks your shared spaces on a schedule.",
+      "It also lets Grok Bot watch a shared space with a routine that runs in the cloud, even when your devices are off.",
     manage: "Review, edit, or stop the routine from any device with Grok Bot.",
   },
 ];
@@ -153,9 +153,7 @@ export function AgentSetup({
 }) {
   const [selected, setSelected] = useState<AgentId>(initialAgent);
   const [installPrompt, setInstallPrompt] = useState("");
-  const [recallPrompts, setRecallPrompts] = useState<
-    Partial<Record<AgentId, string>>
-  >({});
+  const [skills, setSkills] = useState<Partial<Record<AgentId, string>>>({});
   const tabs = useRef<Record<string, HTMLButtonElement | null>>({});
   const agent = agents.find((a) => a.id === selected)!;
   useEffect(() => {
@@ -171,18 +169,15 @@ export function AgentSetup({
     };
   }, []);
   useEffect(() => {
-    if (recallPrompts[selected]) return;
+    if (skills[selected]) return;
     let current = true;
-    fetchText(`/setup/recall-prompt/${selected}`, "proactive recall prompt")
-      .then(
-        (text) =>
-          current && setRecallPrompts((p) => ({ ...p, [selected]: text })),
-      )
+    fetchText(`/skill/${selected}`, "instructions skill")
+      .then((text) => current && setSkills((p) => ({ ...p, [selected]: text })))
       .catch(() => undefined);
     return () => {
       current = false;
     };
-  }, [selected, recallPrompts]);
+  }, [selected, skills]);
   const select = (index: number) => {
     const next = agents[(index + agents.length) % agents.length];
     setSelected(next.id);
@@ -204,15 +199,15 @@ export function AgentSetup({
     perform(async () => {
       await navigator.clipboard.writeText(await load());
     }, message);
-  const recallPrompt = recallPrompts[selected];
+  const agentSkill = skills[selected];
 
   return (
     <section className="agent-setup" aria-labelledby="agent-setup-title">
       <header className="agent-setup-header">
         <h2 id="agent-setup-title">Set up your agent</h2>
         <p>
-          Every agent connects the same way. Proactive recall uses each agent’s
-          own scheduler, so pick the one you use.
+          Every agent connects the same way. The instructions skill uses each
+          agent’s own scheduler to watch shared spaces, so pick the one you use.
         </p>
       </header>
       <div
@@ -321,41 +316,11 @@ export function AgentSetup({
               2
             </span>
             <div className="setup-content">
-              <h2>Install the {agent.name} skill</h2>
+              <h2>Install the instructions skill</h2>
               <p>
-                Teach {agent.name} when to save, recall, correct, and share
-                memories, and how to check shared spaces on a schedule. Add it
-                through skill support or persistent instructions; a chat paste
-                applies to that chat only.
+                Teaches {agent.name} when to save, recall, correct, and share
+                memories. {agent.recall}
               </p>
-              <div className="button-row">
-                <button
-                  className="button small"
-                  disabled={busy}
-                  onClick={() =>
-                    copy(
-                      () =>
-                        fetchText(
-                          `/skill/${agent.id}`,
-                          `${agent.name} skill`,
-                        ),
-                      `${agent.name} skill instructions copied`,
-                    )
-                  }
-                >
-                  <CopyIcon />
-                  Copy skill instructions
-                </button>
-              </div>
-            </div>
-          </li>
-          <li>
-            <span className="setup-node" aria-hidden="true">
-              3
-            </span>
-            <div className="setup-content">
-              <h2>Turn on proactive recall</h2>
-              <p>{agent.recall}</p>
               <div className="button-row">
                 <button
                   className="button small"
@@ -363,23 +328,26 @@ export function AgentSetup({
                   onClick={() =>
                     copy(async () => {
                       const text =
-                        recallPrompt ||
+                        agentSkill ||
                         (await fetchText(
-                          `/setup/recall-prompt/${agent.id}`,
-                          "proactive recall prompt",
+                          `/skill/${agent.id}`,
+                          "instructions skill",
                         ));
-                      setRecallPrompts((p) => ({ ...p, [agent.id]: text }));
+                      setSkills((p) => ({ ...p, [agent.id]: text }));
                       return text;
-                    }, `${agent.name} recall prompt copied`)
+                    }, `${agent.name} instructions skill copied`)
                   }
                 >
                   <CopyIcon />
-                  Copy {agent.name} recall prompt
+                  Copy instructions skill
                 </button>
               </div>
               <p className="setup-note">
-                Checks every 30 minutes and stays silent when nothing is new.
-                Each check uses your agent’s own usage. {agent.manage}
+                Add it through skill support or persistent instructions; a chat
+                paste applies to that chat only. Then ask {agent.name} to watch
+                a shared space. It asks how often to check (every 15 minutes by
+                default), stays silent when nothing is new, and uses your
+                agent’s own usage. {agent.manage}
               </p>
             </div>
           </li>
