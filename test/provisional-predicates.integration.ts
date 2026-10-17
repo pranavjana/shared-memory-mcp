@@ -152,6 +152,20 @@ answers["Roshan doesn't drink coffee."] = {
     }),
   ],
 };
+// Real saves: no apostrophe, an undeclared object named in the text, an ability.
+answers["pranav cant speak tamil"] = {
+  entities: [entity("p", "person", "Pranav")],
+  claims: [
+    claim("p", "HAS_SKILL", "Tamil", "pranav cant speak tamil", {
+      negated: true,
+    }),
+  ],
+};
+// An undeclared key that is not in the source is never invented.
+answers["Pranav plays chess"] = {
+  entities: [entity("p", "person", "Pranav")],
+  claims: [claim("p", "HAS_SKILL", "Go", "Pranav plays chess")],
+};
 const extractor: OntologyExtractor = {
   async extract(context) {
     const known = answers[context.source.text];
@@ -220,6 +234,17 @@ test("extraction proposes, reuses and limits provisional relationships, and reco
       custom.map((p) => [p.id, p.status]),
       [["SPEAKS", "provisional"]],
     );
+    const tamilNoApostrophe = await remember(
+      "provisional-cant-01",
+      "pranav cant speak tamil",
+    );
+    assert.equal(tamilNoApostrophe.ontology.status, "structured");
+    assert.ok((await own(k)).includes("not HAS_SKILL:Tamil"));
+    const ungrounded = await remember(
+      "provisional-ungrounded-01",
+      "Pranav plays chess",
+    );
+    assert.notEqual(ungrounded.ontology.status, "structured");
     // A negation must quote a negation of that relationship's own verb.
     await remember("provisional-owes-01", "Lee owes me 20 for lunch.");
     await remember("provisional-coffee-01", "Roshan doesn't drink coffee.");
