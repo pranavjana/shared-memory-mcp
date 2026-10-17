@@ -3,7 +3,11 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 import { MemoryStore, DomainError, type Actor } from "./memory.js";
-import { memoryTools, operatingInstructions, runTool } from "./tools.js";
+import {
+  memoryTools,
+  operatingInstructions,
+  runToolWithInbox,
+} from "./tools.js";
 import { dashboardApi } from "./api.js";
 import { mcpInstallPrompt } from "./onboarding.js";
 import { ontology } from "./ontology.js";
@@ -29,6 +33,8 @@ import {
 import { fromClerkUser, fromClerkWebhook } from "./clerk-users.js";
 import type { UserStore } from "./users.js";
 import type { AutomaticOntology } from "./ontology-extraction.js";
+import type { DoorbellService } from "./doorbells.js";
+import { PulseService } from "./pulse.js";
 
 export interface Config {
   publicUrl: string;
@@ -48,6 +54,7 @@ interface Dependencies {
   users?: UserStore;
   memory?: MemoryStore;
   automaticOntology?: AutomaticOntology;
+  doorbells?: DoorbellService;
   dashboardAuthenticate?: (req: express.Request) => Promise<Actor | undefined>;
 }
 
@@ -170,17 +177,59 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
   const skill = existsSync(skillPath)
     ? readFileSync(skillPath, "utf8")
     : operatingInstructions;
+  const pulse = dependencies.memory
+    ? new PulseService(dependencies.memory, config.publicUrl.replace(/\/$/, ""))
+    : undefined;
   const tools = dependencies.memory
-    ? memoryTools(dependencies.memory, skill, dependencies.automaticOntology)
+    ? memoryTools(dependencies.memory, skill, dependencies.automaticOntology, {
+        resource,
+        doorbells: dependencies.doorbells,
+        pulse,
+      })
     : [];
   app.get("/api/config", (_req, res) =>
     res.json({
       publishableKey: config.publishableKey,
       mcpUrl: resource,
       accountPortalUrl: config.accountPortalUrl,
+      doorbells: Boolean(dependencies.doorbells),
     }),
   );
   app.get("/skill", (_req, res) => res.type("text/plain").send(skill));
+  // Pulse links are read by credential-less pollers (for example Muse hooks).
+  // They reveal only an unread counter and a version, never content.
+  if (pulse)
+    app.get(
+      "/pulse/:token",
+      // Many hosts (e.g. Muse VMs) may share egress IPs, so the main limit is per
+      // link; a looser per-IP limit still stops anyone scanning for tokens.
+      rateLimit({
+        windowMs: 60_000,
+        limit: 600,
+        standardHeaders: "draft-8",
+        legacyHeaders: false,
+      }),
+      rateLimit({
+        windowMs: 60_000,
+        limit: 30,
+        standardHeaders: "draft-8",
+        legacyHeaders: false,
+        keyGenerator: (req) => "pulse:" + String(req.params.token),
+      }),
+      async (req, res) => {
+        res.set({
+          "Cache-Control": "no-store",
+          "Referrer-Policy": "no-referrer",
+          "X-Robots-Tag": "noindex",
+        });
+        const result = await pulse.read(String(req.params.token));
+        if (!result) {
+          res.status(404).json({ error: "Not found" });
+          return;
+        }
+        res.json(result);
+      },
+    );
   app.get("/setup/prompt", (_req, res) =>
     res.type("text/plain").send(mcpInstallPrompt(resource)),
   );
@@ -201,6 +250,8 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         dependencies.memory,
         tools,
         dependencies.dashboardAuthenticate,
+        dependencies.doorbells,
+        pulse,
       ),
     );
   app.get("/privacy", (_req, res) =>
@@ -422,7 +473,13 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
                     memory: !!dependencies.memory,
                   },
                 }
-              : await runTool(tools, actor, params.name, params.arguments);
+              : await runToolWithInbox(
+                  tools,
+                  dependencies.memory!,
+                  actor,
+                  params.name,
+                  params.arguments,
+                );
           result = {
             resultType: "complete",
             content: [{ type: "text", text: JSON.stringify(data) }],
@@ -519,7 +576,13 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
           try {
             const profile = await getProfile(actor.userId);
             actor.name = profile.name;
-            const data = await runTool(tools, actor, tool.name, input);
+            const data = await runToolWithInbox(
+              tools,
+              dependencies.memory!,
+              actor,
+              tool.name,
+              input,
+            );
             return {
               content: [{ type: "text" as const, text: JSON.stringify(data) }],
               structuredContent: data as Record<string, unknown>,

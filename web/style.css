@@ -508,6 +508,74 @@
   .panel {
     @apply min-w-0 rounded-lg bg-white p-6 shadow-line;
   }
+  .assistants-intro {
+    @apply mb-6 max-w-2xl text-sm leading-6 text-secondary;
+  }
+  .assistants-grid {
+    @apply grid gap-6;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  }
+  .doorbell-form {
+    @apply mt-6 grid gap-4;
+  }
+  .doorbell-form label {
+    @apply grid gap-1.5 text-xs font-medium text-secondary;
+  }
+  .doorbell-form input {
+    @apply w-full min-w-0 text-sm;
+  }
+  .doorbell-form .button {
+    @apply justify-self-start;
+  }
+  .preferences-panel {
+    @apply mb-6 max-w-2xl;
+  }
+  .choice-group {
+    @apply m-0 grid gap-2 border-0 p-0;
+  }
+  .choice-group legend {
+    @apply mb-1 text-xs font-medium text-secondary;
+  }
+  .choice-group label {
+    @apply flex items-start gap-2 text-sm font-normal text-ink;
+  }
+  .quiet-range {
+    @apply grid grid-cols-2 gap-3;
+  }
+  .inbox-header {
+    @apply mb-4 flex flex-wrap items-center justify-between gap-3;
+  }
+  .inbox-list {
+    @apply m-0 grid list-none gap-4 p-0;
+  }
+  .inbox-item {
+    @apply grid gap-3;
+  }
+  .inbox-meta {
+    @apply flex flex-wrap items-baseline gap-x-3 gap-y-1;
+  }
+  .inbox-meta strong {
+    @apply text-sm font-medium;
+  }
+  .inbox-text {
+    @apply m-0 text-sm leading-6 whitespace-pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .inbox-badge {
+    @apply rounded-full bg-ink px-2 py-0.5 text-[11px] font-medium text-white;
+  }
+  .inbox-question {
+    @apply flex flex-wrap items-center justify-between gap-2 rounded-md bg-canvas px-3 py-2 text-xs text-secondary;
+  }
+  .inbox-seen {
+    @apply justify-self-end;
+  }
+  .doorbell-list {
+    @apply mt-6;
+  }
+  .doorbell-list .record-row {
+    @apply flex-wrap;
+  }
   .panel h2 {
     @apply my-3 text-base font-medium tracking-[-0.3px];
   }

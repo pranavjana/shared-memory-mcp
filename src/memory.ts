@@ -7,6 +7,12 @@ type QueryParams = NonNullable<
 >;
 import { z } from "zod";
 import { entityTypes } from "./ontology.js";
+import {
+  defaultPreferences,
+  isDue,
+  parsePreferences,
+  type Preferences,
+} from "./preferences.js";
 
 export const kinds = [
   "fact",
@@ -79,6 +85,71 @@ export interface Change {
   kind: string;
   createdAt: number;
 }
+export interface InboxItem {
+  changeId: string;
+  kind: string;
+  spaceId: string;
+  spaceName: string;
+  actorName: string;
+  createdAt: number;
+  seen: boolean;
+  /** The update names the reader; "confirmed" once the reader said that name is them. */
+  aboutYou: { status: "possible" | "confirmed"; name: string } | null;
+  /** Whether it should interrupt the reader now under their notification preferences. */
+  dueNow: boolean;
+  update:
+    | { type: "memory"; memory: ReturnType<MemoryStore["publicMemory"]> }
+    | { type: "publication"; publicationId: string; claim: unknown };
+}
+// Inbox reads are bounded: only the most recent changes in the reader's
+// spaces are considered, which keeps every tool-result footer cheap.
+const INBOX_WINDOW = 500;
+/** Names a reader is likely called by: their full name and their first name. */
+function ownNames(fullName: string) {
+  const full = fullName.normalize("NFKC").trim();
+  const first = full.split(/\s+/)[0] ?? "";
+  return [...new Set([full, first].filter((n) => n.length >= 2))];
+}
+function mentionText(update: InboxItem["update"]) {
+  if (update.type === "memory")
+    return [
+      update.memory.text,
+      ...((update.memory.entities ?? []) as { name?: string }[]).map((e) => e.name ?? ""),
+    ].join(" \n ");
+  const claim = update.claim as {
+    subject?: { name?: string };
+    object?: { name?: string };
+    value?: string;
+  };
+  return [claim.subject?.name, claim.object?.name, claim.value].filter(Boolean).join(" \n ");
+}
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * Finds the reader's name as a whole word in an update. A name match alone is
+ * only "possible"; it becomes "confirmed" after the reader says that author's
+ * use of the name means them, and a "not me" answer suppresses it.
+ */
+function mentionOf(
+  reader: { names: string[]; links: { author: string; name: string; isMe: boolean }[] },
+  author: string,
+  text: string,
+): InboxItem["aboutYou"] {
+  const fromAuthor = reader.links.filter((l) => l.author === author);
+  const candidates = [
+    ...new Set([...reader.names, ...fromAuthor.filter((l) => l.isMe).map((l) => l.name)]),
+  ];
+  const haystack = text.normalize("NFKC");
+  let possible: string | null = null;
+  for (const name of candidates) {
+    const answer = fromAuthor.find((l) => l.name.toLowerCase() === name.toLowerCase());
+    if (answer && !answer.isMe) continue;
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(name)}(?![\\p{L}\\p{N}])`, "iu");
+    if (!pattern.test(haystack)) continue;
+    if (answer?.isMe) return { status: "confirmed", name };
+    possible ??= name;
+  }
+  return possible ? { status: "possible", name: possible } : null;
+}
 export class DomainError extends Error {
   constructor(
     public status: number,
@@ -92,10 +163,28 @@ export const digest = (value: string) =>
 const access = (extra = "") =>
   `OPTIONAL MATCH (m)-[:SHARED_IN {active:true}]->(:Space)<-[membership:MEMBER_OF {active:true}]-(:Person {id:$user}) WITH m${extra},count(membership) AS memberships WHERE m.deletedAt IS NULL AND (m.owner=$user OR memberships>0)`;
 export class MemoryStore {
+  private changeListeners = new Set<() => void>();
   constructor(
     public db: FalkorDB,
     public graphName: string,
   ) {}
+  /** Called after a committed share, revision or publication so delivery can start immediately. */
+  onChange(listener: () => void) {
+    this.changeListeners.add(listener);
+    return () => {
+      this.changeListeners.delete(listener);
+    };
+  }
+  emitChange() {
+    for (const listener of this.changeListeners) {
+      // A failing listener must never fail the write that already committed.
+      try {
+        listener();
+      } catch {
+        console.error("Change listener failed");
+      }
+    }
+  }
   get graph() {
     return this.db.selectGraph(this.graphName);
   }
@@ -126,6 +215,10 @@ export class MemoryStore {
       "KnowledgeBatch",
       "OntologyJob",
       "Publication",
+      "Doorbell",
+      "DoorbellRing",
+      "PulseLink",
+      "IdentityLink",
     ]) {
       try {
         await this.graph.createNodeRangeIndex(label, "id");
@@ -164,6 +257,18 @@ export class MemoryStore {
     await this.query(
       `MATCH (s:Subscription) WHERE s.active=true OR s.secret IS NOT NULL OR s.previousSecret IS NOT NULL OR s.grantToken IS NOT NULL SET s.active=false,s.secret=NULL,s.previousSecret=NULL,s.grantToken=NULL`,
     );
+    // Inbox reads filter changes by space; pulse reads look links up by token hash.
+    for (const [label, property] of [
+      ["Change", "spaceId"],
+      ["PulseLink", "tokenHash"],
+    ])
+      try {
+        await this.graph.createNodeRangeIndex(label, property);
+      } catch (e) {
+        // The pinned server says "already indexed"; FalkorDB's client docs say "already exists".
+        if (!(e instanceof Error) || !/already (indexed|exists)/i.test(e.message))
+          throw e;
+      }
     for (let attempt = 0; attempt < 100; attempt++) {
       const cs = await this.query<{ status: string }>(
         "CALL db.constraints()",
@@ -383,6 +488,7 @@ export class MemoryStore {
         409,
         "Memory changed; retrieve the latest revision before correcting it",
       );
+    this.emitChange();
     return {
       saved: true,
       memory: this.publicMemory(rows[0].value),
@@ -599,12 +705,228 @@ export class MemoryStore {
       },
     );
     if (!rows[0]) throw new DomainError(403, "Sharing permission changed");
+    this.emitChange();
     return {
       shared: enabled,
       memoryId: id,
       spaceId,
       eventId,
     };
+  }
+  /**
+   * Updates other members shared into the reader's spaces since they joined,
+   * newest first, one entry per memory or publication (its latest change).
+   * Only items the reader can still read are returned; retractions drop out.
+   */
+  async inbox(
+    actor: Actor,
+    options: { limit?: number; includeSeen?: boolean } = {},
+  ): Promise<{ unread: number; items: InboxItem[] }> {
+    const rows = await this.query<{
+      change: Change;
+      spaceName: string;
+      seen: boolean;
+      watermark: number | null;
+    }>(
+      `MATCH (p:Person {id:$user})-[member:MEMBER_OF {active:true}]->(s:Space)
+      MATCH (c:Change) WHERE c.spaceId=s.id AND c.actorId<>$user AND c.createdAt>=coalesce(member.joinedAt,0)
+      OPTIONAL MATCH (p)-[seen:SEEN]->(c)
+      RETURN properties(c) AS change,s.name AS spaceName,seen IS NOT NULL AS seen,p.inboxSeenAt AS watermark
+      ORDER BY c.createdAt DESC,c.revision DESC LIMIT ${INBOX_WINDOW}`,
+      { user: actor.userId },
+      true,
+    );
+    const latest = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const c = row.change;
+      const key =
+        (c.publicationId ? "pub:" + c.publicationId : "mem:" + c.memoryId) +
+        "|" +
+        c.spaceId;
+      if (!latest.has(key)) latest.set(key, row);
+    }
+    const candidates = [...latest.values()].filter(
+      (r) => r.change.kind !== "retracted",
+    );
+    const memoryIds = [
+      ...new Set(candidates.flatMap((r) => r.change.memoryId ?? [])),
+    ];
+    const publicationIds = [
+      ...new Set(candidates.flatMap((r) => r.change.publicationId ?? [])),
+    ];
+    // Re-check current state: a share may since be retracted or its source forgotten.
+    const memories = new Map<string, Memory>();
+    if (memoryIds.length)
+      for (const r of await this.query<{
+        id: string;
+        spaceId: string;
+        value: Memory;
+      }>(
+        `MATCH (m:Memory)-[:SHARED_IN {active:true}]->(s:Space) WHERE m.id IN $ids AND m.deletedAt IS NULL RETURN m.id AS id,s.id AS spaceId,properties(m) AS value`,
+        { ids: memoryIds },
+        true,
+      ))
+        memories.set(r.id + "|" + r.spaceId, r.value);
+    const publications = new Map<string, string>();
+    if (publicationIds.length)
+      for (const r of await this.query<{
+        id: string;
+        spaceId: string;
+        payload: string;
+      }>(
+        `MATCH (pub:Publication)-[:PUBLISHED_IN]->(s:Space),(pub)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE pub.id IN $ids AND pub.active=true AND m.deletedAt IS NULL RETURN pub.id AS id,s.id AS spaceId,pub.payload AS payload`,
+        { ids: publicationIds },
+        true,
+      ))
+        publications.set(r.id + "|" + r.spaceId, r.payload);
+    const reader = await this.reader(actor);
+    const now = Date.now();
+    const items: InboxItem[] = [];
+    for (const { change: c, spaceName, seen, watermark } of candidates) {
+      let update: InboxItem["update"] | undefined;
+      if (c.publicationId) {
+        const payload = publications.get(c.publicationId + "|" + c.spaceId);
+        if (payload)
+          update = {
+            type: "publication",
+            publicationId: c.publicationId,
+            claim: JSON.parse(payload),
+          };
+      } else {
+        const m = memories.get(c.memoryId + "|" + c.spaceId);
+        if (m) update = { type: "memory", memory: this.publicMemory(m) };
+      }
+      if (!update) continue;
+      const aboutYou = mentionOf(reader, c.actorId, mentionText(update));
+      items.push({
+        changeId: c.id,
+        kind: c.kind,
+        spaceId: c.spaceId,
+        spaceName,
+        actorName: c.actorName,
+        createdAt: c.createdAt,
+        seen: seen || (watermark != null && c.createdAt <= watermark),
+        aboutYou,
+        dueNow: isDue(
+          reader.preferences,
+          { createdAt: c.createdAt, urgent: aboutYou !== null },
+          now,
+        ),
+        update,
+      });
+    }
+    // Updates about the reader first (confirmed before possible), then newest first.
+    const rank = (i: InboxItem) =>
+      i.aboutYou?.status === "confirmed" ? 2 : i.aboutYou ? 1 : 0;
+    items.sort((a, b) => rank(b) - rank(a) || b.createdAt - a.createdAt);
+    return {
+      unread: items.filter((i) => !i.seen).length,
+      items: (options.includeSeen ? items : items.filter((i) => !i.seen)).slice(
+        0,
+        options.limit ?? 20,
+      ),
+    };
+  }
+  /** The reader's display name, notification preferences and identity answers. */
+  private async reader(actor: Actor) {
+    const [person] = await this.query<{ name: string | null; prefs: string | null }>(
+      "MATCH (p:Person {id:$user}) RETURN p.name AS name,p.notifyPrefs AS prefs",
+      { user: actor.userId },
+      true,
+    );
+    const links = await this.query<{ author: string; name: string; isMe: boolean }>(
+      "MATCH (l:IdentityLink) WHERE l.recipient=$user RETURN l.author AS author,l.name AS name,l.isMe AS isMe",
+      { user: actor.userId },
+      true,
+    );
+    let preferences = defaultPreferences;
+    try {
+      if (person?.prefs) preferences = parsePreferences(JSON.parse(person.prefs));
+    } catch {
+      // Stored preferences that no longer validate fall back to the defaults.
+    }
+    return {
+      names: ownNames(person?.name ?? actor.name ?? ""),
+      links,
+      preferences,
+    };
+  }
+  async preferences(actor: Actor): Promise<Preferences> {
+    return (await this.reader(actor)).preferences;
+  }
+  async setPreferences(actor: Actor, raw: unknown) {
+    const preferences = parsePreferences(raw);
+    await this.query(
+      "MERGE (p:Person {id:$user}) SET p.notifyPrefs=$prefs",
+      { user: actor.userId, prefs: JSON.stringify(preferences) },
+    );
+    return preferences;
+  }
+  /**
+   * Records the reader's answer to "is this name you?" for one author's updates.
+   * The change must be an update from another member of one of the reader's spaces.
+   */
+  async confirmIdentity(
+    actor: Actor,
+    input: { changeId: string; name: string; isMe: boolean },
+  ) {
+    const name = input.name.normalize("NFKC").trim();
+    if (!name || name.length > 120)
+      throw new DomainError(400, "Provide the name shown in the update");
+    const [change] = await this.query<{ author: string }>(
+      `MATCH (:Person {id:$user})-[:MEMBER_OF {active:true}]->(s:Space)
+      MATCH (c:Change {id:$change}) WHERE c.spaceId=s.id AND c.actorId<>$user
+      RETURN c.actorId AS author LIMIT 1`,
+      { user: actor.userId, change: input.changeId },
+      true,
+    );
+    if (!change) throw new DomainError(404, "Update not found");
+    await this.query(
+      `MERGE (l:IdentityLink {id:$id})
+      SET l.recipient=$user,l.author=$author,l.name=$name,l.isMe=$isMe,l.at=$now`,
+      {
+        id: digest(actor.userId + "|" + change.author + "|" + name.toLowerCase()),
+        user: actor.userId,
+        author: change.author,
+        name,
+        isMe: input.isMe,
+        now: Date.now(),
+      },
+    );
+    return { recorded: true, name, isMe: input.isMe };
+  }
+  async inboxCount(actor: Actor) {
+    return (await this.inbox(actor, { limit: 1 })).unread;
+  }
+  /** Unread count plus how many of them mention the reader; used by the tool footer. */
+  async inboxSummary(actor: Actor) {
+    const box = await this.inbox(actor, { limit: INBOX_WINDOW });
+    return {
+      unread: box.unread,
+      aboutYou: box.items.filter((i) => i.aboutYou).length,
+    };
+  }
+  async markInboxSeen(
+    actor: Actor,
+    input: { changeIds?: string[]; all?: boolean },
+  ) {
+    if (!input.all && !input.changeIds?.length)
+      throw new DomainError(400, "Provide changeIds or all");
+    const now = Date.now();
+    if (input.all)
+      await this.query(
+        `MERGE (p:Person {id:$user}) SET p.inboxSeenAt=$now`,
+        { user: actor.userId, now },
+      );
+    if (input.changeIds?.length)
+      // Only changes in the reader's current spaces can be marked.
+      await this.query(
+        `MATCH (p:Person {id:$user})-[:MEMBER_OF {active:true}]->(s:Space)
+        MATCH (c:Change) WHERE c.id IN $ids AND c.spaceId=s.id
+        MERGE (p)-[seen:SEEN]->(c) ON CREATE SET seen.at=$now`,
+        { user: actor.userId, ids: input.changeIds, now },
+      );
+    return { unread: await this.inboxCount(actor) };
   }
   async authorizeClient(actor: Actor) {
     const id = digest(actor.userId + "|" + actor.clientId);

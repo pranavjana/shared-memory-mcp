@@ -4,6 +4,7 @@ import { connectUserStore } from "./users.js";
 import { connectMemoryStore } from "./memory.js";
 import { backfillUsers } from "./clerk-users.js";
 import { AutomaticOntology } from "./ontology-extraction.js";
+import { DoorbellService } from "./doorbells.js";
 
 for (const key of [
   "CLERK_PUBLISHABLE_KEY",
@@ -30,6 +31,17 @@ const ontologyWorker = setInterval(() => {
     .catch(() => console.error("Ontology processing tick failed"));
 }, 5000);
 ontologyWorker.unref();
+// Doorbells are optional: without a key, members can still read their inbox on demand.
+const doorbells = process.env.DOORBELL_ENCRYPTION_KEY
+  ? new DoorbellService(memory, process.env.DOORBELL_ENCRYPTION_KEY, publicUrl)
+  : undefined;
+const ringDoorbells = () => {
+  void doorbells?.ring().catch(() => console.error("Doorbell delivery failed"));
+};
+// Ring as soon as a share commits; the interval retries failed deliveries.
+memory.onChange(ringDoorbells);
+const doorbellWorker = setInterval(ringDoorbells, 15000);
+doorbellWorker.unref();
 const server = createApp(
   {
     publicUrl,
@@ -38,7 +50,7 @@ const server = createApp(
     accountPortalUrl: process.env.CLERK_ACCOUNT_PORTAL_URL!,
     webhookSigningSecret: process.env.CLERK_WEBHOOK_SIGNING_SECRET,
   },
-  { users, memory, automaticOntology },
+  { users, memory, automaticOntology, doorbells },
 ).listen(port, "0.0.0.0", () =>
   console.log(`Shared Memory MCP listening on port ${port}`),
 );
@@ -58,6 +70,7 @@ void backfillUsers(
 for (const signal of ["SIGTERM", "SIGINT"])
   process.on(signal, () => {
     clearInterval(ontologyWorker);
+    clearInterval(doorbellWorker);
     server.close(() => {
       void Promise.all([users.close(), memory.close()]).finally(() =>
         process.exit(0),

@@ -6,6 +6,8 @@ import "@fontsource-variable/geist-mono";
 import codexLogo from "./assets/codex.png";
 import museLogo from "./assets/muse.svg";
 import { SpaceView } from "./SpaceView";
+import { AssistantsView } from "./AssistantsView";
+import { InboxView } from "./InboxView";
 import { invitationRedirect } from "./invitation";
 const OntologyView = React.lazy(() =>
   import("./OntologyView").then((m) => ({ default: m.OntologyView })),
@@ -16,6 +18,7 @@ type Config = {
   publishableKey: string;
   mcpUrl: string;
   accountPortalUrl: string;
+  doorbells?: boolean;
 };
 type Memory = {
   id: string;
@@ -330,6 +333,7 @@ function Dashboard({ config }: { config: Config }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
+    [inboxUnread, setInboxUnread] = useState(0),
     [setupPromptText, setSetupPromptText] = useState(""),
     [spaceName, setSpaceName] = useState(""),
     [selectedSpace, setSelectedSpace] = useState<Space | null>(null),
@@ -358,6 +362,10 @@ function Dashboard({ config }: { config: Config }) {
   );
   const reload = useCallback(async () => {
     setData(await request("overview"));
+    // The inbox count is a nicety for the nav; failing to load it isn't an error.
+    request("action", { action: "check_inbox", input: { limit: 1 } })
+      .then((box) => setInboxUnread(box.unread ?? 0))
+      .catch(() => undefined);
   }, [request]);
   const initialSpaceLink = useRef(false);
   useEffect(() => {
@@ -489,9 +497,11 @@ function Dashboard({ config }: { config: Config }) {
       <aside className="sidebar">
         <nav aria-label="Workspace navigation">
           {[
+            ["inbox", "share", inboxUnread ? `Inbox (${inboxUnread})` : "Inbox"],
             ["memories", "memory", "Memories"],
             ["connections", "graph", "Connections"],
             ["spaces", "share", "Shared spaces"],
+            ["assistants", "refresh", "Assistants"],
             ["ontology", "graph", "Ontology"],
           ].map(([id, icon, label]) => (
             <button
@@ -1153,6 +1163,22 @@ function Dashboard({ config }: { config: Config }) {
                 </>
               )}
             </>
+          )}
+          {section === "inbox" && (
+            <InboxView
+              action={action}
+              onNotice={setNotice}
+              onError={setError}
+              onCount={setInboxUnread}
+            />
+          )}
+          {section === "assistants" && (
+            <AssistantsView
+              action={action}
+              doorbellsAvailable={config.doorbells === true}
+              onNotice={setNotice}
+              onError={setError}
+            />
           )}
           {section === "ontology" && (
             <React.Suspense fallback={<p className="empty">Loading graph…</p>}>

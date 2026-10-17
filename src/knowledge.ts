@@ -514,6 +514,7 @@ export class KnowledgeStore {
         "MATCH (d:KnowledgeSearchDocument)-[:INDEXES]->(p:Publication {id:$id}) DETACH DELETE d",
         { id: publicationId },
       );
+      this.store.emitChange();
       return { published: false, publicationId, spaceId: input.spaceId };
     }
     const rows = await this.store.query<{ payload: string }>(
@@ -589,6 +590,7 @@ export class KnowledgeStore {
       throw new DomainError(409, "Claim or sharing permission changed");
     // A retry cannot reactivate a withdrawn publication. Publish a new source claim
     // to issue an updated snapshot, rather than mutating what recipients saw.
+    if (receipt[0].active) this.store.emitChange();
     return {
       searchIndex: receipt[0].active
         ? await this.search.index(actor, snapshot).catch(() => "pending")

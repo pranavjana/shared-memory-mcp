@@ -1,10 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { createApp } from "../src/app.js";
 import { connectMemoryStore } from "../src/memory.js";
 import { AutomaticOntology } from "../src/ontology-extraction.js";
+import { DoorbellService } from "../src/doorbells.js";
 import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 test("real database API and both MCP protocols enforce identity, revisions and connection revocation", async () => {
   const store = await connectMemoryStore({
@@ -25,6 +26,12 @@ test("real database API and both MCP protocols enforce identity, revisions and c
     },
     {
       memory: store,
+      doorbells: new DoorbellService(
+        store,
+        randomBytes(32).toString("base64"),
+        origin,
+        async () => ({ status: 202, body: "" }),
+      ),
       automaticOntology: new AutomaticOntology(store, undefined, {
         async extract(context) {
           if (context.source.text !== "Nadia works at Acme.")
@@ -131,6 +138,8 @@ test("real database API and both MCP protocols enforce identity, revisions and c
     assert.equal((await rpc("invalid", "tools/list")).status, 401);
     const listed = await rpc("user_a", "tools/list");
     assert.ok(listed.body.result.tools.some((t: any) => t.name === "remember"));
+    for (const name of ["check_inbox", "mark_inbox_seen"])
+      assert.ok(listed.body.result.tools.some((t: any) => t.name === name));
     for (const version of ["2026-07-28", "2025-11-25"]) {
       const empty = await rpc(
         "user_a",
@@ -313,6 +322,134 @@ test("real database API and both MCP protocols enforce identity, revisions and c
       );
       assert.equal(packet.body.result.structuredContent.update.memory.id, id);
     }
+    for (const version of ["2026-07-28", "2025-11-25"]) {
+      const footer = await rpc(
+        "user_b",
+        "tools/call",
+        { name: "list_spaces", arguments: {} },
+        version,
+      );
+      const content = CallToolResultSchema.parse(footer.body.result)
+        .structuredContent as any;
+      assert.ok(content.inbox.unread >= 1, "Unread shares surface as a footer");
+      const box = await rpc(
+        "user_b",
+        "tools/call",
+        { name: "check_inbox", arguments: {} },
+        version,
+      );
+      assert.ok(
+        box.body.result.structuredContent.items.some(
+          (item: any) => item.update.memory?.id === id,
+        ),
+      );
+    }
+    for (const version of ["2026-07-28", "2025-11-25"]) {
+      const setup = await rpc(
+        "user_b",
+        "tools/call",
+        { name: "assistant_setup", arguments: { host: "grok" } },
+        version,
+      );
+      const content = setup.body.result.structuredContent;
+      assert.equal(content.doorbellsAvailable, true);
+      assert.ok(content.prompt.includes(origin + "/mcp"));
+      assert.match(content.prompt, /When a webhook fires/);
+    }
+    assert.equal(
+      (
+        await api("user_b", "add_doorbell", {
+          kind: "grok_webhook",
+          url: "http://hooks.example.com/x",
+          authorization: "Bearer crsr_abcdefgh",
+        })
+      ).status,
+      400,
+    );
+    const bell = await api("user_b", "add_doorbell", {
+      kind: "grok_webhook",
+      url: "https://hooks.example.com/routine",
+      authorization: "Bearer crsr_abcdefgh",
+    });
+    assert.equal(bell.status, 200);
+    const bells = await api("user_b", "doorbells");
+    assert.equal(bells.body.doorbells.length, 1);
+    assert.ok(!JSON.stringify(bells.body).includes("crsr_abcdefgh"));
+    assert.deepEqual((await api("user_a", "doorbells")).body, { doorbells: [] });
+    assert.equal(
+      (await api("user_b", "test_doorbell", { id: bell.body.id })).body.ok,
+      true,
+    );
+    assert.equal(
+      (await api("user_a", "remove_doorbell", { id: bell.body.id })).body.removed,
+      false,
+    );
+    const museSetup = await rpc("user_b", "tools/call", {
+      name: "assistant_setup",
+      arguments: { host: "muse" },
+    });
+    assert.match(museSetup.body.result.structuredContent.prompt, /create_pulse_link/);
+    const created = await rpc("user_b", "tools/call", {
+      name: "create_pulse_link",
+      arguments: {},
+    });
+    const pulseUrl: string = created.body.result.structuredContent.url;
+    assert.ok(pulseUrl.startsWith(origin + "/pulse/smp_"));
+    const pulsePath = new URL(pulseUrl).pathname;
+    const pulseRead = await fetch(base + pulsePath);
+    assert.equal(pulseRead.status, 200);
+    assert.equal(pulseRead.headers.get("cache-control"), "no-store");
+    const pulseBody = await pulseRead.json();
+    assert.deepEqual(Object.keys(pulseBody).sort(), ["unread", "version"]);
+    assert.ok(pulseBody.unread >= 1);
+    assert.equal((await fetch(base + "/pulse/smp_" + "B".repeat(43))).status, 404);
+    const linkList = await api("user_b", "pulse_links");
+    assert.equal(linkList.body.links.length, 1);
+    assert.ok(!JSON.stringify(linkList.body).includes(pulsePath.split("/").pop()!));
+    await api("user_b", "revoke_pulse_link", { id: linkList.body.links[0].id });
+    assert.equal((await fetch(base + pulsePath)).status, 404);
+    for (const version of ["2026-07-28", "2025-11-25"]) {
+      const prefs = await rpc(
+        "user_b",
+        "tools/call",
+        { name: "get_notification_preferences", arguments: {} },
+        version,
+      );
+      assert.equal(prefs.body.result.structuredContent.mode, "about_me");
+    }
+    const savedPrefs = await api("user_b", "set_notification_preferences", {
+      mode: "all",
+      digestHour: 9,
+      timezone: "Asia/Singapore",
+      quietStart: null,
+      quietEnd: null,
+    });
+    assert.equal(savedPrefs.body.timezone, "Asia/Singapore");
+    assert.equal(
+      (await api("user_b", "set_notification_preferences", { timezone: "Nowhere/Land" })).status,
+      400,
+    );
+    assert.equal(
+      (await api("user_b", "confirm_identity", { changeId: "missing", name: "B", isMe: true })).status,
+      404,
+    );
+    const checked = await rpc("user_b", "tools/call", { name: "check_inbox", arguments: {} });
+    assert.ok(checked.body.result.structuredContent.nextDigestAt);
+    assert.equal(checked.body.result.structuredContent.mode, "all");
+    const cleared = await rpc("user_b", "tools/call", {
+      name: "mark_inbox_seen",
+      arguments: { all: true },
+    });
+    assert.equal(cleared.body.result.structuredContent.unread, 0);
+    const quiet = await rpc(
+      "user_b",
+      "tools/call",
+      { name: "list_spaces", arguments: {} },
+      "2025-11-25",
+    );
+    assert.ok(
+      !("inbox" in CallToolResultSchema.parse(quiet.body.result).structuredContent!),
+    );
     const bPrivate = (
       await api("user_b", "remember", {
         ...i,
