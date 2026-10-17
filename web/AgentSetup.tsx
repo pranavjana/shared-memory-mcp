@@ -328,11 +328,8 @@ export function AgentSetup({
                 instructions; a chat paste applies to that chat only.
               </p>
               <div className="button-row">
-                <a className="button small" href="/skill/SKILL.md">
-                  Download skill
-                </a>
                 <button
-                  className="text-button"
+                  className="button small"
                   disabled={busy}
                   onClick={() =>
                     copy(
@@ -341,6 +338,7 @@ export function AgentSetup({
                     )
                   }
                 >
+                  <CopyIcon />
                   Copy skill instructions
                 </button>
               </div>
