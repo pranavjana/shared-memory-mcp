@@ -36,7 +36,7 @@ Load when unsure how to phrase a save, acknowledgement, or share. Patterns are i
 1. `list_spaces` → pick the space that includes Roshan; confirm contributor/owner role.
 2. `remember` the completion if not already saved.
 3. `share_memory` with `userRequested: true` and a stable `idempotencyKey`.
-4. Acknowledge the share receipt; do not claim Roshan’s agent already notified him unless a monitoring receipt on their side exists (it will not appear here).
+4. Acknowledge the share receipt; do not claim Roshan or his agent was notified.
 
 ## Publish one claim (ontology)
 
@@ -44,4 +44,4 @@ Load when unsure how to phrase a save, acknowledgement, or share. Patterns are i
 
 1. Confirm the claim ID from a prior `remember`/`recall_knowledge`/`explain` path.
 2. `publish_claim` with `userRequested: true` — not `share_memory`.
-3. Do not claim a webhook fired; ontology publications are on-demand retrieval.
+3. Do not claim anyone was notified; ontology publications are on-demand retrieval.

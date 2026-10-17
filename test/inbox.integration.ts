@@ -1,10 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID, randomBytes } from "node:crypto";
-import { Webhook } from "standardwebhooks";
+import { randomUUID } from "node:crypto";
 import { connectMemoryStore, type Actor } from "../src/memory.js";
 import { KnowledgeStore } from "../src/knowledge.js";
-import { EventService } from "../src/events.js";
 import { memoryTools, runToolWithInbox } from "../src/tools.js";
 
 const sender: Actor = {
@@ -203,53 +201,54 @@ test("tool results carry an inbox footer and check_inbox is exposed", async () =
   }
 });
 
-test("a commit delivers webhooks immediately instead of waiting for the worker interval", async () => {
+test("committed shares, revisions and publications notify change listeners", async () => {
   const s = await connect();
-  const secret = "whsec_" + randomBytes(32).toString("base64");
-  const received: any[] = [];
-  const service = new EventService(
-    s,
-    randomBytes(32).toString("base64"),
-    "https://memory.example.com",
-    async (_url, body, headers) => {
-      const payload = new Webhook(secret).verify(body, headers) as any;
-      if (payload.type === "verification")
-        return { status: 200, body: JSON.stringify({ challenge: payload.challenge }) };
-      received.push(payload);
-      return { status: 204, body: "" };
-    },
-  );
-  let pending: Promise<void> | undefined;
+  const k = new KnowledgeStore(s);
+  let calls = 0;
   const stop = s.onChange(() => {
-    pending = service.tick();
+    calls++;
+  });
+  // A failing listener must not fail the write that already committed.
+  const stopBroken = s.onChange(() => {
+    throw new Error("listener failure");
   });
   try {
-    const space = await s.createSpace(sender, "Instant");
-    await s.accept(
-      receiver,
-      (await s.invite(sender, space.id, receiver.email!, "reader")).token,
-    );
-    await service.subscribe(receiver, {
-      name: "memory.changed",
-      arguments: { space_id: space.id },
-      delivery: { mode: "webhook", url: "https://receiver.example.com/events", secret },
+    const space = await s.createSpace(sender, "Listeners");
+    const m = (await s.remember(sender, note("Ship it", "listener-1"))).memory;
+    assert.equal(calls, 0, "A private save is not a shared change");
+    await s.share(sender, m.id, space.id, true, "listener-share");
+    assert.equal(calls, 1);
+    await s.revise(sender, m.id, 1, note("Ship it today", "listener-r2"));
+    assert.equal(calls, 2);
+    const batch = await k.record(sender, {
+      sourceMemoryId: m.id,
+      sourceRevision: 2,
+      idempotencyKey: "listener-claims",
+      entities: [{ key: "ship", type: "task", name: "Ship" }],
+      claims: [
+        {
+          subject: "ship",
+          predicate: "HAS_STATUS",
+          value: "in_progress",
+          basis: "explicit",
+          evidence: "Ship it today",
+        },
+      ],
     });
-    const m = (await s.remember(sender, note("Ship it", "instant-1"))).memory;
-    pending = undefined;
-    await s.share(sender, m.id, space.id, true, "instant-share");
-    assert.ok(pending, "Sharing notifies change listeners");
-    await pending;
-    assert.equal(received.length, 1);
-    assert.equal(received[0].data.memory_id, m.id);
-
-    // Overlapping triggers coalesce into a follow-up pass, not a lost change.
-    const a = service.tick();
-    const m2 = (await s.remember(sender, note("Ship it again", "instant-2"))).memory;
-    await s.share(sender, m2.id, space.id, true, "instant-share-2");
-    await Promise.all([a, pending]);
-    assert.equal(received.length, 2);
+    await k.publish(sender, {
+      claimId: batch.claimIds[0],
+      spaceId: space.id,
+      enabled: true,
+      userRequested: true,
+      idempotencyKey: "listener-publication",
+    });
+    assert.equal(calls, 3);
+    stop();
+    await s.share(sender, m.id, space.id, false, "listener-retract");
+    assert.equal(calls, 3, "An unsubscribed listener is not called");
   } finally {
     stop();
+    stopBroken();
     await s.graph.delete();
     await s.close();
   }

@@ -600,9 +600,6 @@ export class KnowledgeStore {
       spaceId: input.spaceId,
       snapshot: true,
       eventId: receipt[0].active ? eventId : null,
-      delivery: receipt[0].active
-        ? "queued_for_active_subscribers"
-        : "inactive",
     };
   }
 }

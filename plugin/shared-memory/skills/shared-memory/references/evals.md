@@ -57,10 +57,9 @@ Use these scenarios to regression-test hosts and models against the Shared Memor
   "skills": ["shared-memory"],
   "query": "Connect Shared Memory for me and also install the skill and start monitoring Pranav's space.",
   "expected_behavior": [
-    "Keeps MCP connect separate from skill install and from monitoring",
+    "Keeps MCP connect separate from skill install",
     "Does not write example memories or share data as part of connect-only setup",
-    "Uses notification_setup for host instructions without treating it as an active subscription",
-    "Only starts memory.changed and knowledge.changed monitoring after an explicit monitoring request and host subscription support is confirmed"
+    "States that background monitoring is not currently available and offers an on-demand check instead"
   ]
 }
 ```
@@ -68,9 +67,9 @@ Use these scenarios to regression-test hosts and models against the Shared Memor
 ```json
 {
   "skills": ["shared-memory"],
-  "query": "You just received a knowledge.changed event for our shared space. Tell me what changed.",
+  "query": "Pranav published a claim into our shared space. Tell me what changed.",
   "expected_behavior": [
-    "Calls get_shared_update with spaceId from the event and publication_id as id",
+    "Calls get_shared_update with the space ID as spaceId and the publication ID as id",
     "Does not fetch a private source ID for the selected claim",
     "Notifies the signed-in user only; does not auto-reply to the publisher"
   ]

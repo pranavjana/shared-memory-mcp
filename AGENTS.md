@@ -27,7 +27,7 @@ These repository-wide defaults apply to Pranav, Roshan, and coding agents workin
 | Testing plugin source | `plugin/shared-spaces-sandbox/` |
 
 - Pass the project, environment, and service explicitly to Railway commands. Do not rely on the CLI's linked environment; it may be production.
-- Keep the sandbox API, FalkorDB volume, DB password, Clerk keys, and event encryption key separate from production. Database references must resolve within the sandbox; do not introduce cross-environment production references or public DB access.
+- Keep the sandbox API, FalkorDB volume, DB password, and Clerk keys separate from production. Database references must resolve within the sandbox; do not introduce cross-environment production references or public DB access.
 - Use a local FalkorDB with separate local/test graph names for local execution. The hosted sandbox is shared: use unique test spaces and operation keys, and do not reset another developer's experiments.
 
 ## Local execution and secrets
@@ -41,7 +41,7 @@ These repository-wide defaults apply to Pranav, Roshan, and coding agents workin
 ## Build, validate, and deploy development changes
 
 1. Implement and review the feature on its feature branch. Run checks appropriate to the changed behavior; documentation-only edits do not require inventing tests.
-2. For code changes, use `npm run build`, `npm run check:web`, and `npm test`. For memory, permission, database, auth/API, or event changes, also run `npm run test:graph` and `node --import tsx --test test/api.integration.ts` against the isolated local test DB described in `docs/development.md`. Do not point integration tests at either hosted database.
+2. For code changes, use `npm run build`, `npm run check:web`, and `npm test`. For memory, permission, database, or auth/API changes, also run `npm run test:graph` and `node --import tsx --test test/api.integration.ts` against the isolated local test DB described in `docs/development.md`. Do not point integration tests at either hosted database.
 3. Keep `skills/shared-memory/SKILL.md` and the production plugin's bundled copy identical when editing the operating guide. Review the sandbox plugin's reference copy if the same behavior changes.
 4. Push the feature branch and open a PR targeting `codex/development`. Review before integration. Feature branches do not deploy automatically. The current CI workflow runs on pushes to `codex/development`/`main` and PRs targeting `main`; it does not currently run on feature PRs targeting development.
 5. Once the feature is integrated into `codex/development`, GitHub CI runs and Railway waits for passing checks before deploying the sandbox. Verify the deployment's commit/status and `/health`, then exercise the changed behavior. A push, green build, or authenticated connection alone does not prove the feature works.
@@ -57,7 +57,7 @@ These repository-wide defaults apply to Pranav, Roshan, and coding agents workin
 - Membership is not permission to share all memories. Keep memories private unless explicitly selected for sharing or covered by a user-enabled rule. OAuth/account and space boundaries must remain enforced; do not add development auth bypasses or accept tokens for the wrong resource.
 - The guarded hosted fixture script defaults to a dry run. For requested incoming demo activity, use `--demo-update <stable-operation-key> --apply` inside the sandbox service, reusing the key on retries. This simulates a teammate write server-side, not an actual external agent or notification. Ordinary reruns preserve retractions and changed/revoked membership; restoring demo membership requires the explicit `--restore-demo-membership` option. It has no database reset operation.
 - The sandbox plugin is private to its owning ChatGPT account. Roshan needs his own authorized sandbox MCP connection or plugin; cloning the repo does not install or authenticate a plugin.
-- A share receipt, event subscription, accepted webhook, and actual agent notification are different outcomes. Claim proactive delivery only after a supported host demonstrates it. The sandbox Clerk lifecycle webhook subscription is not yet configured; check `docs/development.md` for that remaining parity gap.
+- A share receipt is not an agent notification; proactive delivery is not currently available. The sandbox Clerk lifecycle webhook subscription is not yet configured; check `docs/development.md` for that remaining parity gap.
 
 ## Production release boundary
 
