@@ -193,14 +193,15 @@ export class KnowledgeStore {
         409,
         "Source or superseded claim changed; retrieve current knowledge before retrying",
       );
+    // Return IDs in input order, not row order. UNWIND keeps list order, but
+    // the later MERGE/OPTIONAL MATCH steps have no ORDER BY, and newer FalkorDB
+    // images reorder these rows. Callers map claimIds[i] to claims[i].
+    const claimIds = claims.map((c) => c.id);
     return {
       saved: true,
-      claimIds: rows.map((r) => r.id),
+      claimIds,
       receipt: batchId,
-      searchIndex: await this.search.indexIds(
-        actor,
-        rows.map((r) => r.id),
-      ),
+      searchIndex: await this.search.indexIds(actor, claimIds),
     };
   }
   async recall(actor: Actor, raw: unknown = {}) {
