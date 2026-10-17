@@ -66,7 +66,7 @@ For "tell Roshan I finished this," use list_spaces, identify the intended space 
 
 ## Shared updates and proactive behavior
 
-Shared Memory does not currently push updates to other members' agents. Do not invent a monitoring tool or claim a normal chat is running in the background; offer an on-demand check instead.
+Shared Memory never pushes update content to agents. A member can give their own assistant a lookout: `assistant_setup` returns host-specific steps, either a Grok Bot routine triggered "When a webhook fires" (a doorbell Shared Memory rings with IDs only) or a Dot scheduled check. Follow the steps only when the user asks to be notified, and report only what the host actually created. When a doorbell rings or a scheduled check runs, call `check_inbox`. Do not claim monitoring is active until a test or first run reached the user, and never invent a monitoring tool.
 
 Other members' shares, revisions and selected-claim publications in the user's spaces collect in the user's inbox. Call `check_inbox` at the start of a conversation, and whenever a Shared Memory tool result includes an `inbox` field with unread updates. Tell the user briefly who shared what and in which space, putting anything that concerns them first; one short summary can cover several updates. Then call `mark_inbox_seen` with the `changeIds` you reported, so the same update is not repeated here or by another assistant. Do not mark an update seen that you did not tell the user about.
 

@@ -508,6 +508,31 @@
   .panel {
     @apply min-w-0 rounded-lg bg-white p-6 shadow-line;
   }
+  .assistants-intro {
+    @apply mb-6 max-w-2xl text-sm leading-6 text-secondary;
+  }
+  .assistants-grid {
+    @apply grid gap-6;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  }
+  .doorbell-form {
+    @apply mt-6 grid gap-4;
+  }
+  .doorbell-form label {
+    @apply grid gap-1.5 text-xs font-medium text-secondary;
+  }
+  .doorbell-form input {
+    @apply w-full min-w-0 text-sm;
+  }
+  .doorbell-form .button {
+    @apply justify-self-start;
+  }
+  .doorbell-list {
+    @apply mt-6;
+  }
+  .doorbell-list .record-row {
+    @apply flex-wrap;
+  }
   .panel h2 {
     @apply my-3 text-base font-medium tracking-[-0.3px];
   }

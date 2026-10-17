@@ -1,10 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { createApp } from "../src/app.js";
 import { connectMemoryStore } from "../src/memory.js";
 import { AutomaticOntology } from "../src/ontology-extraction.js";
+import { DoorbellService } from "../src/doorbells.js";
 import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 test("real database API and both MCP protocols enforce identity, revisions and connection revocation", async () => {
   const store = await connectMemoryStore({
@@ -25,6 +26,12 @@ test("real database API and both MCP protocols enforce identity, revisions and c
     },
     {
       memory: store,
+      doorbells: new DoorbellService(
+        store,
+        randomBytes(32).toString("base64"),
+        origin,
+        async () => ({ status: 202, body: "" }),
+      ),
       automaticOntology: new AutomaticOntology(store, undefined, {
         async extract(context) {
           if (context.source.text !== "Nadia works at Acme.")
@@ -337,6 +344,46 @@ test("real database API and both MCP protocols enforce identity, revisions and c
         ),
       );
     }
+    for (const version of ["2026-07-28", "2025-11-25"]) {
+      const setup = await rpc(
+        "user_b",
+        "tools/call",
+        { name: "assistant_setup", arguments: { host: "grok" } },
+        version,
+      );
+      const content = setup.body.result.structuredContent;
+      assert.equal(content.doorbellsAvailable, true);
+      assert.ok(content.prompt.includes(origin + "/mcp"));
+      assert.match(content.prompt, /When a webhook fires/);
+    }
+    assert.equal(
+      (
+        await api("user_b", "add_doorbell", {
+          kind: "grok_webhook",
+          url: "http://hooks.example.com/x",
+          authorization: "Bearer crsr_abcdefgh",
+        })
+      ).status,
+      400,
+    );
+    const bell = await api("user_b", "add_doorbell", {
+      kind: "grok_webhook",
+      url: "https://hooks.example.com/routine",
+      authorization: "Bearer crsr_abcdefgh",
+    });
+    assert.equal(bell.status, 200);
+    const bells = await api("user_b", "doorbells");
+    assert.equal(bells.body.doorbells.length, 1);
+    assert.ok(!JSON.stringify(bells.body).includes("crsr_abcdefgh"));
+    assert.deepEqual((await api("user_a", "doorbells")).body, { doorbells: [] });
+    assert.equal(
+      (await api("user_b", "test_doorbell", { id: bell.body.id })).body.ok,
+      true,
+    );
+    assert.equal(
+      (await api("user_a", "remove_doorbell", { id: bell.body.id })).body.removed,
+      false,
+    );
     const cleared = await rpc("user_b", "tools/call", {
       name: "mark_inbox_seen",
       arguments: { all: true },

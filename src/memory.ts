@@ -159,6 +159,8 @@ export class MemoryStore {
       "KnowledgeBatch",
       "OntologyJob",
       "Publication",
+      "Doorbell",
+      "DoorbellRing",
     ]) {
       try {
         await this.graph.createNodeRangeIndex(label, "id");
@@ -749,6 +751,21 @@ export class MemoryStore {
         options.limit ?? 20,
       ),
     };
+  }
+  /** Whether a change's memory or selected claim is still shared and its source not forgotten. */
+  async isReadableChange(change: Change) {
+    const rows = change.publicationId
+      ? await this.query(
+          `MATCH (p:Publication {id:$id})-[:PUBLISHED_IN]->(:Space {id:$space}),(p)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE p.active=true AND m.deletedAt IS NULL RETURN p.id AS id`,
+          { id: change.publicationId, space: change.spaceId },
+          true,
+        )
+      : await this.query(
+          `MATCH (m:Memory {id:$id})-[:SHARED_IN {active:true}]->(:Space {id:$space}) WHERE m.deletedAt IS NULL RETURN m.id AS id`,
+          { id: change.memoryId ?? "", space: change.spaceId },
+          true,
+        );
+    return rows.length > 0;
   }
   async inboxCount(actor: Actor) {
     return (await this.inbox(actor, { limit: 1 })).unread;

@@ -4,13 +4,20 @@ import { verifyToken } from "@clerk/backend";
 import { z } from "zod";
 import { DomainError, MemoryStore, type Actor } from "./memory.js";
 import { runTool, type Tool } from "./tools.js";
+import type { DoorbellService } from "./doorbells.js";
 import { ontology } from "./ontology.js";
 export function dashboardApi(
   config: { secretKey: string; publishableKey: string; publicUrl: string },
   store: MemoryStore,
   tools: Tool[],
   authenticate?: (req: express.Request) => Promise<Actor | undefined>,
+  doorbells?: DoorbellService,
 ) {
+  const requireDoorbells = () => {
+    if (!doorbells)
+      throw new DomainError(503, "Doorbells are not configured on this server");
+    return doorbells;
+  };
   const api = express.Router();
   const clerk = createClerkClient({
     secretKey: config.secretKey,
@@ -166,6 +173,24 @@ export function dashboardApi(
       case "disable_sharing_rule": {
         const i = z.object({ id: z.string() }).parse(input);
         result = await store.disableRule(actor, i.id);
+        break;
+      }
+      case "doorbells": {
+        result = { doorbells: doorbells ? await doorbells.list(actor) : [] };
+        break;
+      }
+      case "add_doorbell": {
+        result = await requireDoorbells().add(actor, input);
+        break;
+      }
+      case "remove_doorbell": {
+        const i = z.object({ id: z.string().min(1).max(100) }).parse(input);
+        result = await requireDoorbells().remove(actor, i.id);
+        break;
+      }
+      case "test_doorbell": {
+        const i = z.object({ id: z.string().min(1).max(100) }).parse(input);
+        result = await requireDoorbells().test(actor, i.id);
         break;
       }
       case "set_connection": {

@@ -28,7 +28,7 @@ A private save may trigger an existing dashboard-enabled rule. Inspect `automati
 
 ## Read a shared update
 
-Shared Memory does not currently push updates to other members’ agents. Do not claim a normal chat is running in the background or that monitoring is active.
+Shared Memory never pushes update content to agents. A member can give their own assistant a lookout: `assistant_setup` returns host-specific steps, either a Grok Bot routine triggered "When a webhook fires" (a doorbell Shared Memory rings with IDs only) or a Dot scheduled check. Follow the steps only when the user asks to be notified, and report only what the host actually created. When a doorbell rings or a scheduled check runs, call `check_inbox`. Do not claim monitoring is active until a test or first run reached the user, and never invent a monitoring tool.
 
 1. Call `get_shared_update` with the space ID as `spaceId` and the memory ID or publication ID as `id` to retrieve the current authorized update and related context restricted to that same space.
 2. Tell **your own** user about the current update, author, and relevant context (e.g. Roshan’s agent tells Roshan that Pranav completed a task).

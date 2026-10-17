@@ -8,7 +8,7 @@ Hosts differ in how they can be woken. Shared Memory therefore keeps one **inbox
 
 | Host | Fastest wake | Source | Setup by the member |
 |---|---|---|---|
-| Dot (OpenAI) | MCP Events webhook, seconds | Official: developers.openai.com/plugins/build/mcp-events | Paste the setup prompt; the dot subscribes itself |
+| Dot (OpenAI) | Scheduled check, minutes | MCP Events webhooks were removed in #16 after they did not deliver reliably on Dot | Paste the setup prompt; the dot creates its own schedule |
 | Grok Bot (xAI) | Routine "When a webhook fires", seconds | Product feature; URL and key shown in the desktop app 0.53+ (Cursor forum, Sept 2026). Slack and GitHub event triggers are documented. | Paste the prompt, copy the routine's URL and key into the dashboard |
 | Muse (Meta) | Hook polling a content-free pulse, about a minute (unverified) | Official docs describe background monitoring only; hooks, crons and services come from an unofficial export of the Muse VM | Paste the prompt |
 | Any host | Inbox footer on every Shared Memory tool result | This service | None |
@@ -30,7 +30,7 @@ flowchart TD
   W[share / revise / publish commits a Change] --> K[kick: deliver now]
   W --> IB[(Inbox: per-member view over Change)]
   K --> R{Recipient's doorbells}
-  R -->|Dot| E[MCP Events webhook - existing]
+  R -->|Dot| E[Scheduled check]
   R -->|Grok Bot| G[Routine webhook - phase 2]
   IB --> P[Pulse counter - phase 3]
   P --> M[Muse hook polls, wakes on change]

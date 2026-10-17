@@ -33,6 +33,7 @@ import {
 import { fromClerkUser, fromClerkWebhook } from "./clerk-users.js";
 import type { UserStore } from "./users.js";
 import type { AutomaticOntology } from "./ontology-extraction.js";
+import type { DoorbellService } from "./doorbells.js";
 
 export interface Config {
   publicUrl: string;
@@ -52,6 +53,7 @@ interface Dependencies {
   users?: UserStore;
   memory?: MemoryStore;
   automaticOntology?: AutomaticOntology;
+  doorbells?: DoorbellService;
   dashboardAuthenticate?: (req: express.Request) => Promise<Actor | undefined>;
 }
 
@@ -175,13 +177,17 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     ? readFileSync(skillPath, "utf8")
     : operatingInstructions;
   const tools = dependencies.memory
-    ? memoryTools(dependencies.memory, skill, dependencies.automaticOntology)
+    ? memoryTools(dependencies.memory, skill, dependencies.automaticOntology, {
+        resource,
+        doorbells: dependencies.doorbells,
+      })
     : [];
   app.get("/api/config", (_req, res) =>
     res.json({
       publishableKey: config.publishableKey,
       mcpUrl: resource,
       accountPortalUrl: config.accountPortalUrl,
+      doorbells: Boolean(dependencies.doorbells),
     }),
   );
   app.get("/skill", (_req, res) => res.type("text/plain").send(skill));
@@ -205,6 +211,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         dependencies.memory,
         tools,
         dependencies.dashboardAuthenticate,
+        dependencies.doorbells,
       ),
     );
   app.get("/privacy", (_req, res) =>

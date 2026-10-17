@@ -6,6 +6,7 @@ import "@fontsource-variable/geist-mono";
 import codexLogo from "./assets/codex.png";
 import museLogo from "./assets/muse.svg";
 import { SpaceView } from "./SpaceView";
+import { AssistantsView } from "./AssistantsView";
 import { invitationRedirect } from "./invitation";
 const OntologyView = React.lazy(() =>
   import("./OntologyView").then((m) => ({ default: m.OntologyView })),
@@ -16,6 +17,7 @@ type Config = {
   publishableKey: string;
   mcpUrl: string;
   accountPortalUrl: string;
+  doorbells?: boolean;
 };
 type Memory = {
   id: string;
@@ -492,6 +494,7 @@ function Dashboard({ config }: { config: Config }) {
             ["memories", "memory", "Memories"],
             ["connections", "graph", "Connections"],
             ["spaces", "share", "Shared spaces"],
+            ["assistants", "refresh", "Assistants"],
             ["ontology", "graph", "Ontology"],
           ].map(([id, icon, label]) => (
             <button
@@ -1153,6 +1156,14 @@ function Dashboard({ config }: { config: Config }) {
                 </>
               )}
             </>
+          )}
+          {section === "assistants" && (
+            <AssistantsView
+              action={action}
+              doorbellsAvailable={config.doorbells === true}
+              onNotice={setNotice}
+              onError={setError}
+            />
           )}
           {section === "ontology" && (
             <React.Suspense fallback={<p className="empty">Loading graph…</p>}>
