@@ -12,6 +12,151 @@ interface Doorbell {
   needsAttention: boolean;
 }
 type Host = "grok" | "muse" | "dot";
+interface Preferences {
+  mode: "about_me" | "all";
+  digestHour: number;
+  timezone: string;
+  quietStart: number | null;
+  quietEnd: number | null;
+}
+const hourLabel = (h: number) =>
+  new Date(Date.UTC(2026, 0, 1, h)).toLocaleTimeString([], {
+    hour: "numeric",
+    timeZone: "UTC",
+  });
+const hoursList = Array.from({ length: 24 }, (_, h) => h);
+const browserTimezone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+};
+
+/** When assistants should interrupt the member about shared updates. */
+function PreferencesPanel({
+  action,
+  onNotice,
+  onError,
+}: {
+  action: Action;
+  onNotice: (message: string) => void;
+  onError: (message: string) => void;
+}) {
+  const [prefs, setPrefs] = useState<Preferences | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    action("get_notification_preferences", {})
+      .then((p: Preferences) =>
+        // Suggest the browser's timezone until the member has saved one.
+        setPrefs(p.timezone === "UTC" ? { ...p, timezone: browserTimezone() } : p),
+      )
+      .catch((e) => onError(e.message));
+  }, [action, onError]);
+  if (!prefs) return null;
+  const quiet = prefs.quietStart !== null && prefs.quietEnd !== null;
+  return (
+    <section className="panel preferences-panel" aria-labelledby="prefs-title">
+      <h2 id="prefs-title">When to tell me</h2>
+      <form
+        className="doorbell-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setSaving(true);
+          action("set_notification_preferences", prefs)
+            .then(() => onNotice("Notification settings saved"))
+            .catch((err) => onError(err.message))
+            .finally(() => setSaving(false));
+        }}
+      >
+        <fieldset className="choice-group">
+          <legend>Notify me right away about</legend>
+          <label>
+            <input
+              type="radio"
+              name="mode"
+              checked={prefs.mode === "about_me"}
+              onChange={() => setPrefs({ ...prefs, mode: "about_me" })}
+            />
+            Updates that mention me (the rest arrive in a daily digest)
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="mode"
+              checked={prefs.mode === "all"}
+              onChange={() => setPrefs({ ...prefs, mode: "all" })}
+            />
+            Every update
+          </label>
+        </fieldset>
+        <label>
+          Daily digest at
+          <select
+            value={prefs.digestHour}
+            onChange={(e) => setPrefs({ ...prefs, digestHour: Number(e.target.value) })}
+          >
+            {hoursList.map((h) => (
+              <option key={h} value={h}>
+                {hourLabel(h)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Quiet hours
+          <select
+            value={quiet ? "on" : "off"}
+            onChange={(e) =>
+              setPrefs(
+                e.target.value === "on"
+                  ? { ...prefs, quietStart: 22, quietEnd: 7 }
+                  : { ...prefs, quietStart: null, quietEnd: null },
+              )
+            }
+          >
+            <option value="off">Off</option>
+            <option value="on">On</option>
+          </select>
+        </label>
+        {quiet && (
+          <div className="quiet-range">
+            <label>
+              From
+              <select
+                value={prefs.quietStart!}
+                onChange={(e) => setPrefs({ ...prefs, quietStart: Number(e.target.value) })}
+              >
+                {hoursList.map((h) => (
+                  <option key={h} value={h}>
+                    {hourLabel(h)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Until
+              <select
+                value={prefs.quietEnd!}
+                onChange={(e) => setPrefs({ ...prefs, quietEnd: Number(e.target.value) })}
+              >
+                {hoursList.map((h) => (
+                  <option key={h} value={h}>
+                    {hourLabel(h)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+        <p className="muted">Times are in {prefs.timezone}.</p>
+        <button className="button small" disabled={saving}>
+          Save settings
+        </button>
+      </form>
+    </section>
+  );
+}
 interface PulseLink {
   id: string;
   createdAt: number;
@@ -106,6 +251,7 @@ export function AssistantsView({
         someone shares something in your spaces, and every Shared Memory reply
         mentions unread updates.
       </p>
+      <PreferencesPanel action={action} onNotice={onNotice} onError={onError} />
       <div className="assistants-grid">
         {hosts.map((h) => (
           <section className="panel" key={h.id} aria-labelledby={`host-${h.id}`}>

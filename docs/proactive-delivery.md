@@ -68,6 +68,10 @@ All additions are new labels, relationships and properties. Existing records are
 | `mark_inbox_seen` | no | Mark specific `changeIds`, or `all`, as read. |
 | Footer | n/a | Object results of every other tool gain `inbox: {unread}` when the caller has unread items. A footer failure never fails the tool call. |
 
+## Status (October 2026)
+
+Phases 1 to 4 are implemented on `codex/proactive-inbox`. Phase 5 is not started.
+
 ## Phases
 
 1. Inbox, `check_inbox`, `mark_inbox_seen`, footer, immediate delivery kick, operating skill. Works for every host.

@@ -7,6 +7,7 @@ import codexLogo from "./assets/codex.png";
 import museLogo from "./assets/muse.svg";
 import { SpaceView } from "./SpaceView";
 import { AssistantsView } from "./AssistantsView";
+import { InboxView } from "./InboxView";
 import { invitationRedirect } from "./invitation";
 const OntologyView = React.lazy(() =>
   import("./OntologyView").then((m) => ({ default: m.OntologyView })),
@@ -332,6 +333,7 @@ function Dashboard({ config }: { config: Config }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
+    [inboxUnread, setInboxUnread] = useState(0),
     [setupPromptText, setSetupPromptText] = useState(""),
     [spaceName, setSpaceName] = useState(""),
     [selectedSpace, setSelectedSpace] = useState<Space | null>(null),
@@ -360,6 +362,10 @@ function Dashboard({ config }: { config: Config }) {
   );
   const reload = useCallback(async () => {
     setData(await request("overview"));
+    // The inbox count is a nicety for the nav; failing to load it isn't an error.
+    request("action", { action: "check_inbox", input: { limit: 1 } })
+      .then((box) => setInboxUnread(box.unread ?? 0))
+      .catch(() => undefined);
   }, [request]);
   const initialSpaceLink = useRef(false);
   useEffect(() => {
@@ -491,6 +497,7 @@ function Dashboard({ config }: { config: Config }) {
       <aside className="sidebar">
         <nav aria-label="Workspace navigation">
           {[
+            ["inbox", "share", inboxUnread ? `Inbox (${inboxUnread})` : "Inbox"],
             ["memories", "memory", "Memories"],
             ["connections", "graph", "Connections"],
             ["spaces", "share", "Shared spaces"],
@@ -1156,6 +1163,14 @@ function Dashboard({ config }: { config: Config }) {
                 </>
               )}
             </>
+          )}
+          {section === "inbox" && (
+            <InboxView
+              action={action}
+              onNotice={setNotice}
+              onError={setError}
+              onCount={setInboxUnread}
+            />
           )}
           {section === "assistants" && (
             <AssistantsView

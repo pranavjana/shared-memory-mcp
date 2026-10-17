@@ -334,11 +334,23 @@ export class DoorbellService {
         true,
       );
       if (!pending.length) continue;
-      // Skip anything retracted, forgotten or no longer shared since it was queued.
+      // The owner's inbox decides: an update that was retracted, forgotten, already
+      // seen or replaced by a newer revision is skipped; one that is unread but not
+      // yet due under the owner's preferences (digest or quiet hours) waits.
+      const unread = new Map(
+        (
+          await this.store.inbox(
+            { userId: bell.owner, clientId: "doorbell" },
+            { limit: 500 },
+          )
+        ).items.map((i) => [i.changeId, i]),
+      );
       const readable: typeof pending = [];
-      for (const p of pending)
-        if (await this.store.isReadableChange(p.change)) readable.push(p);
-        else await this.settle(bell, [p.change.id], "skipped", 0, 0);
+      for (const p of pending) {
+        const item = unread.get(p.change.id);
+        if (!item) await this.settle(bell, [p.change.id], "skipped", 0, 0);
+        else if (item.dueNow) readable.push(p);
+      }
       if (!readable.length) continue;
       const claimed = await this.store.query<{ changeId: string; attempts: number }>(
         `UNWIND $rings AS ring
@@ -364,6 +376,7 @@ export class DoorbellService {
           spaceId: p.change.spaceId,
           spaceName: p.spaceName,
           actorName: p.change.actorName,
+          aboutYou: unread.get(p.change.id)!.aboutYou !== null,
           at: new Date(p.change.createdAt).toISOString(),
         }));
       const payload = {

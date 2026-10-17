@@ -408,6 +408,34 @@ test("real database API and both MCP protocols enforce identity, revisions and c
     assert.ok(!JSON.stringify(linkList.body).includes(pulsePath.split("/").pop()!));
     await api("user_b", "revoke_pulse_link", { id: linkList.body.links[0].id });
     assert.equal((await fetch(base + pulsePath)).status, 404);
+    for (const version of ["2026-07-28", "2025-11-25"]) {
+      const prefs = await rpc(
+        "user_b",
+        "tools/call",
+        { name: "get_notification_preferences", arguments: {} },
+        version,
+      );
+      assert.equal(prefs.body.result.structuredContent.mode, "about_me");
+    }
+    const savedPrefs = await api("user_b", "set_notification_preferences", {
+      mode: "all",
+      digestHour: 9,
+      timezone: "Asia/Singapore",
+      quietStart: null,
+      quietEnd: null,
+    });
+    assert.equal(savedPrefs.body.timezone, "Asia/Singapore");
+    assert.equal(
+      (await api("user_b", "set_notification_preferences", { timezone: "Nowhere/Land" })).status,
+      400,
+    );
+    assert.equal(
+      (await api("user_b", "confirm_identity", { changeId: "missing", name: "B", isMe: true })).status,
+      404,
+    );
+    const checked = await rpc("user_b", "tools/call", { name: "check_inbox", arguments: {} });
+    assert.ok(checked.body.result.structuredContent.nextDigestAt);
+    assert.equal(checked.body.result.structuredContent.mode, "all");
     const cleared = await rpc("user_b", "tools/call", {
       name: "mark_inbox_seen",
       arguments: { all: true },

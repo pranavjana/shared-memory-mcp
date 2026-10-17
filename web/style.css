@@ -527,6 +527,49 @@
   .doorbell-form .button {
     @apply justify-self-start;
   }
+  .preferences-panel {
+    @apply mb-6 max-w-2xl;
+  }
+  .choice-group {
+    @apply m-0 grid gap-2 border-0 p-0;
+  }
+  .choice-group legend {
+    @apply mb-1 text-xs font-medium text-secondary;
+  }
+  .choice-group label {
+    @apply flex items-start gap-2 text-sm font-normal text-ink;
+  }
+  .quiet-range {
+    @apply grid grid-cols-2 gap-3;
+  }
+  .inbox-header {
+    @apply mb-4 flex flex-wrap items-center justify-between gap-3;
+  }
+  .inbox-list {
+    @apply m-0 grid list-none gap-4 p-0;
+  }
+  .inbox-item {
+    @apply grid gap-3;
+  }
+  .inbox-meta {
+    @apply flex flex-wrap items-baseline gap-x-3 gap-y-1;
+  }
+  .inbox-meta strong {
+    @apply text-sm font-medium;
+  }
+  .inbox-text {
+    @apply m-0 text-sm leading-6 whitespace-pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .inbox-badge {
+    @apply rounded-full bg-ink px-2 py-0.5 text-[11px] font-medium text-white;
+  }
+  .inbox-question {
+    @apply flex flex-wrap items-center justify-between gap-2 rounded-md bg-canvas px-3 py-2 text-xs text-secondary;
+  }
+  .inbox-seen {
+    @apply justify-self-end;
+  }
   .doorbell-list {
     @apply mt-6;
   }

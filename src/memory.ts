@@ -7,6 +7,12 @@ type QueryParams = NonNullable<
 >;
 import { z } from "zod";
 import { entityTypes } from "./ontology.js";
+import {
+  defaultPreferences,
+  isDue,
+  parsePreferences,
+  type Preferences,
+} from "./preferences.js";
 
 export const kinds = [
   "fact",
@@ -87,6 +93,10 @@ export interface InboxItem {
   actorName: string;
   createdAt: number;
   seen: boolean;
+  /** The update names the reader; "confirmed" once the reader said that name is them. */
+  aboutYou: { status: "possible" | "confirmed"; name: string } | null;
+  /** Whether it should interrupt the reader now under their notification preferences. */
+  dueNow: boolean;
   update:
     | { type: "memory"; memory: ReturnType<MemoryStore["publicMemory"]> }
     | { type: "publication"; publicationId: string; claim: unknown };
@@ -94,6 +104,52 @@ export interface InboxItem {
 // Inbox reads are bounded: only the most recent changes in the reader's
 // spaces are considered, which keeps every tool-result footer cheap.
 const INBOX_WINDOW = 500;
+/** Names a reader is likely called by: their full name and their first name. */
+function ownNames(fullName: string) {
+  const full = fullName.normalize("NFKC").trim();
+  const first = full.split(/\s+/)[0] ?? "";
+  return [...new Set([full, first].filter((n) => n.length >= 2))];
+}
+function mentionText(update: InboxItem["update"]) {
+  if (update.type === "memory")
+    return [
+      update.memory.text,
+      ...((update.memory.entities ?? []) as { name?: string }[]).map((e) => e.name ?? ""),
+    ].join(" \n ");
+  const claim = update.claim as {
+    subject?: { name?: string };
+    object?: { name?: string };
+    value?: string;
+  };
+  return [claim.subject?.name, claim.object?.name, claim.value].filter(Boolean).join(" \n ");
+}
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * Finds the reader's name as a whole word in an update. A name match alone is
+ * only "possible"; it becomes "confirmed" after the reader says that author's
+ * use of the name means them, and a "not me" answer suppresses it.
+ */
+function mentionOf(
+  reader: { names: string[]; links: { author: string; name: string; isMe: boolean }[] },
+  author: string,
+  text: string,
+): InboxItem["aboutYou"] {
+  const fromAuthor = reader.links.filter((l) => l.author === author);
+  const candidates = [
+    ...new Set([...reader.names, ...fromAuthor.filter((l) => l.isMe).map((l) => l.name)]),
+  ];
+  const haystack = text.normalize("NFKC");
+  let possible: string | null = null;
+  for (const name of candidates) {
+    const answer = fromAuthor.find((l) => l.name.toLowerCase() === name.toLowerCase());
+    if (answer && !answer.isMe) continue;
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(name)}(?![\\p{L}\\p{N}])`, "iu");
+    if (!pattern.test(haystack)) continue;
+    if (answer?.isMe) return { status: "confirmed", name };
+    possible ??= name;
+  }
+  return possible ? { status: "possible", name: possible } : null;
+}
 export class DomainError extends Error {
   constructor(
     public status: number,
@@ -162,6 +218,7 @@ export class MemoryStore {
       "Doorbell",
       "DoorbellRing",
       "PulseLink",
+      "IdentityLink",
     ]) {
       try {
         await this.graph.createNodeRangeIndex(label, "id");
@@ -722,6 +779,8 @@ export class MemoryStore {
         true,
       ))
         publications.set(r.id + "|" + r.spaceId, r.payload);
+    const reader = await this.reader(actor);
+    const now = Date.now();
     const items: InboxItem[] = [];
     for (const { change: c, spaceName, seen, watermark } of candidates) {
       let update: InboxItem["update"] | undefined;
@@ -738,6 +797,7 @@ export class MemoryStore {
         if (m) update = { type: "memory", memory: this.publicMemory(m) };
       }
       if (!update) continue;
+      const aboutYou = mentionOf(reader, c.actorId, mentionText(update));
       items.push({
         changeId: c.id,
         kind: c.kind,
@@ -746,9 +806,19 @@ export class MemoryStore {
         actorName: c.actorName,
         createdAt: c.createdAt,
         seen: seen || (watermark != null && c.createdAt <= watermark),
+        aboutYou,
+        dueNow: isDue(
+          reader.preferences,
+          { createdAt: c.createdAt, urgent: aboutYou !== null },
+          now,
+        ),
         update,
       });
     }
+    // Updates about the reader first (confirmed before possible), then newest first.
+    const rank = (i: InboxItem) =>
+      i.aboutYou?.status === "confirmed" ? 2 : i.aboutYou ? 1 : 0;
+    items.sort((a, b) => rank(b) - rank(a) || b.createdAt - a.createdAt);
     return {
       unread: items.filter((i) => !i.seen).length,
       items: (options.includeSeen ? items : items.filter((i) => !i.seen)).slice(
@@ -757,23 +827,84 @@ export class MemoryStore {
       ),
     };
   }
-  /** Whether a change's memory or selected claim is still shared and its source not forgotten. */
-  async isReadableChange(change: Change) {
-    const rows = change.publicationId
-      ? await this.query(
-          `MATCH (p:Publication {id:$id})-[:PUBLISHED_IN]->(:Space {id:$space}),(p)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE p.active=true AND m.deletedAt IS NULL RETURN p.id AS id`,
-          { id: change.publicationId, space: change.spaceId },
-          true,
-        )
-      : await this.query(
-          `MATCH (m:Memory {id:$id})-[:SHARED_IN {active:true}]->(:Space {id:$space}) WHERE m.deletedAt IS NULL RETURN m.id AS id`,
-          { id: change.memoryId ?? "", space: change.spaceId },
-          true,
-        );
-    return rows.length > 0;
+  /** The reader's display name, notification preferences and identity answers. */
+  private async reader(actor: Actor) {
+    const [person] = await this.query<{ name: string | null; prefs: string | null }>(
+      "MATCH (p:Person {id:$user}) RETURN p.name AS name,p.notifyPrefs AS prefs",
+      { user: actor.userId },
+      true,
+    );
+    const links = await this.query<{ author: string; name: string; isMe: boolean }>(
+      "MATCH (l:IdentityLink) WHERE l.recipient=$user RETURN l.author AS author,l.name AS name,l.isMe AS isMe",
+      { user: actor.userId },
+      true,
+    );
+    let preferences = defaultPreferences;
+    try {
+      if (person?.prefs) preferences = parsePreferences(JSON.parse(person.prefs));
+    } catch {
+      // Stored preferences that no longer validate fall back to the defaults.
+    }
+    return {
+      names: ownNames(person?.name ?? actor.name ?? ""),
+      links,
+      preferences,
+    };
+  }
+  async preferences(actor: Actor): Promise<Preferences> {
+    return (await this.reader(actor)).preferences;
+  }
+  async setPreferences(actor: Actor, raw: unknown) {
+    const preferences = parsePreferences(raw);
+    await this.query(
+      "MERGE (p:Person {id:$user}) SET p.notifyPrefs=$prefs",
+      { user: actor.userId, prefs: JSON.stringify(preferences) },
+    );
+    return preferences;
+  }
+  /**
+   * Records the reader's answer to "is this name you?" for one author's updates.
+   * The change must be an update from another member of one of the reader's spaces.
+   */
+  async confirmIdentity(
+    actor: Actor,
+    input: { changeId: string; name: string; isMe: boolean },
+  ) {
+    const name = input.name.normalize("NFKC").trim();
+    if (!name || name.length > 120)
+      throw new DomainError(400, "Provide the name shown in the update");
+    const [change] = await this.query<{ author: string }>(
+      `MATCH (:Person {id:$user})-[:MEMBER_OF {active:true}]->(s:Space)
+      MATCH (c:Change {id:$change}) WHERE c.spaceId=s.id AND c.actorId<>$user
+      RETURN c.actorId AS author LIMIT 1`,
+      { user: actor.userId, change: input.changeId },
+      true,
+    );
+    if (!change) throw new DomainError(404, "Update not found");
+    await this.query(
+      `MERGE (l:IdentityLink {id:$id})
+      SET l.recipient=$user,l.author=$author,l.name=$name,l.isMe=$isMe,l.at=$now`,
+      {
+        id: digest(actor.userId + "|" + change.author + "|" + name.toLowerCase()),
+        user: actor.userId,
+        author: change.author,
+        name,
+        isMe: input.isMe,
+        now: Date.now(),
+      },
+    );
+    return { recorded: true, name, isMe: input.isMe };
   }
   async inboxCount(actor: Actor) {
     return (await this.inbox(actor, { limit: 1 })).unread;
+  }
+  /** Unread count plus how many of them mention the reader; used by the tool footer. */
+  async inboxSummary(actor: Actor) {
+    const box = await this.inbox(actor, { limit: INBOX_WINDOW });
+    return {
+      unread: box.unread,
+      aboutYou: box.items.filter((i) => i.aboutYou).length,
+    };
   }
   async markInboxSeen(
     actor: Actor,

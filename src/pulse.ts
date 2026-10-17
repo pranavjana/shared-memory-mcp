@@ -68,22 +68,18 @@ export class PulseService {
     if (!link) return undefined;
     const inbox = await this.store.inbox(
       { userId: link.owner, clientId: "pulse" },
-      { limit: 50 },
+      { limit: 500 },
     );
     await this.store.query(
       "MATCH (l:PulseLink {id:$id}) SET l.lastUsedAt=$now",
       { id: link.id, now: Date.now() },
     );
+    // The version moves only for updates due now, so a hook wakes its assistant
+    // for "about you" updates immediately and for the rest at digest time.
+    const due = inbox.items.filter((i) => i.dueNow).map((i) => i.changeId);
     return {
       unread: inbox.unread,
-      version: inbox.unread
-        ? digest(
-            inbox.items
-              .map((i) => i.changeId)
-              .sort()
-              .join(","),
-          ).slice(0, 16)
-        : "0",
+      version: due.length ? digest(due.sort().join(",")).slice(0, 16) : "0",
     };
   }
 }

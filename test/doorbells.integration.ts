@@ -55,6 +55,8 @@ test("Grok doorbells ring once per batch with content-free payloads, retry trans
       receiver,
       (await s.invite(sender, space.id, receiver.email!, "reader")).token,
     );
+    // These tests cover delivery mechanics, so every update is instant here.
+    await s.setPreferences(receiver, { mode: "all" });
     await assert.rejects(
       bells.add(receiver, { kind: "grok_webhook", url: "http://hooks.example.com/x", authorization: "Bearer crsr_abcdefgh" }),
       /HTTPS/,

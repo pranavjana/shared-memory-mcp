@@ -62,7 +62,8 @@ export function lookoutPrompt(resource: string, host: LookoutHost): string {
   const endpoint = new URL(resource).href.replace(/\/$/, "");
   const dashboard = new URL(endpoint).origin + "/dashboard";
   const connect = `1. Use my existing Shared Memory connection to this exact endpoint: ${endpoint}
-   Call get_connection_status and confirm it is my account. Do not switch accounts, use another deployment, or ask me for tokens in chat.`;
+   Call get_connection_status and confirm it is my account. Do not switch accounts, use another deployment, or ask me for tokens in chat.
+   Call get_notification_preferences. If the timezone is still UTC and that is not my timezone, ask me to confirm my timezone and save it with set_notification_preferences, keeping the other settings.`;
   if (host === "grok")
     return `Set up Shared Memory updates for me in Grok Bot, so you tell me as soon as someone shares something in my spaces.
 

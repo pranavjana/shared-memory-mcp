@@ -39,6 +39,8 @@ test("a pulse link exposes only an unread counter that changes with new updates"
       receiver,
       (await s.invite(sender, space.id, receiver.email!, "reader")).token,
     );
+    // These tests cover delivery mechanics, so every update is instant here.
+    await s.setPreferences(receiver, { mode: "all" });
     const link = await pulse.create(receiver);
     assert.match(link.url, /^https:\/\/memory\.example\.com\/pulse\/smp_[A-Za-z0-9_-]{43}$/);
     const token = link.url.split("/pulse/")[1];
