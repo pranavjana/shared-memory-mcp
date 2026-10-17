@@ -135,6 +135,8 @@ test("real database API and both MCP protocols enforce identity, revisions and c
     assert.equal((await rpc("invalid", "tools/list")).status, 401);
     const listed = await rpc("user_a", "tools/list");
     assert.ok(listed.body.result.tools.some((t: any) => t.name === "remember"));
+    for (const name of ["check_inbox", "mark_inbox_seen"])
+      assert.ok(listed.body.result.tools.some((t: any) => t.name === name));
     for (const version of ["2026-07-28", "2025-11-25"]) {
       const empty = await rpc(
         "user_a",
@@ -330,6 +332,42 @@ test("real database API and both MCP protocols enforce identity, revisions and c
         setup.body.result.structuredContent.prompt.includes(origin + "/mcp"),
       );
     }
+    for (const version of ["2026-07-28", "2025-11-25"]) {
+      const footer = await rpc(
+        "user_b",
+        "tools/call",
+        { name: "list_spaces", arguments: {} },
+        version,
+      );
+      const content = CallToolResultSchema.parse(footer.body.result)
+        .structuredContent as any;
+      assert.ok(content.inbox.unread >= 1, "Unread shares surface as a footer");
+      const box = await rpc(
+        "user_b",
+        "tools/call",
+        { name: "check_inbox", arguments: {} },
+        version,
+      );
+      assert.ok(
+        box.body.result.structuredContent.items.some(
+          (item: any) => item.update.memory?.id === id,
+        ),
+      );
+    }
+    const cleared = await rpc("user_b", "tools/call", {
+      name: "mark_inbox_seen",
+      arguments: { all: true },
+    });
+    assert.equal(cleared.body.result.structuredContent.unread, 0);
+    const quiet = await rpc(
+      "user_b",
+      "tools/call",
+      { name: "list_spaces", arguments: {} },
+      "2025-11-25",
+    );
+    assert.ok(
+      !("inbox" in CallToolResultSchema.parse(quiet.body.result).structuredContent!),
+    );
     const bPrivate = (
       await api("user_b", "remember", {
         ...i,

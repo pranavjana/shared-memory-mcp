@@ -177,7 +177,8 @@ const deliverySchema = z
   })
   .strict();
 export class EventService {
-  private running = false;
+  private active?: Promise<void>;
+  private again = false;
   constructor(
     private store: MemoryStore,
     private encryptionKey: string,
@@ -347,99 +348,116 @@ export class EventService {
       ({ secret: _, previousSecret: __, grantToken: ___, ...s }) => s,
     );
   }
-  async tick() {
-    if (this.running) return;
-    this.running = true;
-    try {
-      const subscriptions = await this.store.subscriptions();
-      for (const sub of subscriptions) {
-        if (
-          !(await this.store.clientEnabled(sub.owner, sub.clientId)) ||
-          (this.grantValid &&
-            (!sub.grantToken ||
-              !(await this.grantValid(
-                decrypt(sub.grantToken, this.encryptionKey),
-                sub.owner,
-                sub.clientId,
-              ))))
-        ) {
-          await this.store.unsubscribe(sub.owner, sub.id);
+  /**
+   * Runs one delivery pass. Called on the worker interval and immediately after
+   * each committed change. A call during a pass schedules one more pass instead
+   * of being dropped, so a change committed mid-pass is not left for the next
+   * interval; callers await until the queue they triggered has been processed.
+   */
+  tick(): Promise<void> {
+    if (this.active) {
+      this.again = true;
+      return this.active;
+    }
+    this.active = (async () => {
+      try {
+        do {
+          this.again = false;
+          await this.deliverPending();
+        } while (this.again);
+      } finally {
+        this.active = undefined;
+      }
+    })();
+    return this.active;
+  }
+  private async deliverPending() {
+    const subscriptions = await this.store.subscriptions();
+    for (const sub of subscriptions) {
+      if (
+        !(await this.store.clientEnabled(sub.owner, sub.clientId)) ||
+        (this.grantValid &&
+          (!sub.grantToken ||
+            !(await this.grantValid(
+              decrypt(sub.grantToken, this.encryptionKey),
+              sub.owner,
+              sub.clientId,
+            ))))
+      ) {
+        await this.store.unsubscribe(sub.owner, sub.id);
+        continue;
+      }
+      for (const change of await this.store.pendingChanges(sub)) {
+        const claim = await this.store.claimDelivery(sub, change);
+        if (!claim) continue;
+        if (!(await this.store.canReceive(sub, change))) {
+          await this.store.finishDelivery(
+            claim.id,
+            "revoked",
+            0,
+            claim.attempts,
+          );
           continue;
         }
-        for (const change of await this.store.pendingChanges(sub)) {
-          const claim = await this.store.claimDelivery(sub, change);
-          if (!claim) continue;
-          if (!(await this.store.canReceive(sub, change))) {
-            await this.store.finishDelivery(
-              claim.id,
-              "revoked",
-              0,
-              claim.attempts,
-            );
-            continue;
-          }
-          try {
-            const previous =
-              sub.previousSecret && sub.rotationUntil! > Date.now()
-                ? decrypt(sub.previousSecret, this.encryptionKey)
-                : undefined;
-            const result = await this.signed(
-              sub.url,
-              decrypt(sub.secret, this.encryptionKey),
-              change.id,
-              {
-                eventId: change.id,
-                name: change.publicationId
-                  ? "knowledge.changed"
-                  : "memory.changed",
-                timestamp: new Date(change.createdAt).toISOString(),
-                data: {
-                  ...(change.publicationId
-                    ? { publication_id: change.publicationId }
-                    : { memory_id: change.memoryId }),
-                  space_id: change.spaceId,
-                  actor_name: change.actorName,
-                  change: change.kind,
-                  revision: change.revision,
-                  url:
-                    this.publicUrl +
-                    (change.publicationId
-                      ? "/dashboard?space=" + encodeURIComponent(change.spaceId)
-                      : "/dashboard?memory=" +
-                        encodeURIComponent(change.memoryId!)),
-                },
-                cursor: null,
+        try {
+          const previous =
+            sub.previousSecret && sub.rotationUntil! > Date.now()
+              ? decrypt(sub.previousSecret, this.encryptionKey)
+              : undefined;
+          const result = await this.signed(
+            sub.url,
+            decrypt(sub.secret, this.encryptionKey),
+            change.id,
+            {
+              eventId: change.id,
+              name: change.publicationId
+                ? "knowledge.changed"
+                : "memory.changed",
+              timestamp: new Date(change.createdAt).toISOString(),
+              data: {
+                ...(change.publicationId
+                  ? { publication_id: change.publicationId }
+                  : { memory_id: change.memoryId }),
+                space_id: change.spaceId,
+                actor_name: change.actorName,
+                change: change.kind,
+                revision: change.revision,
+                url:
+                  this.publicUrl +
+                  (change.publicationId
+                    ? "/dashboard?space=" + encodeURIComponent(change.spaceId)
+                    : "/dashboard?memory=" +
+                      encodeURIComponent(change.memoryId!)),
               },
-              sub.id,
-              previous,
-            );
-            const ok = result.status >= 200 && result.status < 300;
-            const terminal =
-              [410, 413].includes(result.status) ||
-              claim.attempts >= 6 ||
-              (result.status >= 400 &&
-                result.status < 500 &&
-                ![408, 429].includes(result.status));
-            await this.store.finishDelivery(
-              claim.id,
-              ok ? "accepted" : terminal ? "failed" : "retry",
-              result.status,
-              claim.attempts,
-            );
-            if (result.status === 410)
-              await this.store.unsubscribe(sub.owner, sub.id);
-          } catch {
-            await this.store.finishDelivery(
-              claim.id,
-              claim.attempts >= 6 ? "failed" : "retry",
-              0,
-              claim.attempts,
-            );
-          }
+              cursor: null,
+            },
+            sub.id,
+            previous,
+          );
+          const ok = result.status >= 200 && result.status < 300;
+          const terminal =
+            [410, 413].includes(result.status) ||
+            claim.attempts >= 6 ||
+            (result.status >= 400 &&
+              result.status < 500 &&
+              ![408, 429].includes(result.status));
+          await this.store.finishDelivery(
+            claim.id,
+            ok ? "accepted" : terminal ? "failed" : "retry",
+            result.status,
+            claim.attempts,
+          );
+          if (result.status === 410)
+            await this.store.unsubscribe(sub.owner, sub.id);
+        } catch {
+          await this.store.finishDelivery(
+            claim.id,
+            claim.attempts >= 6 ? "failed" : "retry",
+            0,
+            claim.attempts,
+          );
         }
       }
-    } finally {
-      this.running = false;
     }
   }
 }

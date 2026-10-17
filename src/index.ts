@@ -62,6 +62,12 @@ const worker = events
     }, 5000)
   : undefined;
 worker?.unref();
+// Deliver as soon as a share commits instead of waiting for the next interval;
+// the interval stays as the retry path.
+if (events)
+  memory.onChange(() => {
+    void events.tick().catch(() => console.error("Event delivery failed"));
+  });
 const server = createApp(
   {
     publicUrl,

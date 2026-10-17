@@ -94,6 +94,21 @@ export interface Change {
   kind: string;
   createdAt: number;
 }
+export interface InboxItem {
+  changeId: string;
+  kind: string;
+  spaceId: string;
+  spaceName: string;
+  actorName: string;
+  createdAt: number;
+  seen: boolean;
+  update:
+    | { type: "memory"; memory: ReturnType<MemoryStore["publicMemory"]> }
+    | { type: "publication"; publicationId: string; claim: unknown };
+}
+// Inbox reads are bounded: only the most recent changes in the reader's
+// spaces are considered, which keeps every tool-result footer cheap.
+const INBOX_WINDOW = 500;
 export class DomainError extends Error {
   constructor(
     public status: number,
@@ -107,10 +122,28 @@ export const digest = (value: string) =>
 const access = (extra = "") =>
   `OPTIONAL MATCH (m)-[:SHARED_IN {active:true}]->(:Space)<-[membership:MEMBER_OF {active:true}]-(:Person {id:$user}) WITH m${extra},count(membership) AS memberships WHERE m.deletedAt IS NULL AND (m.owner=$user OR memberships>0)`;
 export class MemoryStore {
+  private changeListeners = new Set<() => void>();
   constructor(
     public db: FalkorDB,
     public graphName: string,
   ) {}
+  /** Called after a committed share, revision or publication so delivery can start immediately. */
+  onChange(listener: () => void) {
+    this.changeListeners.add(listener);
+    return () => {
+      this.changeListeners.delete(listener);
+    };
+  }
+  emitChange() {
+    for (const listener of this.changeListeners) {
+      // A failing listener must never fail the write that already committed.
+      try {
+        listener();
+      } catch {
+        console.error("Change listener failed");
+      }
+    }
+  }
   get graph() {
     return this.db.selectGraph(this.graphName);
   }
@@ -176,6 +209,14 @@ export class MemoryStore {
             throw e;
         }
       }
+    }
+    // Inbox reads filter changes by space; this index keeps them from scanning every change.
+    try {
+      await this.graph.createNodeRangeIndex("Change", "spaceId");
+    } catch (e) {
+      // The pinned server says "already indexed"; FalkorDB's client docs say "already exists".
+      if (!(e instanceof Error) || !/already (indexed|exists)/i.test(e.message))
+        throw e;
     }
     for (let attempt = 0; attempt < 100; attempt++) {
       const cs = await this.query<{ status: string }>(
@@ -396,6 +437,7 @@ export class MemoryStore {
         409,
         "Memory changed; retrieve the latest revision before correcting it",
       );
+    this.emitChange();
     return {
       saved: true,
       memory: this.publicMemory(rows[0].value),
@@ -612,6 +654,7 @@ export class MemoryStore {
       },
     );
     if (!rows[0]) throw new DomainError(403, "Sharing permission changed");
+    this.emitChange();
     return {
       shared: enabled,
       memoryId: id,
@@ -712,6 +755,132 @@ export class MemoryStore {
         true,
       )
     ).map((r) => r.value);
+  }
+  /**
+   * Updates other members shared into the reader's spaces since they joined,
+   * newest first, one entry per memory or publication (its latest change).
+   * Only items the reader can still read are returned; retractions drop out.
+   */
+  async inbox(
+    actor: Actor,
+    options: { limit?: number; includeSeen?: boolean } = {},
+  ): Promise<{ unread: number; items: InboxItem[] }> {
+    const rows = await this.query<{
+      change: Change;
+      spaceName: string;
+      seen: boolean;
+      watermark: number | null;
+    }>(
+      `MATCH (p:Person {id:$user})-[member:MEMBER_OF {active:true}]->(s:Space)
+      MATCH (c:Change) WHERE c.spaceId=s.id AND c.actorId<>$user AND c.createdAt>=coalesce(member.joinedAt,0)
+      OPTIONAL MATCH (p)-[seen:SEEN]->(c)
+      RETURN properties(c) AS change,s.name AS spaceName,seen IS NOT NULL AS seen,p.inboxSeenAt AS watermark
+      ORDER BY c.createdAt DESC,c.revision DESC LIMIT ${INBOX_WINDOW}`,
+      { user: actor.userId },
+      true,
+    );
+    const latest = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const c = row.change;
+      const key =
+        (c.publicationId ? "pub:" + c.publicationId : "mem:" + c.memoryId) +
+        "|" +
+        c.spaceId;
+      if (!latest.has(key)) latest.set(key, row);
+    }
+    const candidates = [...latest.values()].filter(
+      (r) => r.change.kind !== "retracted",
+    );
+    const memoryIds = [
+      ...new Set(candidates.flatMap((r) => r.change.memoryId ?? [])),
+    ];
+    const publicationIds = [
+      ...new Set(candidates.flatMap((r) => r.change.publicationId ?? [])),
+    ];
+    // Re-check current state: a share may since be retracted or its source forgotten.
+    const memories = new Map<string, Memory>();
+    if (memoryIds.length)
+      for (const r of await this.query<{
+        id: string;
+        spaceId: string;
+        value: Memory;
+      }>(
+        `MATCH (m:Memory)-[:SHARED_IN {active:true}]->(s:Space) WHERE m.id IN $ids AND m.deletedAt IS NULL RETURN m.id AS id,s.id AS spaceId,properties(m) AS value`,
+        { ids: memoryIds },
+        true,
+      ))
+        memories.set(r.id + "|" + r.spaceId, r.value);
+    const publications = new Map<string, string>();
+    if (publicationIds.length)
+      for (const r of await this.query<{
+        id: string;
+        spaceId: string;
+        payload: string;
+      }>(
+        `MATCH (pub:Publication)-[:PUBLISHED_IN]->(s:Space),(pub)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE pub.id IN $ids AND pub.active=true AND m.deletedAt IS NULL RETURN pub.id AS id,s.id AS spaceId,pub.payload AS payload`,
+        { ids: publicationIds },
+        true,
+      ))
+        publications.set(r.id + "|" + r.spaceId, r.payload);
+    const items: InboxItem[] = [];
+    for (const { change: c, spaceName, seen, watermark } of candidates) {
+      let update: InboxItem["update"] | undefined;
+      if (c.publicationId) {
+        const payload = publications.get(c.publicationId + "|" + c.spaceId);
+        if (payload)
+          update = {
+            type: "publication",
+            publicationId: c.publicationId,
+            claim: JSON.parse(payload),
+          };
+      } else {
+        const m = memories.get(c.memoryId + "|" + c.spaceId);
+        if (m) update = { type: "memory", memory: this.publicMemory(m) };
+      }
+      if (!update) continue;
+      items.push({
+        changeId: c.id,
+        kind: c.kind,
+        spaceId: c.spaceId,
+        spaceName,
+        actorName: c.actorName,
+        createdAt: c.createdAt,
+        seen: seen || (watermark != null && c.createdAt <= watermark),
+        update,
+      });
+    }
+    return {
+      unread: items.filter((i) => !i.seen).length,
+      items: (options.includeSeen ? items : items.filter((i) => !i.seen)).slice(
+        0,
+        options.limit ?? 20,
+      ),
+    };
+  }
+  async inboxCount(actor: Actor) {
+    return (await this.inbox(actor, { limit: 1 })).unread;
+  }
+  async markInboxSeen(
+    actor: Actor,
+    input: { changeIds?: string[]; all?: boolean },
+  ) {
+    if (!input.all && !input.changeIds?.length)
+      throw new DomainError(400, "Provide changeIds or all");
+    const now = Date.now();
+    if (input.all)
+      await this.query(
+        `MERGE (p:Person {id:$user}) SET p.inboxSeenAt=$now`,
+        { user: actor.userId, now },
+      );
+    if (input.changeIds?.length)
+      // Only changes in the reader's current spaces can be marked.
+      await this.query(
+        `MATCH (p:Person {id:$user})-[:MEMBER_OF {active:true}]->(s:Space)
+        MATCH (c:Change) WHERE c.id IN $ids AND c.spaceId=s.id
+        MERGE (p)-[seen:SEEN]->(c) ON CREATE SET seen.at=$now`,
+        { user: actor.userId, ids: input.changeIds, now },
+      );
+    return { unread: await this.inboxCount(actor) };
   }
   async authorizeClient(actor: Actor) {
     const id = digest(actor.userId + "|" + actor.clientId);

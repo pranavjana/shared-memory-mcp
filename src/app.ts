@@ -4,7 +4,11 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import { MemoryStore, DomainError, type Actor } from "./memory.js";
 import { EventService, eventDefinitions } from "./events.js";
-import { memoryTools, operatingInstructions, runTool } from "./tools.js";
+import {
+  memoryTools,
+  operatingInstructions,
+  runToolWithInbox,
+} from "./tools.js";
 import { dashboardApi } from "./api.js";
 import { mcpInstallPrompt } from "./onboarding.js";
 import { ontology } from "./ontology.js";
@@ -447,7 +451,13 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
                     events: !!dependencies.events,
                   },
                 }
-              : await runTool(tools, actor, params.name, params.arguments);
+              : await runToolWithInbox(
+                  tools,
+                  dependencies.memory!,
+                  actor,
+                  params.name,
+                  params.arguments,
+                );
           result = {
             resultType: "complete",
             content: [{ type: "text", text: JSON.stringify(data) }],
@@ -545,7 +555,13 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
           try {
             const profile = await getProfile(actor.userId);
             actor.name = profile.name;
-            const data = await runTool(tools, actor, tool.name, input);
+            const data = await runToolWithInbox(
+              tools,
+              dependencies.memory!,
+              actor,
+              tool.name,
+              input,
+            );
             return {
               content: [{ type: "text" as const, text: JSON.stringify(data) }],
               structuredContent: data as Record<string, unknown>,
