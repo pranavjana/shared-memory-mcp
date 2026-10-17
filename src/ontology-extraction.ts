@@ -183,19 +183,59 @@ const validTime = (t: string | null) =>
 // A negated claim must quote a negation of that relationship's own verb ("can't
 // speak" for SPEAKS). Models otherwise negate the other party or an unstated
 // relationship; an unclear negative is dropped rather than stored as a falsehood.
+// Users type contractions without apostrophes ("cant speak"), so match both forms.
 const negation =
-  /\b(not|no|never|neither|nor|cannot|without|no longer)\b|n['’]t\b/i;
+  /\b(not|no|never|neither|nor|cannot|unable|without|no longer)\b|n['’]t\b|\b(cant|dont|doesnt|didnt|isnt|wasnt|arent|werent|wont|wouldnt|couldnt|shouldnt|havent|hasnt|hadnt)\b/i;
+// A skill is an ability, so "can't speak Tamil" negates HAS_SKILL Tamil.
+const ability = /\b(can['’]?t|cannot|unable)\b/i;
 const statesNegation = (predicate: string, evidence: string) => {
   const verb = predicate
     .split("_")
     .find((t) => !["HAS", "IS", "CAN", "DOES"].includes(t));
   if (!verb || !negation.test(evidence)) return false;
+  if (predicate === "HAS_SKILL" && ability.test(evidence)) return true;
   const stem = verb.toLowerCase().replace(/(es|s)$/, "");
   return evidence
     .toLowerCase()
     .includes(stem.slice(0, Math.max(3, stem.length - 2)));
 };
 type ExtractedClaim = Extraction["claims"][number];
+/** Models sometimes name an entity in a claim without declaring it ("Tamil").
+ *  Declare it only when that exact name is in the source and the relationship
+ *  allows exactly one type for it; anything else stays invalid and is dropped. */
+function declareNamedEntities(
+  output: Extraction,
+  source: Pick<Memory, "text" | "evidence">,
+  definitions: Map<string, RelationDefinition>,
+  mapping: Map<string, string>,
+): Extraction {
+  const text = normalize(source.text + " " + source.evidence);
+  const declared = new Set(output.entities.map((e) => e.key));
+  const entities = [...output.entities];
+  for (const c of output.claims) {
+    const r = definitions.get(
+      mapping.get(c.predicate) ?? normalizePredicate(c.predicate),
+    );
+    if (!r) continue;
+    const slots: [string | null, string[]][] = [
+      [c.subject, r.from],
+      [c.object, r.value ? [] : r.to],
+    ];
+    for (const [key, types] of slots) {
+      if (!key || declared.has(key) || types.length !== 1) continue;
+      if (key.length > 120 || !text.includes(normalize(key))) continue;
+      declared.add(key);
+      entities.push({
+        key,
+        type: types[0] as Extraction["entities"][number]["type"],
+        name: key,
+        existingKey: null,
+        identityEvidence: null,
+      });
+    }
+  }
+  return { ...output, entities };
+}
 /** Models often fill both object and value. Keep the field the predicate supports and
  *  recover a preference's stated content as HAS_VALUE only when the source contains it. */
 function separateLiterals(
@@ -288,7 +328,15 @@ export class AutomaticOntology {
       definitions: RelationDefinition[];
     } = { mapping: new Map(), definitions: [] },
   ) {
-    const output: Extraction = extractionOutput.parse(raw);
+    const definitions = new Map(
+      [...coreAssertions, ...resolved.definitions].map((r) => [r.id, r]),
+    );
+    const output: Extraction = declareNamedEntities(
+      extractionOutput.parse(raw),
+      source,
+      definitions,
+      resolved.mapping,
+    );
     if (!output.claims.length) return null;
     const schema = knowledgeInputFor(resolved.definitions);
     const literalPredicates = new Set(
