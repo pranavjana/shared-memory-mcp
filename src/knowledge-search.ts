@@ -221,8 +221,10 @@ export class KnowledgeSearch {
         true,
       );
       if (!exists.length) continue;
+      // Filters stay in WHERE: newer FalkorDB rejects inline property maps
+      // ({id:$space}) in a MATCH that follows CALL db.idx.*.queryNodes.
       const guard = scope.space
-        ? `MATCH (node)-[:INDEXES]->(c:Publication)-[:PUBLISHED_IN]->(s:Space {id:$space})<-[:MEMBER_OF {active:true}]-(:Person {id:$user}) MATCH (c)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE c.active=true AND m.deletedAt IS NULL`
+        ? `MATCH (node)-[:INDEXES]->(c:Publication)-[:PUBLISHED_IN]->(sp:Space)<-[member:MEMBER_OF]-(person:Person) MATCH (c)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE sp.id=$space AND person.id=$user AND member.active=true AND c.active=true AND m.deletedAt IS NULL`
         : `MATCH (node)-[:INDEXES]->(c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory) WHERE c.owner=$user AND c.sourceRevision=m.revision AND c.status IN ['active','disputed'] AND m.deletedAt IS NULL`;
       const params = {
         label,
