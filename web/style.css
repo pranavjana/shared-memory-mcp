@@ -323,6 +323,19 @@
   .memory-card-top .subtle {
     @apply text-[10px];
   }
+  .memory-card-top .ontology-gap {
+    @apply mr-auto rounded px-2 py-1 font-mono text-[10px];
+    background: #fbf3e4;
+    color: #9a6b1f;
+  }
+  .ontology-gap-note {
+    @apply my-4 rounded-md p-4 text-[13px];
+    background: #fbf3e4;
+    color: #6f4f19;
+  }
+  .ontology-gap-note p {
+    @apply mb-3;
+  }
   .kind-badge {
     @apply inline-flex items-center gap-2 rounded bg-canvas px-2 py-1 font-mono text-[10px] text-secondary;
   }

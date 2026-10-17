@@ -16,8 +16,11 @@ import dagre from "@dagrejs/dagre";
 import "@xyflow/react/dist/style.css";
 import type { Claim } from "../src/knowledge";
 import type { ontology } from "../src/ontology";
+import type { CustomPredicate } from "../src/predicates";
 
 type Space = { id: string; name: string; role: string };
+type CustomRow = CustomPredicate & { claims: number; authors: number };
+type Schema = typeof ontology & { custom?: CustomRow[]; canReview?: boolean };
 type Props = {
   request: (path: string) => Promise<any>;
   action: (name: string, input: unknown) => Promise<any>;
@@ -41,6 +44,7 @@ const colors: Record<string, string> = {
 const label = (s: string) => s.replaceAll("_", " ").toLowerCase();
 const attributeName = (predicate: string) =>
   label(predicate.replace(/^HAS_/, ""));
+const not = (c: Claim) => (c.negated ? "not " : "");
 const maxVisibleAttributes = 5;
 const quantity = (n: number, singular: string, plural = singular + "s") =>
   `${n} ${n === 1 ? singular : plural}`;
@@ -49,6 +53,7 @@ type EntityCardData = {
   entityType: string;
   attributes: Claim[];
   attributeTypes: Record<string, string>;
+  provisional: Set<string>;
   inspect: (id: string) => void;
 };
 type EntityClassNode = Node<EntityCardData, "entityClass">;
@@ -77,7 +82,7 @@ function EntityClassCard({
             <button
               key={c.id}
               className={`kg-class-attribute nodrag nopan${c.basis === "inferred" ? " inferred" : ""}`}
-              aria-label={`Inspect ${attributeName(c.predicate)}: ${c.value}`}
+              aria-label={`Inspect ${not(c)}${attributeName(c.predicate)}: ${c.value}`}
               title={`${c.authorName} · ${c.basis} · ${c.status}`}
               onClick={(e) => {
                 e.stopPropagation();
@@ -85,9 +90,13 @@ function EntityClassCard({
               }}
             >
               <span className="kg-attribute-key">
-                <code>{attributeName(c.predicate)}</code>
+                <code>
+                  {not(c)}
+                  {attributeName(c.predicate)}
+                </code>
                 <small>
                   {data.attributeTypes[c.predicate] ?? "string"}
+                  {data.provisional.has(c.predicate) ? " · provisional" : ""}
                   {c.basis === "inferred"
                     ? " · inferred"
                     : c.status === "disputed"
@@ -121,6 +130,7 @@ function layout(
   narrow: boolean,
   inspect: (id: string) => void,
   attributeTypes: Record<string, string>,
+  provisional: Set<string>,
 ) {
   const entities = new Map<
     string,
@@ -172,6 +182,7 @@ function layout(
       entityType: e.type,
       attributes: e.attributes,
       attributeTypes,
+      provisional,
       inspect,
     },
     className: "kg-node kg-class-node",
@@ -182,7 +193,10 @@ function layout(
       id: c.id,
       source: c.subject.id,
       target: c.object!.id,
-      label: label(c.predicate),
+      label:
+        not(c) +
+        label(c.predicate) +
+        (provisional.has(c.predicate) ? " · provisional" : ""),
       markerEnd: {
         type: MarkerType.ArrowClosed,
         width: 14,
@@ -190,9 +204,15 @@ function layout(
         color: "#a8a8a8",
       },
       style: {
-        stroke: c.basis === "inferred" ? "#b194c3" : "#bcbcbc",
+        stroke: c.negated
+          ? "#c08a8a"
+          : c.basis === "inferred"
+            ? "#b194c3"
+            : "#bcbcbc",
         strokeWidth: 1,
-        ...(c.basis === "inferred" ? { strokeDasharray: "4 4" } : {}),
+        ...(c.basis === "inferred" || provisional.has(c.predicate)
+          ? { strokeDasharray: "4 4" }
+          : {}),
       },
       labelStyle: { fontSize: 11, fill: "#696969" },
       labelBgStyle: { fill: "#fafafa" },
@@ -223,7 +243,9 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
     [type, setType] = useState("all"),
     [claims, setClaims] = useState<Claim[]>([]),
     [selected, setSelected] = useState<string | null>(null),
-    [schema, setSchema] = useState<typeof ontology | null>(null),
+    [schema, setSchema] = useState<Schema | null>(null),
+    [schemaRevision, setSchemaRevision] = useState(0),
+    [mergeInto, setMergeInto] = useState<Record<string, string>>({}),
     [schemaOpen, setSchemaOpen] = useState(false),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -243,7 +265,7 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
     return () => {
       alive = false;
     };
-  }, [request]);
+  }, [request, schemaRevision]);
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -300,10 +322,33 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
       ),
     [schema],
   );
-  const drawn = useMemo(
-    () => layout(visible, narrow, inspect, attributeTypes),
-    [visible, narrow, inspect, attributeTypes],
+  const provisional = useMemo(
+    () =>
+      new Set(
+        (schema?.custom ?? [])
+          .filter((p) => p.status === "provisional")
+          .map((p) => p.id),
+      ),
+    [schema],
   );
+  const drawn = useMemo(
+    () => layout(visible, narrow, inspect, attributeTypes, provisional),
+    [visible, narrow, inspect, attributeTypes, provisional],
+  );
+  const review = async (id: string, decision: string, into?: string) => {
+    try {
+      await action("review_predicate", { id, action: decision, into });
+      setNotice(
+        decision === "merge"
+          ? `${id} merged into ${into}`
+          : `${id} ${decision === "approve" ? "approved" : "rejected"}`,
+      );
+      setSchemaRevision((r) => r + 1);
+      setRevision((r) => r + 1);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Review failed");
+    }
+  };
   const attributeCount = visible.filter(
     (c) => !c.object && c.value !== undefined,
   ).length;
@@ -465,9 +510,11 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
                 <h2>{chosen.subject.name}</h2>
                 <div className="kg-assertion">
                   <code>
+                    {not(chosen)}
                     {chosen.object
                       ? chosen.predicate
                       : attributeName(chosen.predicate)}
+                    {provisional.has(chosen.predicate) ? " · provisional" : ""}
                   </code>
                   <span>{chosen.object ? "→" : "="}</span>
                   <strong>{chosen.object?.name ?? chosen.value}</strong>
@@ -549,6 +596,7 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
                   >
                     <strong>{c.subject.name}</strong>
                     <span>
+                      {not(c)}
                       {c.object
                         ? label(c.predicate)
                         : attributeName(c.predicate)}{" "}
@@ -635,6 +683,99 @@ export function OntologyView({ request, action, spaces, userId }: Props) {
                   {r.value?.values && <p>{r.value.values.join(" · ")}</p>}
                 </details>
               ))}
+            {!!schema?.custom?.length && (
+              <>
+                <h3>Proposed relationships</h3>
+                <p className="kg-schema-note">
+                  Added by extraction when no relationship fit. Provisional ones
+                  are usable now and reused by later saves.
+                  {schema.canReview
+                    ? " Approve, merge or reject them."
+                    : " An ontology reviewer approves, merges or rejects them."}
+                </p>
+                {schema.custom
+                  .filter((p) => p.status !== "rejected")
+                  .map((p) => (
+                    <details key={p.id} open={p.status === "provisional"}>
+                      <summary>
+                        {p.id}{" "}
+                        <small className={`kg-status ${p.status}`}>
+                          {p.status === "merged"
+                            ? `merged into ${p.mergedInto}`
+                            : p.status}
+                        </small>
+                      </summary>
+                      <p>{p.description}</p>
+                      <code>
+                        {p.from.join(" / ")} →{" "}
+                        {p.value ? "value" : p.to.join(" / ")}
+                      </code>
+                      <p>
+                        {quantity(p.claims, "claim")} ·{" "}
+                        {quantity(p.authors, "author")}
+                      </p>
+                      {schema.canReview && p.status === "provisional" && (
+                        <div className="kg-review">
+                          <button onClick={() => review(p.id, "approve")}>
+                            Approve
+                          </button>
+                          <select
+                            aria-label={`Merge ${p.id} into`}
+                            value={mergeInto[p.id] ?? ""}
+                            onChange={(e) =>
+                              setMergeInto((m) => ({
+                                ...m,
+                                [p.id]: e.target.value,
+                              }))
+                            }
+                          >
+                            <option value="">Merge into…</option>
+                            {[
+                              ...schema.relationships.filter(
+                                (r) => r.group === "assertion",
+                              ),
+                              ...(schema.custom ?? []).filter(
+                                (c) =>
+                                  c.id !== p.id &&
+                                  ["provisional", "approved"].includes(
+                                    c.status,
+                                  ),
+                              ),
+                            ]
+                              .filter((r) => !!r.value === !!p.value)
+                              .map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {r.id}
+                                </option>
+                              ))}
+                          </select>
+                          <button
+                            disabled={!mergeInto[p.id]}
+                            onClick={() =>
+                              review(p.id, "merge", mergeInto[p.id])
+                            }
+                          >
+                            Merge
+                          </button>
+                          <button
+                            className="danger"
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  `Reject ${p.id}? Its ${quantity(p.claims, "claim")} will be retired and withdrawn from spaces.`,
+                                )
+                              )
+                                review(p.id, "reject");
+                            }}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                    </details>
+                  ))}
+              </>
+            )}
             <h3>Rules</h3>
             {schema?.rules.map((r) => (
               <p key={r}>{r}</p>

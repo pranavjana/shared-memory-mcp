@@ -804,7 +804,7 @@ export const relationshipDefinitions: RelationDefinition[] = [
   },
 ];
 export const ontology = {
-  version: "1.1.0",
+  version: "1.2.0",
   representation:
     "Evidence-backed property graph; JSON schema validation, no OWL reasoner",
   types: typeDefinitions,
@@ -816,6 +816,8 @@ export const ontology = {
     "A shared claim is a snapshot; source revisions do not silently republish it.",
     "Evidence is an attributed excerpt, not independent verification.",
     "Forgetting a source removes its claims and publications. Retraction stops future reads.",
+    "An explicit negation is a claim with negated=true; it is never stored as the affirmative fact.",
+    "When no relationship fits, extraction may propose a provisional one. It is usable immediately, reused by later extractions, and approved, merged or rejected by an ontology reviewer.",
   ],
 };
 
@@ -843,94 +845,110 @@ export const knowledgeEntity = z
           message: `Property ${key} is not allowed on ${entity.type}`,
         });
   });
-const predicates = relationshipDefinitions
-  .filter((r) => r.group === "assertion")
-  .map((r) => r.id) as [string, ...string[]];
-export const knowledgeInput = z
-  .object({
-    sourceMemoryId: z.string().min(1),
-    sourceRevision: z.number().int().min(1),
-    idempotencyKey: z.string().min(8).max(200),
-    entities: z.array(knowledgeEntity).min(1).max(24),
-    claims: z
-      .array(
-        z
-          .object({
-            subject: z.string().min(1).max(120),
-            predicate: z.enum(predicates),
-            object: z.string().min(1).max(120).optional(),
-            value: z.string().trim().min(1).max(1000).optional(),
-            evidence: z.string().trim().min(1).max(2000),
-            basis: z.enum(["explicit", "observed", "inferred"]),
-            status: z.enum(["active", "disputed"]).default("active"),
-            validFrom: timestamp.optional(),
-            validUntil: timestamp.optional(),
-            supersedes: z.string().min(1).optional(),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(20),
-  })
-  .strict()
-  .superRefine((input, ctx) => {
-    const entities = new Map(input.entities.map((e) => [e.key, e]));
-    if (entities.size !== input.entities.length)
-      ctx.addIssue({
-        code: "custom",
-        path: ["entities"],
-        message: "Entity keys must be unique",
+export const coreAssertions = relationshipDefinitions.filter(
+  (r) => r.group === "assertion",
+);
+/** UPPER_SNAKE verb phrase shared by core and provisional relationships. */
+export const predicateName = z
+  .string()
+  .regex(/^[A-Z][A-Z0-9_]{2,39}$/, "Use an UPPER_SNAKE relationship name");
+/** Validation against the core ontology plus currently active provisional
+ *  relationships. Pass null for the transport schema; writes then validate
+ *  against the live registry. */
+export const knowledgeInputFor = (extra: RelationDefinition[] | null = []) => {
+  const definitions = new Map(
+    [...coreAssertions, ...(extra ?? [])].map((r) => [r.id, r]),
+  );
+  return z
+    .object({
+      sourceMemoryId: z.string().min(1),
+      sourceRevision: z.number().int().min(1),
+      idempotencyKey: z.string().min(8).max(200),
+      entities: z.array(knowledgeEntity).min(1).max(24),
+      claims: z
+        .array(
+          z
+            .object({
+              subject: z.string().min(1).max(120),
+              predicate: predicateName,
+              negated: z.literal(true).optional(),
+              object: z.string().min(1).max(120).optional(),
+              value: z.string().trim().min(1).max(1000).optional(),
+              evidence: z.string().trim().min(1).max(2000),
+              basis: z.enum(["explicit", "observed", "inferred"]),
+              status: z.enum(["active", "disputed"]).default("active"),
+              validFrom: timestamp.optional(),
+              validUntil: timestamp.optional(),
+              supersedes: z.string().min(1).optional(),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(20),
+    })
+    .strict()
+    .superRefine((input, ctx) => {
+      const entities = new Map(input.entities.map((e) => [e.key, e]));
+      if (entities.size !== input.entities.length)
+        ctx.addIssue({
+          code: "custom",
+          path: ["entities"],
+          message: "Entity keys must be unique",
+        });
+      const replacements = input.claims.flatMap((c) =>
+        c.supersedes ? [c.supersedes] : [],
+      );
+      if (new Set(replacements).size !== replacements.length)
+        ctx.addIssue({
+          code: "custom",
+          path: ["claims"],
+          message: "A claim may be superseded only once per operation",
+        });
+      input.claims.forEach((c, i) => {
+        const fail = (message: string) =>
+          ctx.addIssue({ code: "custom", path: ["claims", i], message });
+        if (extra === null) return;
+        const r = definitions.get(c.predicate);
+        if (!r) return fail("Unknown or inactive relationship");
+        if (!r.from.includes(entities.get(c.subject)?.type ?? ""))
+          fail("Subject type is not allowed for this predicate");
+        if (r.value) {
+          if (c.object !== undefined || !c.value)
+            fail("This predicate requires a value and no object");
+          if (
+            r.value.type === "decimal" &&
+            !/^(0|[1-9]\d{0,14})(\.\d{1,6})?$/.test(c.value ?? "")
+          )
+            fail("Amount must be an exact nonnegative decimal string");
+          if (
+            r.value.type === "currency" &&
+            !Intl.supportedValuesOf("currency").includes(c.value ?? "")
+          )
+            fail("Currency must be a recognized ISO 4217 code");
+          if (r.value.values && !r.value.values.includes(c.value ?? ""))
+            fail("Value is outside the allowed enum");
+          if (
+            r.value.type === "datetime" &&
+            !timestamp.safeParse(c.value).success
+          )
+            fail("Value must be an ISO timestamp with timezone");
+        } else if (
+          c.value !== undefined ||
+          !r.to.includes(entities.get(c.object ?? "")?.type ?? "")
+        )
+          fail("Object type is not allowed for this predicate");
+        if (
+          c.validFrom &&
+          c.validUntil &&
+          Date.parse(c.validUntil) <= Date.parse(c.validFrom)
+        )
+          fail("validUntil must be after validFrom");
+        if (c.predicate === "DEPENDS_ON" && c.subject === c.object)
+          fail("A task cannot depend on itself");
       });
-    const replacements = input.claims.flatMap((c) =>
-      c.supersedes ? [c.supersedes] : [],
-    );
-    if (new Set(replacements).size !== replacements.length)
-      ctx.addIssue({
-        code: "custom",
-        path: ["claims"],
-        message: "A claim may be superseded only once per operation",
-      });
-    input.claims.forEach((c, i) => {
-      const r = relationshipDefinitions.find((r) => r.id === c.predicate)!;
-      const fail = (message: string) =>
-        ctx.addIssue({ code: "custom", path: ["claims", i], message });
-      if (!r.from.includes(entities.get(c.subject)?.type ?? ""))
-        fail("Subject type is not allowed for this predicate");
-      if (r.value) {
-        if (c.object !== undefined || !c.value)
-          fail("This predicate requires a value and no object");
-        if (
-          r.value.type === "decimal" &&
-          !/^(0|[1-9]\d{0,14})(\.\d{1,6})?$/.test(c.value ?? "")
-        )
-          fail("Amount must be an exact nonnegative decimal string");
-        if (
-          r.value.type === "currency" &&
-          !Intl.supportedValuesOf("currency").includes(c.value ?? "")
-        )
-          fail("Currency must be a recognized ISO 4217 code");
-        if (r.value.values && !r.value.values.includes(c.value ?? ""))
-          fail("Value is outside the allowed enum");
-        if (
-          r.value.type === "datetime" &&
-          !timestamp.safeParse(c.value).success
-        )
-          fail("Value must be an ISO timestamp with timezone");
-      } else if (
-        c.value !== undefined ||
-        !r.to.includes(entities.get(c.object ?? "")?.type ?? "")
-      )
-        fail("Object type is not allowed for this predicate");
-      if (
-        c.validFrom &&
-        c.validUntil &&
-        Date.parse(c.validUntil) <= Date.parse(c.validFrom)
-      )
-        fail("validUntil must be after validFrom");
-      if (c.predicate === "DEPENDS_ON" && c.subject === c.object)
-        fail("A task cannot depend on itself");
     });
-  });
+};
+export const knowledgeInput = knowledgeInputFor();
 export type KnowledgeInput = z.infer<typeof knowledgeInput>;
 export const knowledgeQuery = z
   .object({
@@ -938,7 +956,7 @@ export const knowledgeQuery = z
     spaceId: z.string().min(1).optional(),
     personalOnly: z.boolean().default(false),
     entityId: z.string().min(1).optional(),
-    predicate: z.enum(predicates).optional(),
+    predicate: predicateName.optional(),
     asOf: timestamp.optional(),
     includeHistory: z.boolean().default(false),
     limit: z.number().int().min(1).max(200).default(20),

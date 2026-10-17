@@ -13,6 +13,7 @@ test("automatic ontology uses bounded structured output and sanitized provider f
     },
     authorName: "Owner",
     candidates: [],
+    provisionalRelationships: [],
   };
   assert.equal(
     configuredOntologyExtractor({ OPENROUTER_API_KEY: "synthetic" }),
@@ -36,8 +37,15 @@ test("automatic ontology uses bounded structured output and sanitized provider f
   assert.deepEqual(await extractor.extract(context), {
     entities: [],
     claims: [],
+    newPredicates: [],
   });
   assert.equal(body.response_format.json_schema.strict, true);
+  // Strict providers require every field, including defaulted ones.
+  const schema = body.response_format.json_schema.schema;
+  assert.ok(schema.required.includes("newPredicates"));
+  assert.ok(
+    schema.properties.claims.items.required.includes("negated"),
+  );
   assert.equal(body.provider.require_parameters, true);
   assert.ok(body.messages[0].content.includes("UNTRUSTED DATA"));
   assert.deepEqual(JSON.parse(body.messages[1].content), context);

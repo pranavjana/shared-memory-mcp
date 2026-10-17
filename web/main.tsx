@@ -54,7 +54,11 @@ type Overview = {
   }[];
   connections?: Connection[];
   rules?: any[];
+  ontologyStatus?: Record<string, string>;
 };
+// Saved memories whose text produced no claims are kept, but missing from the ontology graph.
+const outsideOntology = (status?: string) =>
+  status === "no_supported_claims" || status === "failed";
 const kinds = [
   "fact",
   "preference",
@@ -652,6 +656,9 @@ function Dashboard({ config }: { config: Config }) {
                         <span className={"kind-badge " + m.kind}>
                           {title(m.kind)}
                         </span>
+                        {outsideOntology(data.ontologyStatus?.[m.id]) && (
+                          <span className="ontology-gap">Not in ontology</span>
+                        )}
                         <span className="subtle">{date(m.updatedAt)}</span>
                       </div>
                       <p>{m.text}</p>
@@ -1054,6 +1061,28 @@ function Dashboard({ config }: { config: Config }) {
             </dl>
             <h3>Source evidence</h3>
             <blockquote>{detail.memory.evidence}</blockquote>
+            {outsideOntology(data?.ontologyStatus?.[detail.memory.id]) && (
+              <div className="ontology-gap-note">
+                <p>
+                  {data?.ontologyStatus?.[detail.memory.id] === "failed"
+                    ? "Structuring this memory failed, so it is not in the ontology graph."
+                    : "No ontology relationship fit this memory, so it is not in the ontology graph."}{" "}
+                  Retrying can use relationships added since it was saved.
+                </p>
+                <button
+                  className="button small"
+                  disabled={busy}
+                  onClick={() =>
+                    perform(
+                      () => action("retry_ontology", { id: detail.memory.id }),
+                      "Queued for another try",
+                    )
+                  }
+                >
+                  Retry ontology
+                </button>
+              </div>
+            )}
             {detail.memory.owner === data?.actor.id && (
               <>
                 <div className="button-row">

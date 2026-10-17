@@ -744,6 +744,26 @@ export class MemoryStore {
     }
     return receipts;
   }
+  /** Whether each of the user's own memories made it into the ontology. */
+  async ontologyStatus(actor: Actor, ids: string[]) {
+    const rows = await this.query<{ id: string; status: string }>(
+      `MATCH (j:OntologyJob)-[:SUPPORTED_BY]->(m:Memory) WHERE m.id IN $ids AND m.owner=$user AND m.deletedAt IS NULL AND j.revision=m.revision RETURN m.id AS id,j.status AS status`,
+      { ids, user: actor.userId },
+      true,
+    );
+    return Object.fromEntries(rows.map((r) => [r.id, r.status]));
+  }
+  /** Queue the current revision for another extraction, e.g. after the ontology gained a relationship. */
+  async retryOntology(actor: Actor, id: string) {
+    const rows = await this.query<{ status: string }>(
+      `MATCH (j:OntologyJob)-[:SUPPORTED_BY]->(m:Memory {id:$id}) WHERE m.owner=$user AND m.deletedAt IS NULL AND j.revision=m.revision AND j.status IN ['failed','no_supported_claims']
+       SET j.status='pending',j.attempts=0,j.nextAt=0,j.lease=NULL,j.leaseUntil=NULL,j.plan=NULL RETURN j.status AS status`,
+      { id, user: actor.userId },
+    );
+    if (!rows[0])
+      throw new DomainError(409, "This memory is not waiting for a retry");
+    return { queued: true, memoryId: id };
+  }
   async graphView(actor: Actor) {
     return this.query<{
       memoryId: string;
