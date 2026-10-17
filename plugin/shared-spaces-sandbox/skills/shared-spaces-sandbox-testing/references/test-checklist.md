@@ -32,10 +32,8 @@ Retract one of your own shared records with share_memory enabled=false. It disap
 
 As the space owner, use View members → Revoke access for Demo Teammate. The operator/tests must find that teammate membership and its read access to your shared records are denied. Your own access to earlier demo-shared content remains while those shares are active. Ordinary seeds preserve revoked/changed membership; an explicit --restore-demo-membership --apply issues and accepts a fresh synthetic invitation when you want to resume demo activity.
 
-Only a host with real MCP event subscriptions can proactively message you. Subscribe your own agent before generating a fresh demo update, then verify registration, authorized retrieval, and an actual message separately. Otherwise use on-demand recall. Cleanup only selected synthetic records on request; do not reset the database or other developers' spaces.
+Proactive delivery is not currently available; check incoming updates with on-demand recall or `get_shared_update`. Cleanup only selected synthetic records on request; do not reset the database or other developers' spaces.
 
-## Muse and Dot webhook setup
+## Selected-claim retrieval
 
-Open Sandbox collaboration → Agent notifications, choose Muse or Dot, and copy its space-specific setup prompt. The same instructions are available through `notification_setup` with the actual space ID and `host:"muse"` or `host:"dot"`. This is setup guidance, not an active subscription. In Dot use the sandbox plugin in a Dot or supported Cloud Work chat; rescan if the new event/tool catalog is missing. Muse must demonstrate a real incoming HTTPS callback that can wake the agent; if unsupported, report the missing capability rather than scheduling polling or inventing a callback.
-
-Subscribe to both `memory.changed` and `knowledge.changed` and verify both subscription IDs/expiry. Then request a fresh incoming demo update through the guarded operator, keeping your own account. For a selected claim, fetch the event's publication ID through `get_shared_update` in the exact space; the private source must remain inaccessible. Verify webhook acceptance and the recipient agent's actual message separately. Stopping monitoring unsubscribes both events. Retractions and revoked access must stop retrieval; never repeat withdrawn content from a cached payload.
+Request a fresh incoming demo update through the guarded operator, keeping your own account. For a selected claim, fetch its publication ID through `get_shared_update` in the exact space; the private source must remain inaccessible. Retractions and revoked access must stop retrieval; never repeat withdrawn content from an earlier read.

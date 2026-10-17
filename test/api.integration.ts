@@ -1,11 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID, randomBytes } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { createApp } from "../src/app.js";
 import { connectMemoryStore } from "../src/memory.js";
 import { AutomaticOntology } from "../src/ontology-extraction.js";
-import { EventService } from "../src/events.js";
 import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 test("real database API and both MCP protocols enforce identity, revisions and connection revocation", async () => {
   const store = await connectMemoryStore({
@@ -16,7 +15,6 @@ test("real database API and both MCP protocols enforce identity, revisions and c
       "api_verification_" + randomUUID().replaceAll("-", ""),
   });
   const origin = "https://memory.example.com";
-  const key = randomBytes(32).toString("base64");
   const app = createApp(
     {
       publicUrl: origin,
@@ -62,7 +60,6 @@ test("real database API and both MCP protocols enforce identity, revisions and c
           };
         },
       }),
-      events: new EventService(store, key, origin),
       getProfile: async (id) => ({ id, name: id, email: id + "@example.com" }),
       verifyToken: async (token) =>
         ["user_a", "user_b"].includes(token)
@@ -126,11 +123,10 @@ test("real database API and both MCP protocols enforce identity, revisions and c
     assert.equal((await fetch(base + "/api/overview")).status, 401);
     const discover = await rpc("user_a", "server/discover");
     assert.deepEqual(discover.body.result.supportedVersions, ["2026-07-28"]);
-    assert.ok(discover.body.result.capabilities.events);
-    const eventCatalog = await rpc("user_a", "events/list");
-    assert.deepEqual(
-      eventCatalog.body.result.events.map((e: any) => e.name),
-      ["memory.changed", "knowledge.changed"],
+    assert.equal(discover.body.result.capabilities.events, undefined);
+    assert.equal(
+      (await rpc("user_a", "events/subscribe")).body.error.code,
+      -32601,
     );
     assert.equal((await rpc("invalid", "tools/list")).status, 401);
     const listed = await rpc("user_a", "tools/list");
@@ -316,19 +312,6 @@ test("real database API and both MCP protocols enforce identity, revisions and c
         version,
       );
       assert.equal(packet.body.result.structuredContent.update.memory.id, id);
-      const setup = await rpc(
-        "user_b",
-        "tools/call",
-        {
-          name: "notification_setup",
-          arguments: { spaceId: space.id, host: "dot" },
-        },
-        version,
-      );
-      assert.equal(setup.body.result.structuredContent.eventsAvailable, true);
-      assert.ok(
-        setup.body.result.structuredContent.prompt.includes(origin + "/mcp"),
-      );
     }
     const bPrivate = (
       await api("user_b", "remember", {

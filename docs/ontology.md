@@ -43,11 +43,11 @@ Do not record this example as a real user fact. Agent-generated illustrative tas
 
 Use `publish_claim` with a selected authored claim ID, authorized space ID, `userRequested: true` and stable operation key. A publication is immutable: it contains only that assertion, its exact excerpt, attribution and entity type/name. Private aliases, entity descriptions, source memory IDs, adjacent text and supersession IDs are omitted. Space-specific entity IDs let publications from one author's same entity connect, without implicitly merging different people's entities.
 
-Read it through `recall_knowledge({"spaceId":"SPACE_ID"})` or Ontology → the selected space. Active membership is required on every read. Publishing a claim does not grant access to its private source memory. It queues `knowledge.changed` for active space subscribers; this does not prove a host notified its user.
+Read it through `recall_knowledge({"spaceId":"SPACE_ID"})` or Ontology → the selected space. Active membership is required on every read. Publishing a claim does not grant access to its private source memory. It does not notify other members.
 
 Set `enabled:false` to retract by the original claim ID or returned publication ID. Retries cannot reactivate withdrawn snapshots. To publish a new version, record and select a new claim. Source edits or supersession do not silently change existing snapshots, which are labeled with their publication time and source revision. Forgetting the source scrubs all its claim/publication payloads and withdraws publications. Account deletion uses the same cleanup. Content already received by another host cannot be recalled.
 
-The existing `share_memory` path still shares a live **whole-memory reference**, with its existing revision notifications and sharing rules. Do not use it when the user selected only one claim. It is a separate permission and lifecycle from ontology publications.
+The existing `share_memory` path still shares a live **whole-memory reference**, with its existing sharing rules. Do not use it when the user selected only one claim. It is a separate permission and lifecycle from ontology publications.
 
 ## First-version limits
 
@@ -67,8 +67,6 @@ New identities receive author-scoped, source-specific keys; first-person referen
 
 This process does not publish claims, enable sharing rules, or send messages. Existing user-enabled whole-memory sharing rules still apply separately, and their receipts remain under `automaticShares`.
 
-## Notifications for selected claims
+## Reading selected claims
 
-Explicit `publish_claim` now queues `knowledge.changed` for active per-space subscribers. Its event has a public `publication_id`, space ID, author display name, change kind, source revision and dashboard space URL. It contains no private source ID/text, aliases, properties or surrounding source context. Retraction queues a metadata-only withdrawal once; retrying a retracted publication cannot republish it. Source corrections preserve the original snapshot and do not generate new publication events.
-
-`get_shared_update` retrieves the current authorized publication by its ID in that exact space, together with up to five related claims from the same space. A whole-memory `memory.changed` event uses the same tool with `memory_id`. Wrong-space, revoked, unshared, forgotten and retracted requests fail rather than falling back to a private read. Host subscription and actual agent notification remain separate acceptance steps; see [development.md](development.md#shared-space-agent-notifications).
+`get_shared_update` retrieves the current authorized publication by its ID in that exact space, together with up to five related claims from the same space. A whole-memory share uses the same tool with the memory ID. Wrong-space, revoked, unshared, forgotten and retracted requests fail rather than falling back to a private read. Retrying a retracted publication cannot republish it, and source corrections preserve the original snapshot. See [development.md](development.md#shared-space-updates).

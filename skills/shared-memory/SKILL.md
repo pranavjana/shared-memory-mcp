@@ -5,9 +5,8 @@ description: >-
   events, goals, tasks, decisions, relationships, and authorized sharing across
   assistants. Use when remembering or recalling user context, correcting or
   forgetting memories, sharing into spaces, publishing ontology claims,
-  monitoring memory.changed or knowledge.changed, using notification_setup or
-  get_shared_update, or when the user mentions Shared Memory, personal memory,
-  or cross-assistant continuity. Read memory_instructions if this guide is not
+  reading shared updates with get_shared_update, or when the user mentions
+  Shared Memory, personal memory, or cross-assistant continuity. Read memory_instructions if this guide is not
   already loaded.
 ---
 
@@ -17,7 +16,7 @@ description: >-
 
 - The user states a durable preference, fact, event, goal, task, decision, or relationship worth keeping across chats or assistants.
 - An answer or plan depends on prior preferences, projects, people, commitments, or decisions — call recall (and structured knowledge tools when useful) first.
-- The user asks to share, retract, correct, forget, or monitor Shared Memory / a shared space.
+- The user asks to share, retract, correct, or forget Shared Memory content, or asks what changed in a shared space.
 - Tools are connected but behavior is unclear — call `memory_instructions` (or reload this skill) before improvising.
 
 Do **not** treat installing this skill as connecting MCP, or connecting MCP as installing this skill. They are separate host steps.
@@ -33,8 +32,7 @@ Use the Shared Memory MCP server’s tools by their exact names. When the host r
 | `remember` / `revise_memory` / `forget_memory` | Write path (forget only on user request) |
 | `recall` / `get_memory` / `explain_memory` | Read path |
 | `list_spaces` / `share_memory` | Authorized whole-memory sharing |
-| `get_shared_update` | Current authorized shared memory or selected claim for a space (use on events) |
-| `notification_setup` | Space-specific Muse/Dot monitoring setup instructions (does not activate monitoring) |
+| `get_shared_update` | Current authorized shared memory or selected claim for a space |
 | `get_ontology` / `record_knowledge` / `recall_knowledge` / `index_knowledge` / `publish_claim` | Structured ontology (when present) |
 
 Packaged installs may load optional detail on demand (one level from this file):
@@ -42,7 +40,7 @@ Packaged installs may load optional detail on demand (one level from this file):
 - Concrete examples → [references/examples.md](references/examples.md)
 - Evaluation rubrics → [references/evals.md](references/evals.md)
 - Ontology edge cases → [references/ontology.md](references/ontology.md)
-- Sharing and event monitoring → [references/sharing-and-events.md](references/sharing-and-events.md)
+- Sharing and shared updates → [references/sharing-and-events.md](references/sharing-and-events.md)
 
 The MCP `memory_instructions` tool returns **this SKILL.md only**. Critical safety and operating rules stay here.
 
@@ -100,7 +98,7 @@ Inspect `ontology.status` in the receipt:
 
 Never claim graph structuring succeeded from a source-save receipt alone. Acknowledge successful source saves naturally; mention pending structuring briefly when relevant. Do not duplicate automatically generated claims.
 
-Use `get_ontology` for the live schema. Use `record_knowledge` only for deliberate additions or corrections beyond the automatic result. Prefer precise predicates over ABOUT. Negated or hypothetical statements must not become affirmative claims. Keep useful inferences labeled `inferred`. Only when the user explicitly selects an assertion for a space, use `publish_claim` with `userRequested: true` (not whole-memory `share_memory`). Ontology publications queue `knowledge.changed` for active space subscribers; a publication receipt confirms a queued update, not an actual agent notification. If ontology tools are missing, use the memory workflow and report ontology as unavailable.
+Use `get_ontology` for the live schema. Use `record_knowledge` only for deliberate additions or corrections beyond the automatic result. Prefer precise predicates over ABOUT. Negated or hypothetical statements must not become affirmative claims. Keep useful inferences labeled `inferred`. Only when the user explicitly selects an assertion for a space, use `publish_claim` with `userRequested: true` (not whole-memory `share_memory`). A publication receipt confirms the snapshot was published, not that anyone was notified. If ontology tools are missing, use the memory workflow and report ontology as unavailable.
 
 For money, obligations, routines vs events, contextual preferences, supersedes, and indexing details, see [references/ontology.md](references/ontology.md) when that file is available; otherwise follow the schema from `get_ontology` and preserve source wording when the schema cannot express a statement faithfully.
 
@@ -127,19 +125,13 @@ Memories are private by default. Share only on the user’s explicit request, or
 3. `share_memory` with `userRequested: true` and a stable `idempotencyKey`
 4. Ask if recipient or space is ambiguous; if no authorized space exists, direct the user to the dashboard
 
-Readers can retrieve; contributors and owners can share their own memories. Do not write into another person’s private memory, copy a private graph, create a space through a nonexistent tool, or make commitments for someone else. Detailed monitoring rules → [references/sharing-and-events.md](references/sharing-and-events.md) when available.
+Readers can retrieve; contributors and owners can share their own memories. Do not write into another person’s private memory, copy a private graph, create a space through a nonexistent tool, or make commitments for someone else. Detailed sharing rules → [references/sharing-and-events.md](references/sharing-and-events.md) when available.
 
-## Notifications (summary)
+## Shared updates (summary)
 
-When the user asks to monitor an authorized shared space:
+Shared Memory does not currently push updates to other members’ agents, and there is no background monitoring. Do not claim a normal chat runs in the background or invent a monitoring tool.
 
-1. Call `notification_setup` for space-specific Muse or Dot instructions (setup text alone does **not** activate monitoring).
-2. Use the host’s real event-subscription capability for **both** `memory.changed` and `knowledge.changed`, filtered by `space_id`.
-3. Record subscription success and expiry; renew only within the user’s authorized request; stop on cancel, revoke, or renewal failure.
-
-Do not invent a tool or claim a normal chat runs in the background. Native Dot/Cloud Work supports MCP Events; Muse requires verification of an actual persistent callback and wake-up capability. Never silently substitute polling for a webhook.
-
-On an event: dedupe ID → call `get_shared_update` with the event’s `space_id` as `spaceId` and its `memory_id` or `publication_id` as `id` → notify **your own** user. Never auto-reply to the sender or echo into another memory/webhook loop. Do not retrieve a private source ID for a selected claim, even if another tool can access it in a different scope. A share receipt ≠ subscription receipt ≠ accepted webhook ≠ “your friend was notified.” Full procedure → [references/sharing-and-events.md](references/sharing-and-events.md).
+To read a shared update: call `get_shared_update` with the space ID as `spaceId` and the memory or publication ID as `id` → tell **your own** user. Never auto-reply to the sender or save the update back as a new memory. Do not retrieve a private source ID for a selected claim, even if another tool can access it in a different scope. A share receipt ≠ “your friend was notified.” Full procedure → [references/sharing-and-events.md](references/sharing-and-events.md).
 
 ## Persistence
 

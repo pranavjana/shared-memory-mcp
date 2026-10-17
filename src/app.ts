@@ -3,7 +3,6 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 import { MemoryStore, DomainError, type Actor } from "./memory.js";
-import { EventService, eventDefinitions } from "./events.js";
 import { memoryTools, operatingInstructions, runTool } from "./tools.js";
 import { dashboardApi } from "./api.js";
 import { mcpInstallPrompt } from "./onboarding.js";
@@ -48,7 +47,6 @@ interface Dependencies {
   getProfile?: (userId: string) => Promise<Profile>;
   users?: UserStore;
   memory?: MemoryStore;
-  events?: EventService;
   automaticOntology?: AutomaticOntology;
   dashboardAuthenticate?: (req: express.Request) => Promise<Actor | undefined>;
 }
@@ -128,7 +126,6 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         version: "0.2.0",
         memory: Boolean(dependencies.memory),
         ontologyVersion: dependencies.memory ? ontology.version : null,
-        events: Boolean(dependencies.events),
         database: dependencies.users ? "connected" : "not_configured",
       });
     } catch {
@@ -174,13 +171,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     ? readFileSync(skillPath, "utf8")
     : operatingInstructions;
   const tools = dependencies.memory
-    ? memoryTools(
-        dependencies.memory,
-        skill,
-        dependencies.automaticOntology,
-        resource,
-        Boolean(dependencies.events),
-      )
+    ? memoryTools(dependencies.memory, skill, dependencies.automaticOntology)
     : [];
   app.get("/api/config", (_req, res) =>
     res.json({
@@ -209,7 +200,6 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         config,
         dependencies.memory,
         tools,
-        dependencies.events,
         dependencies.dashboardAuthenticate,
       ),
     );
@@ -217,7 +207,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     res
       .type("text")
       .send(
-        "Clerk manages authentication. Shared Memory stores your basic profile and memories you or connected assistants submit, including source excerpts, typed entities, revisions and times. Private memories are accessible only to their owner and authorized connected clients. Selected memories may be shared in explicitly authorized spaces. Revocation stops future reads and webhook delivery, but cannot recall content already received by another assistant. Forgetting removes memory text, evidence and revision content; minimal IDs and delivery metadata remain. Hosting providers may retain operational metadata. Configured model providers process submitted source excerpts and limited matching entity context to structure memories, and generate retrieval embeddings. The service does not automatically receive entire chats. Agent-supplied observations are not independently verified.",
+        "Clerk manages authentication. Shared Memory stores your basic profile and memories you or connected assistants submit, including source excerpts, typed entities, revisions and times. Private memories are accessible only to their owner and authorized connected clients. Selected memories may be shared in explicitly authorized spaces. Revocation stops future reads, but cannot recall content already received by another assistant. Forgetting removes memory text, evidence and revision content; minimal IDs and sharing metadata remain. Hosting providers may retain operational metadata. Configured model providers process submitted source excerpts and limited matching entity context to structure memories, and generate retrieval embeddings. The service does not automatically receive entire chats. Agent-supplied observations are not independently verified.",
       ),
   );
   app.use(express.static(resolve("public")));
@@ -368,8 +358,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     }
     if (
       req.body?.method === "server/discover" ||
-      req.get("MCP-Protocol-Version") === "2026-07-28" ||
-      String(req.body?.method ?? "").startsWith("events/")
+      req.get("MCP-Protocol-Version") === "2026-07-28"
     ) {
       const { id, method, params = {} } = req.body ?? {};
       if (
@@ -391,23 +380,10 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
             supportedVersions: ["2026-07-28"],
             serverInfo: { name: "shared-memory-mcp", version: "0.2.0" },
             instructions: operatingInstructions,
-            capabilities: {
-              tools: {},
-              ...(dependencies.events ? { events: {} } : {}),
-            },
+            capabilities: { tools: {} },
             ttlMs: 0,
             cacheScope: "private",
           };
-        else if (method === "events/list")
-          result = {
-            events: dependencies.events ? eventDefinitions : [],
-            ttlMs: 0,
-            cacheScope: "private",
-          };
-        else if (method === "events/subscribe" && dependencies.events)
-          result = await dependencies.events.subscribe(actor, params);
-        else if (method === "events/unsubscribe" && dependencies.events)
-          result = await dependencies.events.unsubscribe(actor, params);
         else if (method === "tools/list")
           result = {
             resultType: "complete",
@@ -444,7 +420,6 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
                     authentication: true,
                     userManagement: !!dependencies.users,
                     memory: !!dependencies.memory,
-                    events: !!dependencies.events,
                   },
                 }
               : await runTool(tools, actor, params.name, params.arguments);
@@ -515,7 +490,6 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
             authentication: true,
             userManagement: Boolean(dependencies.users),
             memory: Boolean(dependencies.memory),
-            events: Boolean(dependencies.events),
           },
         };
         return {
