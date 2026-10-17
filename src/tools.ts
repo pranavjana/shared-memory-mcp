@@ -19,6 +19,9 @@ export function memoryTools(
   automatic = new AutomaticOntology(store),
 ): Tool[] {
   const knowledge = new KnowledgeStore(store);
+  // The memory share is the receipt; claim snapshots are derived and never fail the share.
+  const syncShared = (a: Actor, id: string) =>
+    knowledge.syncSharedClaims(a, id).catch(() => ({ status: "pending" }));
   return [
     {
       name: "get_shared_update",
@@ -102,16 +105,23 @@ export function memoryTools(
       name: "remember",
       title: "Remember something",
       description:
-        "Save a useful explicit user statement or observed outcome with evidence. Private by default. The server automatically extracts and validates ontology entities and relationships; no second structuring call is needed. Check ontology.status in the receipt; pending means source saved but extraction is not complete. Reuse retry keys. Unsupported guesses are not facts.",
+        "Save a useful explicit user statement or observed outcome with evidence. Private by default. The server automatically extracts and validates ontology entities and relationships; no second structuring call is needed. Check ontology.status in the receipt; pending means source saved but extraction is not complete, failed means extraction gave up and the memory has no claims. Reuse retry keys. Unsupported guesses are not facts.",
       schema: memoryInput,
       readOnly: false,
       run: async (a, i) => {
         const r = await store.remember(a, i);
+        const ontology = await automatic.process(
+          a,
+          r.memory.id,
+          r.memory.revision,
+        );
+        const automaticShares = await store.applyRules(a, r.memory.id);
         return {
           ...r,
           memory: store.publicMemory(r.memory),
-          ontology: await automatic.process(a, r.memory.id, r.memory.revision),
-          automaticShares: await store.applyRules(a, r.memory.id),
+          ontology,
+          automaticShares,
+          sharedClaims: await syncShared(a, r.memory.id),
         };
       },
     },
@@ -164,10 +174,13 @@ export function memoryTools(
       readOnly: false,
       run: async (a, i) => {
         const r = await store.revise(a, i.id, i.expectedRevision, i.memory);
+        const ontology = await automatic.process(a, i.id, r.memory.revision);
+        const automaticShares = await store.applyRules(a, i.id);
         return {
           ...r,
-          ontology: await automatic.process(a, i.id, r.memory.revision),
-          automaticShares: await store.applyRules(a, i.id),
+          ontology,
+          automaticShares,
+          sharedClaims: await syncShared(a, i.id),
         };
       },
     },
@@ -194,7 +207,7 @@ export function memoryTools(
       name: "share_memory",
       title: "Share or retract a selected memory",
       description:
-        "Share your own memory into an authorized space only on an explicit user request. Set enabled=false to retract. Members of that space can read it; this does not message anyone.",
+        "Share your own memory into an authorized space only on an explicit user request. Set enabled=false to retract. Members of that space can read it, and its current ontology claims appear in the space graph; this does not message anyone.",
       schema: z.object({
         id: z.string(),
         spaceId: z.string(),
@@ -203,8 +216,10 @@ export function memoryTools(
         idempotencyKey: z.string().min(8).max(200),
       }),
       readOnly: false,
-      run: (a, i) =>
-        store.share(a, i.id, i.spaceId, i.enabled, i.idempotencyKey),
+      run: async (a, i) => ({
+        ...(await store.share(a, i.id, i.spaceId, i.enabled, i.idempotencyKey)),
+        sharedClaims: await syncShared(a, i.id),
+      }),
     },
   ];
 }

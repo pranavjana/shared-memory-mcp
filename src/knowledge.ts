@@ -474,7 +474,89 @@ export class KnowledgeStore {
       context: await this.recall(actor, { spaceId, query, limit: 5 }),
     };
   }
-  async publish(actor: Actor, raw: unknown) {
+  /** Keep a shared memory's current claims visible in each space it is shared into.
+   *  These snapshots follow the memory: a revision, retraction or re-share replaces them.
+   *  Explicitly published claims (publish_claim) stay frozen and are never touched here. */
+  async syncSharedClaims(actor: Actor, memoryId: string) {
+    const shares = await this.store.query<{
+      space: string;
+      active: boolean;
+      epoch: number | null;
+      role: string | null;
+    }>(
+      `MATCH (m:Memory {id:$id})-[share:SHARED_IN]->(s:Space) WHERE m.owner=$user AND m.deletedAt IS NULL
+       OPTIONAL MATCH (:Person {id:$user})-[member:MEMBER_OF {active:true}]->(s)
+       RETURN s.id AS space,share.active AS active,share.updatedAt AS epoch,member.role AS role`,
+      { id: memoryId, user: actor.userId },
+      true,
+    );
+    if (!shares.length) return { published: 0, retracted: 0 };
+    const claims = (
+      await this.store.query<{ id: string }>(
+        `MATCH (c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory {id:$id}) WHERE c.owner=$user AND m.deletedAt IS NULL AND c.sourceRevision=m.revision AND c.status IN ['active','disputed'] RETURN c.id AS id ORDER BY c.id`,
+        { id: memoryId, user: actor.userId },
+        true,
+      )
+    ).map((r) => r.id);
+    const existing = await this.store.query<{
+      id: string;
+      space: string;
+      active: boolean;
+    }>(
+      `MATCH (p:Publication)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(:Memory {id:$id}),(p)-[:PUBLISHED_IN]->(s:Space) WHERE p.owner=$user AND p.viaShare=true RETURN DISTINCT p.id AS id,s.id AS space,p.active AS active`,
+      { id: memoryId, user: actor.userId },
+      true,
+    );
+    let published = 0,
+      retracted = 0;
+    for (const share of shares) {
+      // A former member can neither publish nor retract in that space.
+      if (!share.role) continue;
+      const writable =
+        share.active && ["owner", "contributor"].includes(share.role);
+      // Each share epoch gets fresh snapshot IDs, so re-sharing never needs to revive a retraction.
+      const wanted = new Map(
+        (writable ? claims : []).map((claim) => [
+          "pub_" +
+            digest(
+              JSON.stringify([share.space, claim, "share", share.epoch ?? 0]),
+            ),
+          claim,
+        ]),
+      );
+      for (const [publicationId, claimId] of wanted) {
+        if (existing.some((p) => p.id === publicationId)) continue;
+        await this.publish(
+          actor,
+          {
+            claimId,
+            spaceId: share.space,
+            userRequested: true,
+            idempotencyKey: "memory-share:" + publicationId,
+          },
+          { publicationId, viaShare: true },
+        );
+        published++;
+      }
+      for (const p of existing)
+        if (p.space === share.space && p.active && !wanted.has(p.id)) {
+          await this.publish(actor, {
+            claimId: p.id,
+            spaceId: share.space,
+            enabled: false,
+            userRequested: true,
+            idempotencyKey: "memory-share:" + p.id + ":retract",
+          });
+          retracted++;
+        }
+    }
+    return { published, retracted };
+  }
+  async publish(
+    actor: Actor,
+    raw: unknown,
+    internal: { publicationId?: string; viaShare?: boolean } = {},
+  ) {
     const input = z
       .object({
         claimId: z.string().min(1),
@@ -487,9 +569,10 @@ export class KnowledgeStore {
       .parse(raw);
     await this.store.requireSpace(actor, input.spaceId, input.enabled);
     const publicationId =
-      !input.enabled && input.claimId.startsWith("pub_")
+      internal.publicationId ??
+      (!input.enabled && input.claimId.startsWith("pub_")
         ? input.claimId
-        : "pub_" + digest(JSON.stringify([input.spaceId, input.claimId]));
+        : "pub_" + digest(JSON.stringify([input.spaceId, input.claimId])));
     const eventId =
       "evt_" +
       digest(publicationId + (input.enabled ? ":published" : ":retracted"));
@@ -560,7 +643,7 @@ export class KnowledgeStore {
     const receipt = await this.store.query<{ id: string; active: boolean }>(
       `MATCH (c:KnowledgeClaim {id:$claim})-[:SUPPORTED_BY]->(m:Memory),(:Person {id:$user})-[member:MEMBER_OF {active:true}]->(s:Space {id:$space})
       WHERE c.owner=$user AND c.status IN ['active','disputed'] AND c.sourceRevision=m.revision AND m.deletedAt IS NULL AND member.role IN ['owner','contributor']
-      MERGE (p:Publication {id:$id}) ON CREATE SET p.owner=$user,p.payload=$payload,p.publishedAt=$now,p.operation=$operation,p.active=true,p.sourceRevision=$revision
+      MERGE (p:Publication {id:$id}) ON CREATE SET p.owner=$user,p.payload=$payload,p.publishedAt=$now,p.operation=$operation,p.active=true,p.sourceRevision=$revision,p.viaShare=$viaShare
       MERGE (p)-[:DERIVED_FROM]->(c) MERGE (p)-[:PUBLISHED_IN]->(s)
       FOREACH (_ IN CASE WHEN p.active THEN [1] ELSE [] END | MERGE (event:Change {id:$event}) ON CREATE SET event.publicationId=p.id,event.spaceId=$space,event.actorId=$user,event.actorName=$name,event.clientId=$client,event.revision=$revision,event.kind='published',event.createdAt=$now)
       MERGE (subject:KnowledgeEntity {id:$subjectId}) ON CREATE SET subject.kind=$subjectType,subject.spaceId=$space
@@ -583,6 +666,7 @@ export class KnowledgeStore {
         subjectType: snapshot.subject.type,
         objectId: snapshot.object?.id ?? "",
         objectType: snapshot.object?.type ?? "",
+        viaShare: internal.viaShare === true,
       },
     );
     if (!receipt[0])

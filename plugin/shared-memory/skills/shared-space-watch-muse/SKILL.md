@@ -30,13 +30,12 @@ Examples, ontology, sharing detail, evals: [references/examples.md](references/e
 - [ ] list_spaces → which space
 - [ ] Interval X minutes
 - [ ] Muse job armed (same session)
-- [ ] Preference saved
 - [ ] First tick now
 ```
 
 Ask space if ambiguous. Ask X if missing (default **15**). Floor **5**, cap **1440**.
 
-`remember` after confirm, `kind: preference`, `idempotencyKey` `space-watch-muse:<spaceId>` — that is not the schedule.
+Watch settings live only in the job's payload. Never `remember`, `revise_memory`, or share watch settings, jobs, or seen lists — Shared Memory holds the user's knowledge, not watch state.
 
 ## Arm (Muse only)
 
@@ -64,7 +63,7 @@ Then [tick.md](references/tick.md). Message **this Muse user** only.
 
 ## Stop
 
-Cancel the job by ID; list jobs to confirm. Forget the preference only if they ask.
+Cancel the job by ID; list jobs to confirm.
 
 ## Honesty
 

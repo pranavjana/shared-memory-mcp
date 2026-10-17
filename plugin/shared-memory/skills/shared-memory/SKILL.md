@@ -95,9 +95,10 @@ Inspect `ontology.status` in the receipt:
 - `structured` — claim IDs present
 - `no_supported_claims` — source kept; no invented assertions
 - `pending` — source saved; processing incomplete (inspect `retryScheduled`)
+- `failed` — source saved; extraction gave up after its final retry, so the memory has no claims
 - `not_configured` — server extraction unavailable
 
-Never claim graph structuring succeeded from a source-save receipt alone. Acknowledge successful source saves naturally; mention pending structuring briefly when relevant. Do not duplicate automatically generated claims.
+Never claim graph structuring succeeded from a source-save receipt alone. Acknowledge successful source saves naturally; mention pending structuring briefly when relevant. Do not duplicate automatically generated claims. Sharing a whole memory with `share_memory` also shows its current claims in that space (`sharedClaims` in the receipt) and withdraws them on retraction; do not also `publish_claim` them.
 
 Use `get_ontology` for the live schema. Use `record_knowledge` only for deliberate additions or corrections beyond the automatic result. Prefer precise predicates over ABOUT. Negated or hypothetical statements must not become affirmative claims. Keep useful inferences labeled `inferred`. Only when the user explicitly selects an assertion for a space, use `publish_claim` with `userRequested: true` (not whole-memory `share_memory`). A publication receipt confirms the snapshot was published, not that anyone was notified. If ontology tools are missing, use the memory workflow and report ontology as unavailable.
 
