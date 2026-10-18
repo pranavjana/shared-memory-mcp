@@ -2,7 +2,8 @@
 name: shared-space-watch-muse
 description: >-
   Meta Muse skill for Shared Memory: remember and recall, share into spaces,
-  and a Muse /loop or session cron that checks a space every X minutes. Use
+  and a Muse /loop or session cron that checks a space, or the user's own
+  memories saved by their other assistants, every X minutes. Use
   only when this assistant is Muse (personal Muse or Muse Code), including
   Watch-tick wakes. Do not use on Grok Bot, ChatGPT Dot, or Cursor.
 ---
@@ -27,13 +28,15 @@ Examples, ontology, sharing detail, evals: [references/examples.md](references/e
 
 ```
 - [ ] get_connection_status
-- [ ] list_spaces → which space
+- [ ] Scope: a space (list_spaces → which space) or personal
 - [ ] Interval X minutes
 - [ ] Muse job armed (same session)
 - [ ] First tick now
 ```
 
-Ask space if ambiguous. Ask X if missing (default **15**). Floor **5**, cap **1440**.
+Ask scope/space if ambiguous. Ask X if missing (default **15**). Floor **5**, cap **1440**.
+
+**Personal watch** (no space): use when the user wants to know when their *other* assistants (or the dashboard) save or revise their own memories. Record `client.id` from `get_connection_status` as `selfClientId` so this assistant's own saves are skipped. Nobody else is involved; private memories stay private.
 
 Watch settings live only in the job's payload. Never `remember`, `revise_memory`, or share watch settings, jobs, or seen lists — Shared Memory holds the user's knowledge, not watch state.
 
@@ -47,15 +50,26 @@ Do not create a Grok routine, ChatGPT Scheduled task, Cursor `/loop`, or Shared 
 
 Gotchas: session-scoped; Muse Code must be **running**; recurring jobs **expire in seven days** (cancel+recreate); ~30m jitter; at most one catch-up after resume; cancel by ID to change; no lifecycle hooks.
 
-No `/loop`/cron → say so; on-demand `get_shared_update` only.
+No `/loop`/cron → say so; on-demand `get_shared_update` (space) or `recall` (personal) only.
 
 ## Tick payload
 
 ```
 Watch tick. Use skill shared-space-watch-muse.
 host: muse
+scope: space
 spaceId: <id>
 spaceName: <name>
+intervalMinutes: <X>
+```
+
+Personal watch:
+
+```
+Watch tick. Use skill shared-space-watch-muse.
+host: muse
+scope: personal
+selfClientId: <client.id from get_connection_status>
 intervalMinutes: <X>
 ```
 

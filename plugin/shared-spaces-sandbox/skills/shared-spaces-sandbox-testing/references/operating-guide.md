@@ -66,7 +66,7 @@ For "tell Roshan I finished this," use list_spaces, identify the intended space 
 
 ## Shared updates and proactive behavior
 
-Shared Memory does not push updates to other members' agents. Do not invent a webhook. For a user-requested check every X minutes, follow `shared-space-watch-dot` (this ChatGPT plugin), `shared-space-watch-muse`, or `shared-space-watch-grok`. Otherwise offer an on-demand `get_shared_update`.
+Shared Memory does not push updates to other members' agents. Do not invent a webhook. For a user-requested check every X minutes (a space, or a personal watch of their own memories saved by other assistants), follow `shared-space-watch-dot` (this ChatGPT plugin), `shared-space-watch-muse`, or `shared-space-watch-grok`. Otherwise offer an on-demand `get_shared_update`.
 
 To read a shared update, call `get_shared_update` with the space ID as `spaceId` and the memory or publication ID as `id` to retrieve the current authorized update and related context restricted to that same space, and tell your own user about the current update, author, and relevant context. For example, Roshan's agent tells Roshan that Pranav completed a task. Do not automatically reply to Pranav or echo the update back into another memory. Do not reconstruct forgotten, retracted, or inaccessible content from an earlier read.
 

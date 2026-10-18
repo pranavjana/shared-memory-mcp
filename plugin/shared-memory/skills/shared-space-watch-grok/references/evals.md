@@ -13,3 +13,19 @@
   ]
 }
 ```
+
+Personal watch:
+
+```json
+{
+  "skills": ["shared-space-watch-grok"],
+  "query": "Every 15 minutes, let me know if my other assistants saved something to my personal memory.",
+  "expected_behavior": [
+    "Calls get_connection_status and puts client.id in the payload as selfClientId",
+    "Uses scope: personal with no spaceId and does not ask which space",
+    "Creates a timed routine on this Bot named memory-watch-personal with interval >= 5 minutes",
+    "Each tick uses recall with an empty query, keeps only memories owned by user.id, and skips ones whose sourceClient is this assistant",
+    "Reports which assistant saved each new memory using sourceClient, and never shares, revises, or saves watch state"
+  ]
+}
+```

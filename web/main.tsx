@@ -101,6 +101,11 @@ function assistantIdentity(clientId: string) {
   }
   return { name: "Assistant", logo: undefined };
 }
+function sourceLabel(clientId: string) {
+  if (clientId === "dashboard") return "Added in dashboard";
+  const { name } = assistantIdentity(clientId);
+  return name === "Assistant" ? `Assistant (${clientId})` : name;
+}
 function Icon({ name, size = 20 }: { name: string; size?: number }) {
   const paths: Record<string, React.ReactNode> = {
     memory: (
@@ -1036,11 +1041,9 @@ function Dashboard({ config }: { config: Config }) {
             <dl>
               <dt>Recorded by</dt>
               <dd>{detail.memory.authorName}</dd>
-              <dt>Source</dt>
-              <dd>
-                {detail.memory.sourceClient === "dashboard"
-                  ? "Added in dashboard"
-                  : detail.memory.sourceClient}
+              <dt>Last saved via</dt>
+              <dd title={detail.memory.sourceClient}>
+                {sourceLabel(detail.memory.sourceClient)}
               </dd>
               <dt>Basis</dt>
               <dd>
