@@ -6,6 +6,7 @@ import { DomainError, MemoryStore, type Actor } from "./memory.js";
 import { runTool, type Tool } from "./tools.js";
 import { ontology } from "./ontology.js";
 import { PredicateRegistry } from "./predicates.js";
+import { KnowledgeStore } from "./knowledge.js";
 export function dashboardApi(
   config: { secretKey: string; publishableKey: string; publicUrl: string },
   store: MemoryStore,
@@ -14,6 +15,7 @@ export function dashboardApi(
 ) {
   const api = express.Router();
   const predicates = new PredicateRegistry(store);
+  const knowledge = new KnowledgeStore(store);
   // Relationship review changes the shared ontology, so it is limited to configured reviewers.
   const reviewers = new Set(
     (process.env.ONTOLOGY_ADMIN_EMAILS ?? "")
@@ -144,6 +146,10 @@ export function dashboardApi(
       case "accept_invitation": {
         const i = z.object({ token: z.string().max(200) }).parse(input);
         result = await store.accept(actor, i.token);
+        // A new member's name may now resolve existing mentions in this space.
+        await knowledge
+          .relinkSpace((result as { id: string }).id)
+          .catch(() => undefined);
         break;
       }
       case "members": {
@@ -172,6 +178,7 @@ export function dashboardApi(
           .object({ spaceId: z.string(), userId: z.string() })
           .parse(input);
         result = await store.revoke(actor, i.spaceId, i.userId);
+        await knowledge.relinkSpace(i.spaceId).catch(() => undefined);
         break;
       }
       case "retry_ontology": {

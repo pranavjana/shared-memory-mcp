@@ -812,6 +812,7 @@ export const ontology = {
   rules: [
     "Private by default; membership is not sharing consent.",
     "Stable keys are scoped to the author; names do not merge people or projects.",
+    "In a shared space, a person mentioned in a snapshot is shown as the space member it unambiguously names (the author, or the only member with that full or first name). Private graphs are never merged.",
     "Entity properties describe identity. Changing states, deadlines and preferences are claims.",
     "A shared claim is a snapshot; source revisions do not silently republish it.",
     "Evidence is an attributed excerpt, not independent verification.",

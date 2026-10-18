@@ -51,6 +51,7 @@ const quantity = (n: number, singular: string, plural = singular + "s") =>
 type EntityCardData = {
   name: string;
   entityType: string;
+  member: boolean;
   attributes: Claim[];
   attributeTypes: Record<string, string>;
   provisional: Set<string>;
@@ -70,6 +71,7 @@ function EntityClassCard({
         <span className="kg-node-type">
           <i style={{ background: colors[data.entityType] ?? "#999" }} />
           {`«${data.entityType}»`}
+          {data.member && " · member"}
         </span>
         <strong title={data.name}>{data.name}</strong>
       </div>
@@ -134,7 +136,7 @@ function layout(
 ) {
   const entities = new Map<
     string,
-    { name: string; type: string; attributes: Claim[] }
+    { name: string; type: string; member: boolean; attributes: Claim[] }
   >();
   const graph = new dagre.graphlib.Graph({ multigraph: true })
     .setGraph({
@@ -147,7 +149,12 @@ function layout(
     .setDefaultEdgeLabel(() => ({}));
   const addEntity = (e: Claim["subject"]) => {
     if (!entities.has(e.id))
-      entities.set(e.id, { name: e.name, type: e.type, attributes: [] });
+      entities.set(e.id, {
+        name: e.name,
+        type: e.type,
+        member: !!e.memberId,
+        attributes: [],
+      });
     return entities.get(e.id)!;
   };
   for (const c of claims) {
@@ -180,6 +187,7 @@ function layout(
     data: {
       name: e.name,
       entityType: e.type,
+      member: e.member,
       attributes: e.attributes,
       attributeTypes,
       provisional,
