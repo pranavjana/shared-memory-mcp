@@ -5,7 +5,7 @@ export interface AssistantIdentity {
   /**
    * metadata: name published at the client ID URL (domain-verified).
    * registration: name the app supplied when it registered with Clerk (self-reported).
-   * dashboard: written in the Shared Memory dashboard.
+   * dashboard: written in the Memspace dashboard.
    * unknown: no name available; show the client ID.
    */
   source: "metadata" | "registration" | "dashboard" | "unknown";

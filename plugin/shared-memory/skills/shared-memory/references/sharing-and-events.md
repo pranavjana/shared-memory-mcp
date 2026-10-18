@@ -28,7 +28,7 @@ A private save may trigger an existing dashboard-enabled rule. Inspect `automati
 
 ## Read a shared update
 
-Shared Memory does not push to other members’ agents. A chat left open is not a monitor.
+Memspace does not push to other members’ agents. A chat left open is not a monitor.
 
 1. Call `get_shared_update` with the space ID as `spaceId` and the memory ID or publication ID as `id` to retrieve the current authorized update and related context restricted to that same space.
 2. Tell **your own** user about the current update, author, and relevant context (e.g. Roshan’s agent tells Roshan that Pranav completed a task).

@@ -36,11 +36,11 @@ const agents: Agent[] = [
         <strong>Add custom MCP server</strong>.
       </>,
       <>
-        Name it Shared Memory, paste the MCP URL, and choose OAuth. Leave the
+        Name it Memspace, paste the MCP URL, and choose OAuth. Leave the
         client ID and secret blank.
       </>,
       <>
-        Create the plugin, sign in with your Shared Memory account, then give
+        Create the plugin, sign in with your Memspace account, then give
         your dot the install prompt to verify the connection.
       </>,
     ],
@@ -65,7 +65,7 @@ const agents: Agent[] = [
         connector with OAuth.
       </>,
       <>
-        Sign in with your Shared Memory account when Muse asks, and confirm the
+        Sign in with your Memspace account when Muse asks, and confirm the
         account it reports back.
       </>,
       <>
@@ -86,12 +86,12 @@ const agents: Agent[] = [
     connect: (mcpUrl) => [
       <>
         Message your bot:{" "}
-        <q>Add a custom MCP server called Shared Memory at {mcpUrl}</q>, then
+        <q>Add a custom MCP server called Memspace at {mcpUrl}</q>, then
         select <strong>Add it</strong>.
       </>,
       <>
         Select <strong>Authorize</strong> on the connect card and sign in with
-        your Shared Memory account.
+        your Memspace account.
       </>,
       <>
         Paste the install prompt so the bot verifies the connection. Added
@@ -261,7 +261,7 @@ export function AgentSetup({
               1
             </span>
             <div className="setup-content">
-              <h2>Connect Shared Memory</h2>
+              <h2>Connect Memspace</h2>
               <ol className="agent-steps">
                 {agent.connect(mcpUrl).map((step, i) => (
                   <li key={i}>{step}</li>

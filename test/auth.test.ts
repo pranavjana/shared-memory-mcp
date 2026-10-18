@@ -104,7 +104,7 @@ test("OAuth discovery, access checks, and concurrent users stay isolated", async
       "offline_access",
     ]);
     assert.deepEqual(body.bearer_methods_supported, ["header"]);
-    assert.equal(body.resource_name, "Shared Memory MCP");
+    assert.equal(body.resource_name, "Memspace MCP");
     assert.equal(metadata.headers.get("access-control-allow-origin"), "*");
     assert.equal(
       (await fetch(`${base}/setup/recall-prompt/dot`)).status,
@@ -121,7 +121,7 @@ test("OAuth discovery, access checks, and concurrent users stay isolated", async
       const skillText = await skillRes.text();
       assert.ok(skillText.includes(`name: ${skillNames[host]}`));
       assert.ok(skillText.includes("Watch tick"));
-      assert.ok(skillText.includes("Shared Memory operating guide"));
+      assert.ok(skillText.includes("Memspace operating guide"));
     }
     assert.equal((await fetch(`${base}/skill/unknown`)).status, 404);
     const prompt = await fetch(`${base}/setup/prompt`, {
@@ -175,7 +175,7 @@ test("OAuth discovery, access checks, and concurrent users stay isolated", async
     assert.ok(!instructions.startsWith("---"));
     assert.ok(instructions.includes("get_connection_status"));
     assert.ok(instructions.includes("Do not install skills"));
-    assert.ok(!instructions.includes("# Shared Memory operating guide"));
+    assert.ok(!instructions.includes("# Memspace operating guide"));
 
 
     for (const auth of [

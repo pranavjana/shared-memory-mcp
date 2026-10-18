@@ -1,4 +1,4 @@
-# Shared Memory operating guide
+# Memspace operating guide
 
 This file lives inside the Muse / Grok Bot / Dot skill. For remember, recall, share, and one-off reads, follow it. For a timed watch (a shared space, or the user's own memories saved by other assistants), use the parent `SKILL.md` (Arm) and [tick.md](tick.md).
 
@@ -7,7 +7,7 @@ This file lives inside the Muse / Grok Bot / Dot skill. For remember, recall, sh
 
 - The user states a durable preference, fact, event, goal, task, decision, or relationship worth keeping across chats or assistants.
 - An answer or plan depends on prior preferences, projects, people, commitments, or decisions — call recall (and structured knowledge tools when useful) first.
-- The user asks to share, retract, correct, or forget Shared Memory content, or asks what changed in a shared space (one-off).
+- The user asks to share, retract, correct, or forget Memspace content, or asks what changed in a shared space (one-off).
 - The user wants recurring notifications for a space, or for their own memories saved by their other assistants — stay in this host skill (Arm + [tick.md](tick.md)).
 - Tools are connected but behavior is unclear — call `memory_instructions` (or reload this skill) before improvising.
 
@@ -15,7 +15,7 @@ Do **not** treat installing this skill as connecting MCP, or connecting MCP as i
 
 ## Tools
 
-Use the Shared Memory MCP server’s tools by their exact names. When the host requires a server-qualified name, use `Shared Memory:<tool>` (or the host’s equivalent for this server). Do not invent tools.
+Use the Memspace MCP server’s tools by their exact names. When the host requires a server-qualified name, use `Memspace:<tool>` (`Shared Memory:<tool>` on connections named before the rename, or the host’s equivalent for this server). Do not invent tools.
 
 | Tool | Role |
 | --- | --- |
@@ -41,7 +41,7 @@ The MCP `memory_instructions` tool returns **this SKILL.md only**. Critical safe
 
 1. Call `get_connection_status` when setting up, reconnecting, or checking the signed-in account.
 2. Use the authenticated account’s identity; never select a different person’s account from a name in conversation.
-3. A connection does not grant access to entire chats or other apps. Built-in assistant memory and Shared Memory are separate stores.
+3. A connection does not grant access to entire chats or other apps. Built-in assistant memory and Memspace are separate stores.
 4. If tools are unavailable, explain how to connect MCP (host Connections / Streamable HTTP + OAuth). Do not install skills, write memories, share, or start monitoring as part of a connect-only setup.
 5. On 401, ask the user to reconnect. OAuth clients must send the MCP URL as the `resource` parameter in authorization and token requests. More scopes do not repair a missing audience. Do not disable authentication or accept tokens for another resource.
 6. On revoked access or a permission error, stop the affected operation and direct the user to Connections or the relevant space owner.
@@ -54,7 +54,7 @@ The MCP `memory_instructions` tool returns **this SKILL.md only**. Critical safe
 - Never store passwords, access tokens, recovery codes, private keys, or other credentials.
 - Save highly sensitive personal details only when the user explicitly asks, using the minimum necessary content.
 - Do not invent facts, promote guesses or inferred traits into user facts, or claim success without the relevant receipt.
-- Do not store this guide as a personal fact in Shared Memory.
+- Do not store this guide as a personal fact in Memspace.
 
 ## Recall
 
@@ -106,7 +106,7 @@ For money, obligations, routines vs events, contextual preferences, supersedes, 
 
 ## Acknowledge only real receipts
 
-After a successful save or revision receipt, acknowledge briefly (e.g. “Saved your preference for concise updates.”). Several saves can share one short summary. Do not claim a save, share, deletion, notification, or action succeeded without its receipt. On failure or missing tools, say what is still pending. Do not pretend a local note or built-in memory write reached Shared Memory.
+After a successful save or revision receipt, acknowledge briefly (e.g. “Saved your preference for concise updates.”). Several saves can share one short summary. Do not claim a save, share, deletion, notification, or action succeeded without its receipt. On failure or missing tools, say what is still pending. Do not pretend a local note or built-in memory write reached Memspace.
 
 ## Share only with permission
 
@@ -123,7 +123,7 @@ Readers can retrieve; contributors and owners can share their own memories. Do n
 
 ## Shared updates (summary)
 
-Shared Memory does not push into hosts. Do not invent webhooks or `notification_setup`.
+Memspace does not push into hosts. Do not invent webhooks or `notification_setup`.
 
 - **One-off:** `get_shared_update` with `spaceId` and memory or publication `id` → tell **your own** user. Never auto-reply to the sender or save the update as their fact. Do not retrieve a private source ID for a selected claim. A share receipt ≠ “your friend was notified.”
 - **Every X minutes:** this host skill’s Arm section; each wake follows [tick.md](tick.md). A personal watch covers the user's own memories written by their other assistants or the dashboard; it is not a space and nobody else is involved.

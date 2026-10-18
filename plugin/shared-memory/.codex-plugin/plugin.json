@@ -9,7 +9,7 @@
       "Show my shared spaces and what was recently shared in them."
     ],
     "developerName": "Pranav Janakiraman",
-    "displayName": "Shared Memory",
+    "displayName": "Memspace",
     "logo": "./assets/logo.svg",
     "longDescription": "Remember explicit facts, preferences, events, goals, tasks, and decisions across connected assistants. Inspect sources and relationships in your dashboard. Share selected memories in authorized spaces. Members read shared updates on demand.",
     "shortDescription": "Memory across your assistants"

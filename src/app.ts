@@ -236,7 +236,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     res
       .type("text")
       .send(
-        "Clerk manages authentication. Shared Memory stores your basic profile and memories you or connected assistants submit, including source excerpts, typed entities, revisions and times. Private memories are accessible only to their owner and authorized connected clients. Selected memories may be shared in explicitly authorized spaces. Revocation stops future reads, but cannot recall content already received by another assistant. Forgetting removes memory text, evidence and revision content; minimal IDs and sharing metadata remain. Hosting providers may retain operational metadata. Configured model providers process submitted source excerpts and limited matching entity context to structure memories, and generate retrieval embeddings. The service does not automatically receive entire chats. Agent-supplied observations are not independently verified.",
+        "Clerk manages authentication. Memspace stores your basic profile and memories you or connected assistants submit, including source excerpts, typed entities, revisions and times. Private memories are accessible only to their owner and authorized connected clients. Selected memories may be shared in explicitly authorized spaces. Revocation stops future reads, but cannot recall content already received by another assistant. Forgetting removes memory text, evidence and revision content; minimal IDs and sharing metadata remain. Hosting providers may retain operational metadata. Configured model providers process submitted source excerpts and limited matching entity context to structure memories, and generate retrieval embeddings. The service does not automatically receive entire chats. Agent-supplied observations are not independently verified.",
       ),
   );
   app.use(express.static(resolve("public")));
@@ -248,7 +248,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         res
           .type("html")
           .send(
-            "<h1>Shared Memory</h1><p>Dashboard build pending. MCP endpoint: /mcp</p>",
+            "<h1>Memspace</h1><p>Dashboard build pending. MCP endpoint: /mcp</p>",
           );
     });
 
@@ -257,7 +257,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     resourceUrl: resource,
     properties: {
       scopes_supported: ["openid", ...requiredScopes, "offline_access"],
-      resource_name: "Shared Memory MCP",
+      resource_name: "Memspace MCP",
       bearer_methods_supported: ["header"],
     },
   });
@@ -271,7 +271,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         resource,
         authorization_servers: metadata.authorization_servers,
         scopes_supported: metadata.scopes_supported,
-        resource_name: "Shared Memory MCP",
+        resource_name: "Memspace MCP",
         bearer_methods_supported: ["header"],
       }),
     );
@@ -497,9 +497,9 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
     server.registerTool(
       "get_connection_status",
       {
-        title: "Check Shared Memory connection",
+        title: "Check Memspace connection",
         description:
-          "Verify the Shared Memory MCP connection and return the profile of the user who authorized it, plus this assistant's client ID (the sourceClient it writes). Personal memory is available when configured.",
+          "Verify the Memspace MCP connection and return the profile of the user who authorized it, plus this assistant's client ID (the sourceClient it writes). Personal memory is available when configured.",
         inputSchema: {},
         annotations: {
           readOnlyHint: true,

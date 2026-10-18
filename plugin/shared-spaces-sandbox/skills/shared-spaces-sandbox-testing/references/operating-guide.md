@@ -1,13 +1,13 @@
 ---
 name: shared-memory
-description: Use the connected Shared Memory service to remember and retrieve personal facts, preferences, events, goals, tasks, and decisions across assistants, and share selected updates within authorized spaces.
+description: Use the connected Memspace service to remember and retrieve personal facts, preferences, events, goals, tasks, and decisions across assistants, and share selected updates within authorized spaces.
 ---
 
-# Shared Memory operating guide
+# Memspace operating guide
 
 ## Connection and scope
 
-Use Shared Memory's tools for memory across assistants. Call get_connection_status when setting up, reconnecting, or checking the signed-in account. Use the authenticated account's identity; never select a different person's account from a name in conversation. A connection does not grant access to entire chats or other apps. Built-in assistant memory and Shared Memory are separate stores.
+Use Memspace's tools for memory across assistants. Call get_connection_status when setting up, reconnecting, or checking the signed-in account. Use the authenticated account's identity; never select a different person's account from a name in conversation. A connection does not grant access to entire chats or other apps. Built-in assistant memory and Memspace are separate stores.
 
 If tools are unavailable, explain how to connect them. On 401, ask the user to reconnect; OAuth clients must send the MCP URL as the resource parameter in authorization and token requests. More scopes do not repair a missing audience. Do not disable authentication or accept tokens for another resource. On revoked access or a permission error, stop the affected operation and direct the user to Connections or the relevant space owner. Never ask the user to paste access tokens, passwords, or client secrets into chat.
 
@@ -56,7 +56,7 @@ Use forget_memory only on the user's request. Clarify which memory when the targ
 
 ## Tell the user what actually happened
 
-After a successful save or revision receipt, acknowledge it naturally and briefly: for example, "Saved your preference for concise updates." Several saves can have one short summary; a few conversational messages are fine. Keep detailed evidence and history in the dashboard. Do not claim a save, share, deletion, notification, or action succeeded without its relevant receipt. On a failure or missing tools, say what is still pending. Do not pretend a local note or built-in memory write reached Shared Memory.
+After a successful save or revision receipt, acknowledge it naturally and briefly: for example, "Saved your preference for concise updates." Several saves can have one short summary; a few conversational messages are fine. Keep detailed evidence and history in the dashboard. Do not claim a save, share, deletion, notification, or action succeeded without its relevant receipt. On a failure or missing tools, say what is still pending. Do not pretend a local note or built-in memory write reached Memspace.
 
 ## Share only with permission
 
@@ -66,7 +66,7 @@ For "tell Roshan I finished this," use list_spaces, identify the intended space 
 
 ## Shared updates and proactive behavior
 
-Shared Memory does not push updates to other members' agents. Do not invent a webhook. For a user-requested check every X minutes (a space, or a personal watch of their own memories saved by other assistants), follow `shared-space-watch-dot` (this ChatGPT plugin), `shared-space-watch-muse`, or `shared-space-watch-grok`. Otherwise offer an on-demand `get_shared_update`.
+Memspace does not push updates to other members' agents. Do not invent a webhook. For a user-requested check every X minutes (a space, or a personal watch of their own memories saved by other assistants), follow `shared-space-watch-dot` (this ChatGPT plugin), `shared-space-watch-muse`, or `shared-space-watch-grok`. Otherwise offer an on-demand `get_shared_update`.
 
 To read a shared update, call `get_shared_update` with the space ID as `spaceId` and the memory or publication ID as `id` to retrieve the current authorized update and related context restricted to that same space, and tell your own user about the current update, author, and relevant context. For example, Roshan's agent tells Roshan that Pranav completed a task. Do not automatically reply to Pranav or echo the update back into another memory. Do not reconstruct forgotten, retracted, or inaccessible content from an earlier read.
 
@@ -74,4 +74,4 @@ A share receipt confirms a shared reference, not that the recipient was notified
 
 ## Persistence
 
-Use these instructions whenever the skill is available or selected by the host. Pasting the guide into a chat only establishes instructions in that chat; it does not install a plugin, grant OAuth access, modify persistent settings, or guarantee behavior in future chats. For reuse, install the packaged skill or save it in the host's supported persistent instructions. Do not store this guide as a personal fact in Shared Memory. Confirm only the setup and persistence actions that actually succeeded.
+Use these instructions whenever the skill is available or selected by the host. Pasting the guide into a chat only establishes instructions in that chat; it does not install a plugin, grant OAuth access, modify persistent settings, or guarantee behavior in future chats. For reuse, install the packaged skill or save it in the host's supported persistent instructions. Do not store this guide as a personal fact in Memspace. Confirm only the setup and persistence actions that actually succeeded.

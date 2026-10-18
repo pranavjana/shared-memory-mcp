@@ -16,7 +16,7 @@ Mode comes from the tick payload `scope`:
 - [ ] Fetch candidates
 - [ ] Diff against the seen list (skip own)
 - [ ] Tell this user only if there are new other-member updates
-- [ ] Carry the seen list forward (never in Shared Memory)
+- [ ] Carry the seen list forward (never in Memspace)
 - [ ] Do not re-arm a duplicate schedule
 ```
 
@@ -58,7 +58,7 @@ Never auto-reply to the sender, re-share, or reconstruct forgotten content. Do n
 - [ ] Keep writes from other assistants only
 - [ ] Diff against the since cursor
 - [ ] Tell this user only if there are new ones
-- [ ] Carry since/seen forward (never in Shared Memory)
+- [ ] Carry since/seen forward (never in Memspace)
 - [ ] Do not re-arm a duplicate schedule
 ```
 
@@ -98,4 +98,4 @@ Never revise, forget, or share these memories during a tick. Do not start anothe
 
 ## Watch state (both modes)
 
-Space watches carry `seen: <fingerprint>,…` (max ~40, newest first); personal watches carry `since: <ms>` plus `seen:`. Carry it in the next-wake prompt if the host allows a varying prompt, or in the host's own schedule notes. If neither is possible, treat items updated within the last `intervalMinutes` + 2 minutes as new. Never `remember`, `revise_memory`, or `record_knowledge` a seen list, cursor, or watch state: a tick is read-only in Shared Memory.
+Space watches carry `seen: <fingerprint>,…` (max ~40, newest first); personal watches carry `since: <ms>` plus `seen:`. Carry it in the next-wake prompt if the host allows a varying prompt, or in the host's own schedule notes. If neither is possible, treat items updated within the last `intervalMinutes` + 2 minutes as new. Never `remember`, `revise_memory`, or `record_knowledge` a seen list, cursor, or watch state: a tick is read-only in Memspace.
