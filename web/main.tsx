@@ -4,6 +4,7 @@ import { ClerkProvider, useAuth, SignInButton, UserButton } from "@clerk/react";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import codexLogo from "./assets/codex.png";
+import museLogo from "./assets/muse.svg";
 import { AgentSetup } from "./AgentSetup";
 import { SpaceView } from "./SpaceView";
 import { invitationRedirect } from "./invitation";
@@ -81,9 +82,13 @@ const date = (n: number) =>
     minute: "2-digit",
   });
 const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const brandLogos = { openai: codexLogo, muse: museLogo };
 function assistantIdentity(clientId: string, resolved?: ResolvedAssistant) {
   const a = displayAssistant(clientId, resolved);
-  return { ...a, logo: a.logo ?? (a.openai ? codexLogo : undefined) };
+  // Bundled marks are monochrome glyphs; app-registered logos are full-colour images.
+  return a.brand
+    ? { ...a, logo: brandLogos[a.brand], mono: true }
+    : { ...a, logo: a.logo ?? undefined, mono: false };
 }
 function Icon({ name, size = 20 }: { name: string; size?: number }) {
   const paths: Record<string, React.ReactNode> = {
@@ -703,6 +708,7 @@ function Dashboard({ config }: { config: Config }) {
                           <span className="assistant-logo" aria-hidden="true">
                             {assistant.logo ? (
                               <img
+                                className={assistant.mono ? "mono" : "app-logo"}
                                 src={assistant.logo}
                                 alt=""
                                 width="24"

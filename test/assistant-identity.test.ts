@@ -19,9 +19,14 @@ test("memory source shows the server-resolved name and never hides an opaque cli
     "Codex",
   );
   assert.equal(
-    displayAssistant("https://chatgpt.com/oauth/client.json").openai,
-    true,
+    displayAssistant("https://chatgpt.com/oauth/client.json").brand,
+    "openai",
   );
+  assert.equal(
+    displayAssistant("we1EZdDXCj0XlknO", { ...muse, brand: "muse" }).brand,
+    "muse",
+  );
+  assert.equal(displayAssistant("we1EZdDXCj0XlknO", muse).brand, null);
   assert.equal(sourceLabel("dashboard"), "Added in dashboard");
   assert.equal(
     sourceLabel("https://agent.example.com/client.json"),
