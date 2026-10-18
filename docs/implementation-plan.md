@@ -14,7 +14,7 @@ A private graph stores account profiles. The application graph stores Memory, Re
 
 A space owner invites a registered user's verified primary email. An invitation is accepted by that signed-in user and grants reader or contributor access. The owner can revoke membership. Sharing requires a contributor grant and explicit intent from the user or a matching enabled rule. New shares and source revisions record durable Change entries; members retrieve shared updates on demand with permission checks on every read.
 
-There is no automatic reply to the sender. Connecting as friends does not reveal private memory. Webhook-based proactive delivery (MCP Events) was removed. *Members' agents now check for updates on their own schedule through the per-host watch skills; the server still does not push.*
+There is no automatic reply to the sender. Connecting as friends does not reveal private memory. Webhook-based proactive delivery (MCP Events) was removed. *Members' agents now pick up updates automatically through a scheduled watch in each host (the `shared-space-watch-*` skills).*
 
 ## Host integration
 

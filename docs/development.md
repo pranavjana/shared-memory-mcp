@@ -100,7 +100,7 @@ npm run sandbox:seed -- --restore-demo-membership --apply
 
 Use a new demo-update key per requested update, and reuse it for retries. The operator returns actual space/memory IDs and checks allowed shared retrieval plus denied private retrieval on both sides. It refuses mixed/production Railway IDs, graph names, keys, issuer, or live Clerk instance. Without `--apply` it is read-only. It never creates/impersonates a real human account, resets a database, erases experiments, or silently restores a revoked demo member. A fresh invitation is issued/accepted only with the explicit restoration flag. Reruns also preserve manual share retractions.
 
-The server does not push updates to other members' agents. Check incoming demo updates with on-demand recall or `get_shared_update`, or let a host's watch skill find them on its next scheduled check. Do not claim instant delivery.
+Members' agents pick up incoming demo updates on their next scheduled watch check, or on demand with `recall` or `get_shared_update`. Updates arrive at the next check rather than instantly, so describe them that way.
 
 ## Local configuration and known limits
 
@@ -146,6 +146,6 @@ Explicit negations are stored as claims with `negated: true`, never as the affir
 
 ### Watches and assistant names
 
-The server never wakes an agent. Each host's watch skill (`/skill/dot`, `/skill/muse`, `/skill/grok-bot`) asks the agent to create a timed check in its own scheduler and to report whether it did. A watch follows one shared space, or runs in personal mode: `get_connection_status` returns the caller's `client.id`, and the tick reports the user's own memories whose `sourceClient` is a different assistant or the dashboard.
+Each host's watch skill (`/skill/dot`, `/skill/muse`, `/skill/grok-bot`) has the agent create a timed check in its own scheduler (every 15 minutes by default, 5 at most often, daily at least) and confirm it. The check runs on the host, so no webhook or push channel is needed. A watch follows one shared space, or runs in personal mode: `get_connection_status` returns the caller's `client.id`, and the tick reports the user's own memories whose `sourceClient` is a different assistant or the dashboard.
 
 Assistant names come from the client ID metadata document's `client_name` for URL client IDs, and from the Clerk OAuth application with the exact client ID for dynamically registered ones (cached, with a 2-second timeout). `list_assistants` returns the user's connected assistants, which one is calling, and what each last saved; `explain_memory` names the assistant behind every revision, and the dashboard shows the same names.

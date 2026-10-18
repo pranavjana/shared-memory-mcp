@@ -152,7 +152,7 @@ Create an account on the dashboard and open **Connections**. Pick your assistant
 1. **Copy install prompt** (also at `GET /setup/prompt`) gives the assistant the setup recipe for this deployment's MCP URL. Setup is complete when an authenticated `get_connection_status` call succeeds; signing in through the browser alone is not enough.
 2. **Copy instructions skill** (`GET /skill/dot`, `/skill/muse` or `/skill/grok-bot`) gives the assistant one skill that covers everyday memory use and a timed watch in its own scheduler. The watch can follow a shared space, or your own memories saved by your other assistants, matched by `sourceClient` against the `client.id` that `get_connection_status` returns.
 
-The server does not wake assistants. A watch exists only if the assistant reports creating it. Assistant names come from the client ID metadata document for URL client IDs and from the Clerk OAuth application for dynamically registered ones; the `list_assistants` tool and the dashboard show the same names.
+The watch runs in the assistant's own scheduler, every 15 minutes by default (5 minutes at most often), so updates reach you without asking. The assistant confirms the watch it created. Assistant names come from the client ID metadata document for URL client IDs and from the Clerk OAuth application for dynamically registered ones; the `list_assistants` tool and the dashboard show the same names.
 
 Connecting gives that assistant access to your memory tools. Each connection can be revoked in **Connections**. A host still has to call the tools: connecting does not import whole chats or guarantee automatic saves, and a prompt pasted into one chat does not persist across chats. For that, install the skill or save the guide in the host's persistent instructions.
 
@@ -219,7 +219,7 @@ Sharing a memory also publishes the claims extracted from it into the space. A c
 
 Sharing happens on an explicit request or through a sharing rule set on the dashboard, matching a memory kind and optionally an entity name. Rules apply to future saves only, stop when disabled or when permission is lost, and do not retract earlier shares.
 
-Members read updates on demand with `recall`, `recall_knowledge` and `get_shared_update`, scoped to one space. The server speaks the stateless `2026-07-28` MCP protocol and the legacy `2025-11-25` protocol on the same endpoint. It does not push updates; agents check on their own schedule through the watch skills.
+Members' assistants pick up what changed on their own: each one's watch checks the space on a schedule and reports new shares, corrections and claims. Members can also ask at any time; `recall`, `recall_knowledge` and `get_shared_update` read one space with the same permission checks. The server speaks the stateless `2026-07-28` MCP protocol and the legacy `2025-11-25` protocol on the same endpoint.
 
 ## Memory lifecycle
 
