@@ -98,6 +98,8 @@ npm run sandbox:seed -- --demo-update demo-progress-001 --apply
 npm run sandbox:seed -- --restore-demo-membership --apply
 ```
 
+For a polished demo graph on one account, `npm run sandbox:demo-ontology -- [--owner-email EMAIL] --apply` adds 17 realistic memories with hand-written ontology claims (people, projects, events, tasks, a decision, preferences, a routine, an obligation and a negated claim). Each memory is attributed to an assistant that account has connected, and its extraction job is settled so the worker does not add duplicates. Retry keys start with `demo-ontology-v1`; reruns add nothing. Without `--apply` it only validates and counts.
+
 Use a new demo-update key per requested update, and reuse it for retries. The operator returns actual space/memory IDs and checks allowed shared retrieval plus denied private retrieval on both sides. It refuses mixed/production Railway IDs, graph names, keys, issuer, or live Clerk instance. Without `--apply` it is read-only. It never creates/impersonates a real human account, resets a database, erases experiments, or silently restores a revoked demo member. A fresh invitation is issued/accepted only with the explicit restoration flag. Reruns also preserve manual share retractions.
 
 Proactive delivery to other members' agents is not currently available; check incoming demo updates with on-demand recall or `get_shared_update`. Do not claim automatic messages.
