@@ -1,14 +1,14 @@
 ---
 name: shared-space-watch-muse
 description: >-
-  Meta Muse skill for Shared Memory: remember and recall, share into spaces,
+  Meta Muse skill for Memspace: remember and recall, share into spaces,
   and a Muse /loop or session cron that checks a space, or the user's own
   memories saved by their other assistants, every X minutes. Use
   only when this assistant is Muse (personal Muse or Muse Code), including
   Watch-tick wakes. Do not use on Grok Bot, ChatGPT Dot, or Cursor.
 ---
 
-# Muse Shared Memory
+# Muse Memspace
 
 You are **Muse**. Memory ops and space watches both live in this skill. Do not load `shared-space-watch`, `shared-space-watch-tick`, Grok, or Dot skills.
 
@@ -22,7 +22,7 @@ You are **Muse**. Memory ops and space watches both live in this skill. Do not l
 
 Examples, ontology, sharing detail, evals: [references/examples.md](references/examples.md), [ontology.md](references/ontology.md), [sharing-and-events.md](references/sharing-and-events.md), [evals.md](references/evals.md).
 
-"Chat" means a Shared Memory **space** from `list_spaces`.
+"Chat" means a Memspace **space** from `list_spaces`.
 
 ## Setup (watch)
 
@@ -38,11 +38,11 @@ Ask scope/space if ambiguous. Ask X if missing (default **15**). Floor **5**, ca
 
 **Personal watch** (no space): use when the user wants to know when their *other* assistants (or the dashboard) save or revise their own memories. Record `client.id` from `get_connection_status` as `selfClientId` so this assistant's own saves are skipped. Nobody else is involved; private memories stay private.
 
-Watch settings live only in the job's payload. Never `remember`, `revise_memory`, or share watch settings, jobs, or seen lists — Shared Memory holds the user's knowledge, not watch state.
+Watch settings live only in the job's payload. Never `remember`, `revise_memory`, or share watch settings, jobs, or seen lists — Memspace holds the user's knowledge, not watch state.
 
 ## Arm (Muse only)
 
-Do not create a Grok routine, ChatGPT Scheduled task, Cursor `/loop`, or Shared Memory webhook.
+Do not create a Grok routine, ChatGPT Scheduled task, Cursor `/loop`, or Memspace webhook.
 
 1. One recurring job whose task is the payload below (`/loop every <X> minutes, …` on Muse Code, or this Muse VM cron).
 2. Local timezone. Run the tick **once now** without a second job.

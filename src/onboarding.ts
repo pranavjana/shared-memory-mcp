@@ -10,16 +10,16 @@ export function mcpInstallPrompt(resource: string): string {
   const origin = new URL(endpoint).origin;
   const host = new URL(endpoint).host;
   const prmBase = `${origin}/.well-known/oauth-protected-resource`;
-  return `Install and connect the Shared Memory MCP server, then verify the connection actually works.
+  return `Install and connect the Memspace MCP server, then verify the connection actually works.
 
 ENDPOINT: ${endpoint}
-(This prompt works for any Shared Memory deployment. Change only the ENDPOINT line; every URL below is derived from it.)
+(This prompt works for any Memspace deployment. Change only the ENDPOINT line; every URL below is derived from it.)
 
 Transport: Streamable HTTP. Authentication: OAuth 2.0 authorization code via the server's Clerk instance, with Dynamic Client Registration.
 
 Success is one thing only: an authenticated get_connection_status call that returns the account I signed in with. A saved configuration, a completed sign-in, or a registered connector is not success. Do not report the connection as working until step 6 passes.
 
-1. Inspect existing connections first. If a Shared Memory connection for this exact ENDPOINT already exists, reuse it and skip to step 6 instead of creating a duplicate. Preserve all unrelated servers and settings.
+1. Inspect existing connections first. If a Memspace connection for this exact ENDPOINT already exists, reuse it and skip to step 6 instead of creating a duplicate. Preserve all unrelated servers and settings.
 
 2. Discover the auth configuration from the server, in this order. Do not guess endpoints and do not rely on OIDC discovery alone, because it can omit the registration endpoint:
    - Read the protected-resource metadata from the endpoint host: ${prmBase} (if that returns nothing, try the same path with /mcp appended). Take \`authorization_servers\` and \`scopes_supported\` from it.
@@ -32,7 +32,7 @@ Success is one thing only: an authenticated get_connection_status call that retu
    - api hosts: only the endpoint host, ${host}.
    - CRITICAL, the step everything hinges on: append ?resource=<ENDPOINT> to BOTH the authorization URL and the token URL you register, i.e. authorization_url = <authorization_endpoint>?resource=${endpoint} and token_url = <token_endpoint>?resource=${endpoint}. There is no separate resource field in the setup flow and none is needed; the parameter travels inside those two URL values, and the flow passes them through unchanged. Without it, the issued token has no audience for this server and every call fails with 401 invalid_token. This exact registration is proven working on Muse (production server connected 2026-10-14, this sandbox server connected 2026-10-15, both verified live in step 6's terms).
 
-4. Start the sign-in flow the setup returns and let me sign in to my own Shared Memory account and approve it in the browser. Never ask me to paste a password, one-time code, access token, refresh token, or client secret into chat or into a configuration file. Never print or persist a credential anywhere; the host's credential storage handles it.
+4. Start the sign-in flow the setup returns and let me sign in to my own Memspace account and approve it in the browser. Never ask me to paste a password, one-time code, access token, refresh token, or client secret into chat or into a configuration file. Never print or persist a credential anywhere; the host's credential storage handles it.
 
 5. Build the MCP client from the host's Streamable HTTP MCP client template, pointed at ENDPOINT, and wire it to the registered connection through the host's dynamic credentials helper. That helper supplies a surrogate and the real credential is exchanged only on approved requests to the registered host. Never read, extract, log, or work around the stored token; the client is supposed to work without ever seeing it, and it does.
 

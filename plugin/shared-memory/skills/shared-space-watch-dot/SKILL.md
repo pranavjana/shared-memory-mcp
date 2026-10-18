@@ -1,14 +1,14 @@
 ---
 name: shared-space-watch-dot
 description: >-
-  ChatGPT Dot skill for Shared Memory: remember and recall, share into spaces,
+  ChatGPT Dot skill for Memspace: remember and recall, share into spaces,
   and a Scheduled recurring task that checks a space, or the user's own
   memories saved by their other assistants, every X minutes. Use only
   when this assistant is an OpenAI ChatGPT Dot (or Cloud Work as that dot),
   including Watch-tick wakes. Do not use on Muse, Grok Bot, or Cursor.
 ---
 
-# Dot Shared Memory
+# Dot Memspace
 
 You are **this ChatGPT Dot**. Memory ops and space watches both live in this skill. Do not load `shared-space-watch`, `shared-space-watch-tick`, Muse, or Grok skills.
 
@@ -22,7 +22,7 @@ You are **this ChatGPT Dot**. Memory ops and space watches both live in this ski
 
 Examples, ontology, sharing, evals: [references/examples.md](references/examples.md), [ontology.md](references/ontology.md), [sharing-and-events.md](references/sharing-and-events.md), [evals.md](references/evals.md).
 
-"Chat" means a Shared Memory **space** from `list_spaces`.
+"Chat" means a Memspace **space** from `list_spaces`.
 
 ## Setup (watch)
 
@@ -39,7 +39,7 @@ Ask scope/space if ambiguous. Ask X if missing (default **15**). Floor **5** (Fr
 
 **Personal watch** (no space): use when the user wants to know when their *other* assistants (or the dashboard) save or revise their own memories. Record `client.id` from `get_connection_status` as `selfClientId` so this assistant's own saves are skipped. Nobody else is involved; private memories stay private.
 
-Watch settings live only in the schedule's payload. Never `remember`, `revise_memory`, or share watch settings, schedules, or seen lists — Shared Memory holds the user's knowledge, not watch state. Connecting the plugin is not a watch.
+Watch settings live only in the schedule's payload. Never `remember`, `revise_memory`, or share watch settings, schedules, or seen lists — Memspace holds the user's knowledge, not watch state. Connecting the plugin is not a watch.
 
 ## Arm (this Dot only)
 

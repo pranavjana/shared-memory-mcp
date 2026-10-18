@@ -11,7 +11,7 @@
   "extensions": {
     "com.openai": {
       "interface": {
-        "displayName": "Shared Memory",
+        "displayName": "Memspace",
         "shortDescription": "Memory across your assistants",
         "longDescription": "Remember explicit facts, preferences, events, goals, tasks, and decisions across connected assistants. Inspect sources and relationships in your dashboard. Share selected memories in authorized spaces. Members read shared updates on demand.",
         "developerName": "Pranav Janakiraman",

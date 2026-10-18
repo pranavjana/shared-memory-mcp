@@ -85,7 +85,7 @@ describe("skill packaging", () => {
       );
       assert.match(skill, /references\/operating-guide\.md/);
       assert.match(skill, /references\/tick\.md/);
-      assert.match(guide, /# Shared Memory operating guide/);
+      assert.match(guide, /# Memspace operating guide/);
       assert.doesNotMatch(skill, /Use skill shared-space-watch-tick/);
     }
   });

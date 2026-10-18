@@ -15,7 +15,7 @@ const discovery = await fetch(`${metadata.authorization_servers[0]}/.well-known/
 assert(discovery.code_challenge_methods_supported.includes('S256'));
 const verifier = randomBytes(32).toString('base64url');
 const state = randomBytes(24).toString('base64url');
-const clientName = `Shared Memory verification ${Date.now()}`;
+const clientName = `Memspace verification ${Date.now()}`;
 let user;
 let oauthApp;
 let client;

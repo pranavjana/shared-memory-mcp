@@ -40,7 +40,7 @@ const server = createApp(
   },
   { users, memory, automaticOntology },
 ).listen(port, "0.0.0.0", () =>
-  console.log(`Shared Memory MCP listening on port ${port}`),
+  console.log(`Memspace MCP listening on port ${port}`),
 );
 void backfillUsers(
   users,

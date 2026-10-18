@@ -161,12 +161,12 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
   );
 }
 function Brand() {
-  return <div className="brand">shared memory.</div>;
+  return <div className="brand">Memspace</div>;
 }
 function Landing() {
   return (
     <main className="landing">
-      <h1 className="landing-title">shared memory.</h1>
+      <h1 className="landing-title">Memspace</h1>
       <SignInButton mode="modal">
         <button className="button">Log in</button>
       </SignInButton>
