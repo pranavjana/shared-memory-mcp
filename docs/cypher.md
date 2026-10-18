@@ -1,6 +1,8 @@
 # Cypher queries and graph algorithms
 
-This page lists the FalkorDB queries Shared Memory depends on, what each one does, and why it needs a graph. Every query is parameterized (`$user`, `$id`, …); user input is never concatenated into Cypher. Line references point to the source so each query can be checked against the code.
+This page lists the FalkorDB queries Shared Memory depends on, what each one does, and why it needs a graph. Every query is parameterized (`$user`, `$id`, …); user input is never concatenated into Cypher. Line references are to `codex/development` at commit `a346abc`.
+
+The core read queries are also in [`cypher/`](../cypher) as standalone files, and `npm run graph:demo` runs them against a small sample graph and prints each result with its execution plan. See [Run it yourself](#run-it-yourself).
 
 ## In one minute
 
@@ -8,6 +10,7 @@ This page lists the FalkorDB queries Shared Memory depends on, what each one doe
 - **Permissions are graph paths.** You can read a memory only if you wrote it, or if an active path connects you to it: `You -MEMBER_OF→ Space ←SHARED_IN- Memory`. This check runs on every read.
 - **Recall follows edges.** After finding memories by keyword, it hops through shared entities and shared spaces to find related memories, even ones with no matching words.
 - **Search runs inside FalkorDB.** Structured claims are found with FalkorDB's full-text index and HNSW vector index, filtered by the same permission paths, then neighbours are pulled in by a one-hop graph expansion.
+- **Teammates meet at one node.** Inside a space, every author's mentions of the same member resolve to a single `KnowledgeEntity`, so facts about a person collect in one place.
 
 If FalkorDB is removed, the product cannot decide who may read what, cannot find related context, and cannot search claims.
 
@@ -29,9 +32,11 @@ graph LR
   KnowledgeBatch -- CONTAINS --> KnowledgeClaim
   Publication -- DERIVED_FROM --> KnowledgeClaim
   Publication -- PUBLISHED_IN --> Space
+  Publication -- "SUBJECT, OBJECT" --> KnowledgeEntity
   KnowledgeSearchDocument -- INDEXES --> KnowledgeClaim
   KnowledgeSearchDocument -- INDEXES --> Publication
   OntologyJob -- SUPPORTED_BY --> Memory
+  KnowledgeClaim -. "predicate id" .-> OntologyPredicate
 ```
 
 | Node | What it is |
@@ -42,14 +47,15 @@ graph LR
 | `Entity` | A person, project, place or topic a memory is about. IDs are hashed with the owner's ID (`src/memory.ts:195`), so two users' "OAuth" are different nodes. |
 | `Space` | A shared space. Members join through `Invitation` nodes. |
 | `KnowledgeClaim` | A typed fact extracted from a memory, e.g. `task:oauth HAS_STATUS completed`, with the exact evidence quote. |
-| `KnowledgeEntity` | The subject or object of a claim. |
+| `KnowledgeEntity` | The subject or object of a claim. Private entities are scoped to their owner. In a space, a person mention that names one member resolves to that member's single node (§10). |
 | `Publication` | A frozen snapshot of a claim shared into a space. |
 | `KnowledgeSearchDocument` | Search text and embedding for a claim or publication, in a per-scope index label. |
 | `OntologyJob` | A queued background extraction for one memory revision. |
+| `OntologyPredicate` | A relationship type proposed by extraction when no core type fits. Starts provisional until an admin approves, rejects or merges it (§11). |
 | `Change` | An audit record of a share, retraction, revision or publication in a space. |
 | `Connection`, `SharingRule` | A connected assistant (revocable) and an automatic sharing rule. |
 
-Every label above has a range index and a unique constraint on `id` (`src/memory.ts:131`). Account profiles live in a separate graph (`FALKORDB_GRAPH`, `User {clerkId}`, `src/users.ts`); everything on this page is in the memory graph (`FALKORDB_MEMORY_GRAPH`).
+Every label above except `OntologyPredicate` has a range index and a unique constraint on `id` (`src/memory.ts:131`, also in [`cypher/schema.cypher`](../cypher/schema.cypher)). Account profiles live in a separate graph (`FALKORDB_GRAPH`, `User {clerkId}`, `src/users.ts`); everything on this page is in the memory graph (`FALKORDB_MEMORY_GRAPH`).
 
 ---
 
@@ -215,7 +221,7 @@ The membership path is the query's starting point, so a non-member gets nothing.
 
 ### Recording claims (`record_knowledge`)
 
-`src/knowledge.ts:153`
+`src/knowledge.ts:219`
 
 ```cypher
 MATCH (m:Memory {id:$memory})-[:HAS_REVISION]->(revision:Revision)
@@ -242,9 +248,9 @@ RETURN c.id AS id
 
 ### Searching claims (`recall_knowledge`)
 
-`src/knowledge.ts:207–440` and `src/knowledge-search.ts`
+`src/knowledge.ts:273–507` and `src/knowledge-search.ts`
 
-1. **Candidates.** Your own current claims (`src/knowledge.ts:217`):
+1. **Candidates.** Your own current claims (`src/knowledge.ts:283`):
 
    ```cypher
    MATCH (c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory)
@@ -254,7 +260,7 @@ RETURN c.id AS id
    ORDER BY c.recordedAt DESC, c.id DESC LIMIT 501
    ```
 
-   And claims published into your spaces, reached only through your membership (`src/knowledge.ts:232`):
+   And claims published into your spaces, reached only through your membership (`src/knowledge.ts:298`):
 
    ```cypher
    MATCH (:Person {id:$user})-[:MEMBER_OF {active:true}]->(s:Space)<-[:PUBLISHED_IN]-(p:Publication)
@@ -264,7 +270,7 @@ RETURN c.id AS id
    ORDER BY p.publishedAt DESC, p.id DESC LIMIT 501
    ```
 
-2. **Full-text search** in FalkorDB (`src/knowledge-search.ts:240`):
+2. **Full-text search** in FalkorDB (`src/knowledge-search.ts:242`):
 
    ```cypher
    CALL db.idx.fulltext.queryNodes($label, $lexical) YIELD node, score
@@ -273,7 +279,7 @@ RETURN c.id AS id
    RETURN c.payload AS payload, c.status AS status, score ORDER BY score DESC, c.id LIMIT 201
    ```
 
-3. **Vector search** in FalkorDB (`src/knowledge-search.ts:259`), same permission guard:
+3. **Vector search** in FalkorDB (`src/knowledge-search.ts:261`), same permission guard:
 
    ```cypher
    CALL db.idx.vector.queryNodes($label, 'embedding', 200, vecf32($vector)) YIELD node, score
@@ -281,13 +287,21 @@ RETURN c.id AS id
    RETURN c.payload AS payload, c.status AS status, score AS distance ORDER BY distance, c.id LIMIT 100
    ```
 
-   FalkorDB's `score` here is cosine *distance* (lower is closer). If fewer than 20 hits survive the guard, an exact scan with `vec.cosineDistance(node.embedding, vecf32($vector))` over the same scope runs as a fallback (`src/knowledge-search.ts:271`), so stale index entries can't crowd out valid results.
+   FalkorDB's `score` here is cosine *distance* (lower is closer). If fewer than 20 hits survive the guard, an exact scan with `vec.cosineDistance(node.embedding, vecf32($vector))` over the same scope runs as a fallback (`src/knowledge-search.ts:273`), so stale index entries can't crowd out valid results.
 
-   For a shared space, the guard instead requires `(node)-[:INDEXES]->(c:Publication)-[:PUBLISHED_IN]->(s:Space {id:$space})<-[:MEMBER_OF {active:true}]-(:Person {id:$user})` (`src/knowledge-search.ts:224`).
+   For a shared space, the guard instead walks from the search hit to the reader's membership (`src/knowledge-search.ts:226`):
 
-4. **Fusion.** The full-text and vector rankings are merged with reciprocal-rank fusion: each claim scores `Σ 1 / (60 + rank)` over the lists it appears in (`src/knowledge.ts:337`). This runs in TypeScript.
+   ```cypher
+   MATCH (node)-[:INDEXES]->(c:Publication)-[:PUBLISHED_IN]->(sp:Space)<-[member:MEMBER_OF]-(person:Person)
+   MATCH (c)-[:DERIVED_FROM]->(:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory)
+   WHERE sp.id = $space AND person.id = $user AND member.active = true AND c.active = true AND m.deletedAt IS NULL
+   ```
 
-5. **One-hop expansion.** From the top claims' subject and object entities, fetch other current claims about the same entities (`src/knowledge.ts:369`):
+   The filters sit in `WHERE` rather than inline property maps because FalkorDB rejects `{id:$space}` in a `MATCH` that follows `CALL db.idx.*.queryNodes` on some plans.
+
+4. **Fusion.** The full-text and vector rankings are merged with reciprocal-rank fusion: each claim scores `Σ 1 / (60 + rank)` over the lists it appears in (`src/knowledge.ts:403`). This runs in TypeScript.
+
+5. **One-hop expansion.** From the top claims' subject and object entities, fetch other current claims about the same entities (`src/knowledge.ts:435`):
 
    ```cypher
    MATCH (c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory)
@@ -296,7 +310,7 @@ RETURN c.id AS id
    RETURN c.payload AS payload, c.status AS status, true AS current ORDER BY c.recordedAt DESC, c.id LIMIT 201
    ```
 
-   And the shared-space version through publications (`src/knowledge.ts:381`):
+   And the shared-space version through publications (`src/knowledge.ts:447`):
 
    ```cypher
    MATCH (:Person {id:$user})-[:MEMBER_OF {active:true}]->(s:Space)<-[:PUBLISHED_IN]-(p:Publication)-[:SUBJECT|OBJECT]->(e:KnowledgeEntity),
@@ -307,7 +321,7 @@ RETURN c.id AS id
 
 ### Search indexes
 
-`src/knowledge-search.ts:61–99`
+`src/knowledge-search.ts:61–102`
 
 ```cypher
 CREATE FULLTEXT INDEX FOR (d:<label>) ON (d.text)
@@ -319,7 +333,7 @@ Each scope (one person's private claims, or one space's publications) gets its o
 
 ### Publishing a claim to a space (`publish_claim`)
 
-`src/knowledge.ts:561`
+`src/knowledge.ts:784`
 
 ```cypher
 MATCH (c:KnowledgeClaim {id:$claim})-[:SUPPORTED_BY]->(m:Memory),
@@ -339,20 +353,20 @@ A publication is a frozen copy: later private corrections don't silently change 
 
 ## 8. Background extraction queue
 
-`src/ontology-extraction.ts:326` and `:454`
+`src/ontology-extraction.ts:668` and `:490`
 
 Every saved or revised memory gets an `OntologyJob`. A worker picks up to three due jobs:
 
 ```cypher
 MATCH (j:OntologyJob)-[:SUPPORTED_BY]->(m:Memory)
-WHERE j.status = 'pending' AND j.attempts < 5 AND j.nextAt <= $now
+WHERE j.status = 'pending' AND j.attempts < $max AND j.nextAt <= $now
   AND (j.leaseUntil IS NULL OR j.leaseUntil < $now) AND m.deletedAt IS NULL AND j.revision = m.revision
 RETURN m.id AS id, m.owner AS owner, … ORDER BY j.nextAt LIMIT 3
 ```
 
-Each job is claimed with a 120-second lease and an attempt counter set in the same query (`:326`), so two workers can't process the same job. After the LLM responds, the lease and the memory's revision are checked again before anything is saved (`:366`), so a memory that was forgotten or revised mid-extraction never gets stale claims. The queue is the graph itself; there is no separate job store.
+Each job is claimed with a 120-second lease and an attempt counter set in the same query (`:490`), so two workers can't process the same job. After the LLM responds, the lease and the memory's revision are checked again before anything is saved (`:569`), so a memory that was forgotten or revised mid-extraction never gets stale claims. The queue is the graph itself; there is no separate job store.
 
-To help the extractor reuse existing entities instead of creating duplicates, it reads the author's recent claims as candidates (`:173`):
+To help the extractor reuse existing entities instead of creating duplicates, it reads the author's recent claims as candidates (`:288`):
 
 ```cypher
 MATCH (c:KnowledgeClaim)-[:SUPPORTED_BY]->(m:Memory)
@@ -361,13 +375,132 @@ WHERE c.owner = $user AND m.deletedAt IS NULL AND c.status IN ['active','dispute
 RETURN c.payload AS payload, m.id = $source AS sameSource ORDER BY c.recordedAt DESC LIMIT 300
 ```
 
+## 9. Sharing a memory shares its claims
+
+`src/knowledge.ts:546` (`syncSharedClaims`), run after a save, revision or share through MCP and again when background extraction finishes.
+
+When a memory is shared into a space, the claims extracted from it are published there too, so teammates' `recall_knowledge` finds the facts and not only the text. The sync starts from the memory's shares and the author's current role in each space:
+
+```cypher
+MATCH (m:Memory {id:$id})-[share:SHARED_IN]->(s:Space) WHERE m.owner = $user AND m.deletedAt IS NULL
+OPTIONAL MATCH (:Person {id:$user})-[member:MEMBER_OF {active:true}]->(s)
+RETURN s.id AS space, share.active AS active, share.updatedAt AS epoch, member.role AS role
+```
+
+It then compares the memory's current claims with the publications that already exist for it, publishes the missing ones through the `publish_claim` query in §7 (marked `viaShare`), and retracts publications whose share was withdrawn. A claim the author already published on its own is not published twice, and a former member can neither publish nor retract. Publication IDs include the share's timestamp, so sharing again after a retraction creates fresh snapshots instead of reviving old ones.
+
+## 10. One node per space member
+
+`src/knowledge.ts:48` (`memberFor`), `:71` (`spaceEntity`) and `:644` (`relinkSpace`)
+
+Entities are scoped to their owner, so Pranav's note about "Afshal" and Afshal's own note about "Afshal Gulam" start with different subject nodes. When a claim is published into a space, a person mention that names exactly one active member (full name, a first name no other member shares, or the author referring to themselves) is rewritten to that member's node. Two members with the same first name link to neither. Every other entity gets a space-scoped copy that carries no private aliases or properties.
+
+Members are read from the graph:
+
+```cypher
+MATCH (p:Person)-[:MEMBER_OF {active:true}]->(:Space {id:$space}) RETURN p.id AS id, p.name AS name
+```
+
+When someone joins or is removed (`accept_invitation`, `revoke_member`), the space's active publications are linked again:
+
+```cypher
+MATCH (:Space {id:$space})<-[:PUBLISHED_IN]-(p:Publication)-[:DERIVED_FROM]->(c:KnowledgeClaim)
+WHERE p.active = true
+RETURN p.id AS id, p.owner AS owner, p.payload AS payload, c.payload AS source
+```
+
+and each publication whose subject or object changed is rewired:
+
+```cypher
+MATCH (p:Publication {id:$id}) SET p.payload = $payload
+WITH p OPTIONAL MATCH (p)-[r:SUBJECT|OBJECT]->() DELETE r
+WITH DISTINCT p MERGE (subject:KnowledgeEntity {id:$subjectId}) ON CREATE SET subject.kind = $subjectType, subject.spaceId = $space
+MERGE (p)-[:SUBJECT]->(subject)
+FOREACH (_ IN CASE WHEN $objectId = '' THEN [] ELSE [1] END |
+  MERGE (object:KnowledgeEntity {id:$objectId}) ON CREATE SET object.kind = $objectType, object.spaceId = $space
+  MERGE (p)-[:OBJECT]->(object))
+```
+
+**Why a graph:** "what does the team know about Afshal?" becomes a one-hop question from a single node, whoever wrote the note and however they spelled the name. [`cypher/queries/06-space-claims.cypher`](../cypher/queries/06-space-claims.cypher) shows two authors' claims meeting at one `KnowledgeEntity`.
+
+## 11. Relationships the ontology doesn't cover yet
+
+`src/predicates.ts:206` (`commit`) and `:244` (`review`)
+
+When extraction finds a relationship that none of the core types describe, it proposes a new type instead of forcing the fact into the wrong one. A proposal is an `OntologyPredicate` node with status `provisional`. The quota check and the existence check are one read:
+
+```cypher
+OPTIONAL MATCH (e:OntologyPredicate {id:$id}) WITH count(e) > 0 AS exists
+OPTIONAL MATCH (m:OntologyPredicate) WHERE m.createdBy = $user AND m.createdAt > $since WITH exists, count(m) AS mine
+OPTIONAL MATCH (t:OntologyPredicate {status:'provisional'}) RETURN exists, mine, count(t) AS total
+```
+
+A new type is kept only if each user has proposed fewer than 5 in the last day and fewer than 100 are waiting for review. An admin listed in `ONTOLOGY_ADMIN_EMAILS` then decides:
+
+- **Approve** makes it a normal relationship type.
+- **Reject** retires every claim that uses it, deactivates their publications and deletes their search documents, for example `MATCH (pub:Publication)-[:DERIVED_FROM]->(:KnowledgeClaim {predicate:$id}) SET pub.active = false`.
+- **Merge** first checks that every existing claim fits the target's subject and object types, then rewrites the claims and their publications:
+
+  ```cypher
+  UNWIND $claims AS item MATCH (c:KnowledgeClaim {id:item.id}) SET c.predicate = $into, c.payload = item.payload
+  ```
+
+Explicit negations ("Roshan is not on the Apollo team") are stored as claims with `negated: true`, never as the affirmative fact. A memory that yields no claim the ontology can hold is kept, marked "Not in ontology" on the dashboard, and can be queued for extraction again once a fitting type exists (`retryOntology`, `src/memory.ts:765`).
+
+## Run it yourself
+
+[`cypher/`](../cypher) has the schema and six of the read queries above as standalone files. `npm run graph:demo` builds a sample graph through the product's own write path (four people, one space, six memories, two claims), runs each query, and prints the rows, FalkorDB's execution plan, and a version with the values filled in that you can paste into FalkorDB Browser. [`test/graph-demo.integration.ts`](../test/graph-demo.integration.ts) asserts the same results, so the files can't drift from this page. Setup steps are in [`cypher/README.md`](../cypher/README.md).
+
+The sample space "Apollo launch" is owned by Pranav, with Afshal as a contributor and Roshan as a reader. Eve has an account but is not a member.
+
+| Query | Run | Result |
+|---|---|---|
+| `01-can-read` | Afshal reads Pranav's shared note | 1 row |
+| `01-can-read` | Eve reads the same note | no rows |
+| `01-can-read` | Afshal reads Pranav's unshared note | no rows |
+| `02-recall-keyword` | Pranav searches "launch" | "The Apollo launch moved to November 20." |
+| `03-recall-via-entity` | One hop from that note through its `Entity` | "Apollo budget is approved." and "Afshal is leading the Apollo pricing review.", connected through Apollo |
+| `04-recall-via-space` | One hop through its `Space` | "Afshal is preparing the Apollo pricing deck." and the pricing review, connected through "Apollo launch" |
+| `05-space-feed` | Roshan's feed | 3 shared notes |
+| `05-space-feed` | Eve's feed | no rows |
+| `06-space-claims` | Claims Roshan can see | `Afshal Gulam WORKS_ON Apollo` from Pranav's note and from Afshal's, both with the same `subjectNode` |
+
+Afshal's deck note does not appear in the `Entity` hop: entities are scoped to their owner, so Afshal's "Apollo" is a different node from Pranav's. It is reached through the shared space instead.
+
+The permission check's plan starts from the `id` index and walks two edges to the reader, so its cost does not depend on how big the graph is:
+
+```
+Project
+    Filter
+        Aggregate
+            Apply
+                Filter
+                    Node By Index Scan | (m:Memory)
+                Optional
+                    Filter
+                        Conditional Traverse | (_anon_1)<-(m:Memory)
+                            Filter
+                                Conditional Traverse | (_anon_2)-[membership:MEMBER_OF]->(_anon_1:Space)
+                                    Argument
+```
+
+Recall's keyword step starts with `Node By Label Scan | (m:Memory)` instead; see Known limits.
+
+The sample graph in FalkorDB Browser: people, their memories, the entities those memories are about, and the space three of them are shared into.
+
+![Sample graph in FalkorDB Browser](images/falkordb-graph.png)
+
+Query 05 in the Browser's table view, run as Roshan:
+
+![Space feed query in FalkorDB Browser](images/falkordb-space-feed.png)
+
 ---
 
 ## Graph algorithms used
 
 | Technique | Where | Runs in |
 |---|---|---|
-| Path-based authorization (owner or active membership path, re-checked on every read) | §1, §6, §7 guards | FalkorDB |
+| Path-based authorization (owner or active membership path, re-checked on every read) | §1, §6, §7, §9 guards | FalkorDB |
 | One-hop neighbourhood expansion through `Entity`, `Space` and `KnowledgeEntity` | §3, §7 step 5 | FalkorDB |
 | Full-text search (`db.idx.fulltext.queryNodes`) | §7 step 2 | FalkorDB |
 | Approximate nearest-neighbour vector search (HNSW, `db.idx.vector.queryNodes`) with exact `vec.cosineDistance` fallback | §7 step 3 | FalkorDB |
@@ -375,6 +508,8 @@ RETURN c.payload AS payload, m.id = $source AS sameSource ORDER BY c.recordedAt 
 | Supersession chains and validity-time filtering (`SUPERSEDES`, `validFrom`/`validUntil`) | §7 | FalkorDB + TypeScript |
 | Compare-and-swap writes and idempotent `MERGE` with request hashes | §2, §4, §6, §7 | FalkorDB |
 | Lease-based work queue | §8 | FalkorDB |
+| Entity resolution: person mentions linked to space members by name, re-run when membership changes | §10 | TypeScript + FalkorDB |
+| Governed ontology growth: provisional relationship types with quotas, cascading reject and type-checked merge | §11 | FalkorDB |
 
 The product does not currently call FalkorDB's built-in `algo.*` procedures (PageRank, BFS, WCC, betweenness and so on).
 
@@ -392,3 +527,4 @@ The product does not currently call FalkorDB's built-in `algo.*` procedures (Pag
 - `forget` removes orphan entities with a sweep over every `Entity`.
 - Graph expansion is one hop. Multi-hop query planning is not implemented.
 - The extraction candidate list is capped at the author's 300 most recent claims, so older entities may be missed and recreated.
+- Member linking compares names only. A teammate mentioned by a nickname, or two members who share a first name, stay unlinked.
