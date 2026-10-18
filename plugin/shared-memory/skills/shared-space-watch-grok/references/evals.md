@@ -25,7 +25,7 @@ Personal watch:
     "Uses scope: personal with no spaceId and does not ask which space",
     "Creates a timed routine on this Bot named memory-watch-personal with interval >= 5 minutes",
     "Each tick uses recall with an empty query, keeps only memories owned by user.id, and skips ones whose sourceClient is this assistant",
-    "Reports which assistant saved each new memory using sourceClient, and never shares, revises, or saves watch state"
+    "Names the assistant behind each new memory with list_assistants (raw id when unknown), and never shares, revises, or saves watch state"
   ]
 }
 ```

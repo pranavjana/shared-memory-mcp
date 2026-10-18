@@ -4,11 +4,14 @@ import { ClerkProvider, useAuth, SignInButton, UserButton } from "@clerk/react";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import codexLogo from "./assets/codex.png";
-import museLogo from "./assets/muse.svg";
 import { AgentSetup } from "./AgentSetup";
 import { SpaceView } from "./SpaceView";
 import { invitationRedirect } from "./invitation";
-import { assistantName, sourceLabel } from "./assistant-identity";
+import {
+  displayAssistant,
+  sourceLabel,
+  type ResolvedAssistant,
+} from "./assistant-identity";
 const OntologyView = React.lazy(() =>
   import("./OntologyView").then((m) => ({ default: m.OntologyView })),
 );
@@ -54,6 +57,7 @@ type Overview = {
     entityType: string;
   }[];
   connections?: Connection[];
+  assistants?: Record<string, ResolvedAssistant>;
   rules?: any[];
   ontologyStatus?: Record<string, string>;
 };
@@ -77,10 +81,9 @@ const date = (n: number) =>
     minute: "2-digit",
   });
 const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const assistantLogos = { codex: codexLogo, muse: museLogo, other: undefined };
-function assistantIdentity(clientId: string) {
-  const { name, kind } = assistantName(clientId);
-  return { name, logo: assistantLogos[kind] };
+function assistantIdentity(clientId: string, resolved?: ResolvedAssistant) {
+  const a = displayAssistant(clientId, resolved);
+  return { ...a, logo: a.logo ?? (a.openai ? codexLogo : undefined) };
 }
 function Icon({ name, size = 20 }: { name: string; size?: number }) {
   const paths: Record<string, React.ReactNode> = {
@@ -446,6 +449,10 @@ function Dashboard({ config }: { config: Config }) {
       previous?.focus();
     };
   }, [detail, editing, memberList]);
+  // History is newest first and only available to the author.
+  const firstSource: string | undefined = detail?.history?.find(
+    (r: any) => r.revision === 1,
+  )?.sourceClient;
   return (
     <div className="app-shell">
       <a className="skip-link" href="#workspace-content">
@@ -683,10 +690,16 @@ function Dashboard({ config }: { config: Config }) {
               >
                 {data?.connections?.length ? (
                   data.connections.map((c) => {
-                    const assistant = assistantIdentity(c.clientId);
+                    const assistant = assistantIdentity(
+                      c.clientId,
+                      data.assistants?.[c.clientId],
+                    );
                     return (
                       <div className="connection-row" key={c.id}>
-                        <div className="connection-identity" title={c.clientId}>
+                        <div
+                          className="connection-identity"
+                          title={assistant.title}
+                        >
                           <span className="assistant-logo" aria-hidden="true">
                             {assistant.logo ? (
                               <img
@@ -1019,8 +1032,19 @@ function Dashboard({ config }: { config: Config }) {
               <dd>{detail.memory.authorName}</dd>
               <dt>Last saved via</dt>
               <dd title={detail.memory.sourceClient}>
-                {sourceLabel(detail.memory.sourceClient)}
+                {sourceLabel(
+                  detail.memory.sourceClient,
+                  detail.assistants?.[detail.memory.sourceClient],
+                )}
               </dd>
+              {firstSource && firstSource !== detail.memory.sourceClient && (
+                <>
+                  <dt>First saved via</dt>
+                  <dd title={firstSource}>
+                    {sourceLabel(firstSource, detail.assistants?.[firstSource])}
+                  </dd>
+                </>
+              )}
               <dt>Basis</dt>
               <dd>
                 {detail.memory.basis === "user_statement"

@@ -631,6 +631,14 @@ export class MemoryStore {
       )
     ).map((r) => r.value);
   }
+  /** Current memories this user owns, grouped by the client of their latest revision. */
+  async sourceCounts(actor: Actor) {
+    return this.query<{ clientId: string; memories: number }>(
+      `MATCH (m:Memory) WHERE m.owner=$user AND m.deletedAt IS NULL RETURN m.sourceClient AS clientId, count(m) AS memories`,
+      { user: actor.userId },
+      true,
+    );
+  }
   async setConnection(actor: Actor, id: string, enabled: boolean) {
     await this.query(
       `MATCH (c:Connection {id:$id}) WHERE c.owner=$user SET c.enabled=$enabled`,

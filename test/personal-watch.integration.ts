@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { createApp } from "../src/app.js";
 import { connectMemoryStore } from "../src/memory.js";
 import { AutomaticOntology } from "../src/ontology-extraction.js";
+import { AssistantDirectory } from "../src/assistants.js";
 
 // Bearer tokens are "<userId>:<clientId>" so one user can connect several assistants.
 const muse = "user_a:muse-client";
@@ -35,6 +36,12 @@ test("personal watch tick reports the user's own memories written by other assis
         },
       }),
       getProfile: async (id) => ({ id, name: id, email: id + "@example.com" }),
+      // Stands in for Clerk's dynamic client registrations.
+      assistants: new AssistantDirectory(async (id) =>
+        id === "muse-client"
+          ? { name: "Muse", clientImageUrl: "https://img.clerk.com/muse" }
+          : null,
+      ),
       verifyToken: async (token) => {
         const split = token.indexOf(":");
         const userId = token.slice(0, split);
@@ -296,6 +303,78 @@ test("personal watch tick reports the user's own memories written by other assis
     assert.ok(friendTick.recalled.every((m: any) => m.owner === "user_b"));
 
     // A forgotten memory drops out of the next tick's candidates.
+    // list_assistants names every connected assistant and what each last saved.
+    const listed = await call(muse, "list_assistants");
+    assert.deepEqual(listed.current, {
+      clientId: "muse-client",
+      name: "Muse",
+      logo: "https://img.clerk.com/muse",
+      source: "registration",
+    });
+    const byId = Object.fromEntries(
+      listed.assistants.map((x: any) => [x.clientId, x]),
+    );
+    assert.deepEqual(Object.keys(byId).sort(), [
+      "https://chatgpt.com/oauth/codex/client.json",
+      "muse-client",
+    ]);
+    assert.equal(byId["muse-client"].current, true);
+    assert.equal(byId["muse-client"].memories, 1);
+    assert.equal(byId["muse-client"].enabled, true);
+    assert.equal(
+      byId["https://chatgpt.com/oauth/codex/client.json"].name,
+      "Codex",
+    );
+    assert.equal(
+      byId["https://chatgpt.com/oauth/codex/client.json"].memories,
+      2,
+    );
+    assert.equal(
+      byId["https://chatgpt.com/oauth/codex/client.json"].current,
+      false,
+    );
+    assert.deepEqual(listed.otherSources, [
+      {
+        clientId: "dashboard",
+        name: "Dashboard",
+        logo: null,
+        source: "dashboard",
+        memories: 1,
+      },
+    ]);
+    const friendList = await call(friend, "list_assistants");
+    assert.deepEqual(
+      friendList.assistants.map((x: any) => x.clientId),
+      ["friend-client"],
+      "another user's assistants are never listed",
+    );
+    assert.equal(friendList.current.source, "unknown");
+
+    // explain_memory names both the latest and the original saver.
+    const explained = await call(muse, "explain_memory", {
+      id: museSaved.memory.id,
+    });
+    assert.equal(
+      explained.history.find((h: any) => h.revision === 1).sourceClient,
+      "muse-client",
+    );
+    assert.equal(
+      explained.assistants[explained.memory.sourceClient].name,
+      "Codex",
+    );
+    assert.equal(explained.assistants["muse-client"].name, "Muse");
+
+    // The dashboard overview carries the same names.
+    const overview = await fetch(base + "/api/overview", {
+      headers: { Authorization: "user_a" },
+    }).then((r) => r.json());
+    assert.equal(overview.assistants["muse-client"].name, "Muse");
+    assert.equal(
+      overview.assistants["https://chatgpt.com/oauth/codex/client.json"].name,
+      "Codex",
+    );
+    assert.equal(overview.assistants.dashboard.name, "Dashboard");
+
     await call(codex, "forget_memory", { id: codexSaved.memory.id });
     const afterForget = await tick(muse, { since: 0, seen: [] });
     assert.deepEqual(texts(afterForget), [

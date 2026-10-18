@@ -14,6 +14,7 @@ import {
 import { ontology } from "./ontology.js";
 import cors from "cors";
 import helmet from "helmet";
+import { AssistantDirectory, clerkAssistantLookup } from "./assistants.js";
 import { rateLimit } from "express-rate-limit";
 import { createClerkClient } from "@clerk/express";
 import { verifyWebhook } from "@clerk/express/webhooks";
@@ -54,6 +55,7 @@ interface Dependencies {
   memory?: MemoryStore;
   automaticOntology?: AutomaticOntology;
   dashboardAuthenticate?: (req: express.Request) => Promise<Actor | undefined>;
+  assistants?: AssistantDirectory;
 }
 
 const escapeHtml = (value: string) =>
@@ -175,8 +177,16 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
   const skill = existsSync(skillPath)
     ? readFileSync(skillPath, "utf8")
     : operatingInstructions;
+  const assistants =
+    dependencies.assistants ??
+    new AssistantDirectory(clerkAssistantLookup(clerk));
   const tools = dependencies.memory
-    ? memoryTools(dependencies.memory, skill, dependencies.automaticOntology)
+    ? memoryTools(
+        dependencies.memory,
+        skill,
+        dependencies.automaticOntology,
+        assistants,
+      )
     : [];
   app.get("/api/config", (_req, res) =>
     res.json({
@@ -219,6 +229,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         dependencies.memory,
         tools,
         dependencies.dashboardAuthenticate,
+        assistants,
       ),
     );
   app.get("/privacy", (_req, res) =>
