@@ -25,7 +25,7 @@ Personal watch:
     "Uses scope: personal with no spaceId and does not ask which space",
     "Saves a Dot recurring scheduled task, not a Grok routine or Muse /loop",
     "Each tick uses recall with an empty query, keeps only memories owned by user.id, and skips ones whose sourceClient is this assistant",
-    "Reports which assistant saved each new memory using sourceClient, and never shares, revises, or saves watch state"
+    "Names the assistant behind each new memory with list_assistants (raw id when unknown), and never shares, revises, or saves watch state"
   ]
 }
 ```

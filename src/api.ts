@@ -7,11 +7,13 @@ import { runTool, type Tool } from "./tools.js";
 import { ontology } from "./ontology.js";
 import { PredicateRegistry } from "./predicates.js";
 import { KnowledgeStore } from "./knowledge.js";
+import type { AssistantDirectory } from "./assistants.js";
 export function dashboardApi(
   config: { secretKey: string; publishableKey: string; publicUrl: string },
   store: MemoryStore,
   tools: Tool[],
   authenticate?: (req: express.Request) => Promise<Actor | undefined>,
+  assistants?: AssistantDirectory,
 ) {
   const api = express.Router();
   const predicates = new PredicateRegistry(store);
@@ -109,6 +111,13 @@ export function dashboardApi(
       graph,
       connections,
       rules,
+      assistants: assistants
+        ? await assistants.identifyAll([
+            ...connections.map((c) => String(c.clientId)),
+            ...memories.memories.map((m) => m.sourceClient),
+            ...memories.related.map((m) => m.sourceClient),
+          ])
+        : {},
     });
   });
   api.post("/action", express.json({ limit: "64kb" }), async (req, res) => {

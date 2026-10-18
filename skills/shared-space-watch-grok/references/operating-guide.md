@@ -23,6 +23,7 @@ Use the Shared Memory MCP server’s tools by their exact names. When the host r
 | `memory_instructions` | Load this operating skill when not already in context |
 | `remember` / `revise_memory` / `forget_memory` | Write path (forget only on user request) |
 | `recall` / `get_memory` / `explain_memory` | Read path |
+| `list_assistants` | Connected assistants by name, which one you are, and how many memories each last saved |
 | `list_spaces` / `share_memory` | Authorized whole-memory sharing |
 | `get_shared_update` | Current authorized shared memory or selected claim for a space |
 | `get_ontology` / `record_knowledge` / `recall_knowledge` / `index_knowledge` / `publish_claim` | Structured ontology (when present) |
@@ -57,7 +58,7 @@ The MCP `memory_instructions` tool returns **this SKILL.md only**. Critical safe
 
 ## Recall
 
-Call `recall` before an answer or plan that depends on prior preferences, projects, people, commitments, or decisions. Query the relevant topic rather than downloading everything. Read evidence, attribution, revision, and event time. No result means no relevant memory was found — not that the event never happened. Use `get_memory` for a current record and `explain_memory` for source and relationships. `sourceClient` is the client ID of the assistant that made the latest revision (`dashboard` = added in the dashboard); `get_connection_status` returns this assistant's own `client.id`. Prefer `recall_knowledge` for structured filters when those tools exist.
+Call `recall` before an answer or plan that depends on prior preferences, projects, people, commitments, or decisions. Query the relevant topic rather than downloading everything. Read evidence, attribution, revision, and event time. No result means no relevant memory was found — not that the event never happened. Use `get_memory` for a current record and `explain_memory` for source and relationships. `sourceClient` is the client ID of the assistant that made the latest revision (`dashboard` = added in the dashboard); `get_connection_status` returns this assistant's own `client.id`. To name a source or answer “which assistants do I have / what did each save?”, call `list_assistants`; `explain_memory` also returns `assistants` names for the latest and earlier revisions. `source: registration` means the app chose its own name. Prefer `recall_knowledge` for structured filters when those tools exist.
 
 ## Save (with evidence)
 
