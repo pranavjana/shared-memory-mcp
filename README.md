@@ -8,12 +8,10 @@ Graph Hacks submission, track **Agent Memory and Coordination**, by team Santolo
 
 | | |
 |---|---|
-| Live dashboard | https://shared-memory-mcp-sandbox.up.railway.app/dashboard |
-| MCP endpoint | `https://shared-memory-mcp-sandbox.up.railway.app/mcp` |
+| Live app | https://shared-memory-mcp-production.up.railway.app |
+| MCP endpoint | `https://shared-memory-mcp-production.up.railway.app/mcp` |
 | Cypher queries and graph algorithms | [docs/cypher.md](docs/cypher.md) |
 | Runnable queries and sample graph | [cypher/](cypher) |
-
-The live links run the latest `codex/development` build. [Production](https://shared-memory-mcp-production.up.railway.app/dashboard) runs `main` and is updated when a release is promoted.
 
 ![The sample graph in FalkorDB Browser](docs/images/falkordb-graph.png)
 
