@@ -1,4 +1,4 @@
-// Schema that Shared Memory creates on startup in the memory graph
+// Schema that Memspace creates on startup in the memory graph
 // (FALKORDB_MEMORY_GRAPH, src/memory.ts MemoryStore.init).
 // FalkorDB range index on id for every node label, plus a unique constraint on id.
 // Unique constraints are created with the GRAPH.CONSTRAINT command, for example:

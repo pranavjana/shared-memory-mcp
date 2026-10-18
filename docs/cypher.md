@@ -1,6 +1,6 @@
 # Cypher queries and graph algorithms
 
-This page lists the FalkorDB queries Shared Memory depends on, what each one does, and why it needs a graph. Every query is parameterized (`$user`, `$id`, …); user input is never concatenated into Cypher. Line references are to `codex/development` at commit `a346abc`.
+This page lists the FalkorDB queries Memspace depends on, what each one does, and why it needs a graph. Every query is parameterized (`$user`, `$id`, …); user input is never concatenated into Cypher. Line references are to `codex/development` at commit `c1fd354`.
 
 The core read queries are also in [`cypher/`](../cypher) as standalone files, and `npm run graph:demo` runs them against a small sample graph and prints each result with its execution plan. See [Run it yourself](#run-it-yourself).
 

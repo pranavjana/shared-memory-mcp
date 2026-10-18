@@ -1,6 +1,6 @@
 # Cypher
 
-The schema and the core read queries Shared Memory runs on FalkorDB, as files you can execute. The full set of queries, including writes, is explained in [docs/cypher.md](../docs/cypher.md).
+The schema and the core read queries Memspace runs on FalkorDB, as files you can execute. The full set of queries, including writes, is explained in [docs/cypher.md](../docs/cypher.md).
 
 | File | Question it answers | Used by |
 |---|---|---|

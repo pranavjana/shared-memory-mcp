@@ -1,6 +1,8 @@
-# Shared Memory
+# Memspace
 
 One memory graph that every AI assistant you use can read and write, with permissioned sharing between people. Built on FalkorDB.
+
+Memspace was called Shared Memory until recently, which is why the repository, package and skill names still say `shared-memory`.
 
 Graph Hacks submission, track **Agent Memory and Coordination**, by team Santology.
 
@@ -19,7 +21,7 @@ The live links run the latest `codex/development` build. [Production](https://sh
 
 Most people now use more than one assistant, and each one starts from zero. What you tell one is invisible to the others, and there is no way to share part of what you know with a teammate's assistant on your terms.
 
-Shared Memory is a remote MCP server. Any assistant that supports Streamable HTTP with OAuth can connect to it; we use it with Meta Muse, Grok Bot, ChatGPT's Dot and Codex. Once connected, an assistant can:
+Memspace is a remote MCP server. Any assistant that supports Streamable HTTP with OAuth can connect to it; we use it with Meta Muse, Grok Bot, ChatGPT's Dot and Codex. Once connected, an assistant can:
 
 - save what you tell it, with the quote it came from and which assistant saved it
 - recall related context later, from any of your connected assistants
@@ -182,7 +184,7 @@ OIDC discovery (`/.well-known/openid-configuration`) can omit `registration_endp
 
 A 401 `invalid_token` with an audience mismatch means the token was not bound to the MCP URL, almost always because dynamic registration or `resource=` was missing. That is a client configuration problem, not a workspace policy.
 
-**ChatGPT.** Open [ChatGPT Plugins](https://chatgpt.com/plugins), choose **+ → Add custom MCP server**, enter the endpoint and OAuth settings, install the plugin, authorize it, then select it with `@` in a chat. Availability depends on the workspace's permissions. The owner account can install the private [Shared Memory plugin](https://chatgpt.com/plugins/plugins_6ad00b37b7148191a76953dc3d1bcad0), which bundles the skill and the MCP connection; the link does not work for other accounts.
+**ChatGPT.** Open [ChatGPT Plugins](https://chatgpt.com/plugins), choose **+ → Add custom MCP server**, enter the endpoint and OAuth settings, install the plugin, authorize it, then select it with `@` in a chat. Availability depends on the workspace's permissions. The owner account can install the private [Memspace plugin](https://chatgpt.com/plugins/plugins_6ad00b37b7148191a76953dc3d1bcad0), which bundles the skill and the MCP connection; the link does not work for other accounts.
 
 **Skills.** MCP `memory_instructions` returns `skills/shared-memory/SKILL.md`, which `/skill` and `/skill/SKILL.md` also serve. When releasing a plugin update, keep each `skills/<name>/` tree identical to `plugin/shared-memory/skills/<name>/` (the plugin may add host-only `agents/`).
 

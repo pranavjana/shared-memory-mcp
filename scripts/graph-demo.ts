@@ -1,5 +1,5 @@
 /**
- * Builds a small synthetic Shared Memory graph through the product's own code,
+ * Builds a small synthetic Memspace graph through the product's own code,
  * then runs the Cypher queries in cypher/queries against it and prints each
  * result with FalkorDB's execution plan.
  *
