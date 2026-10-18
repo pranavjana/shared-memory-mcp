@@ -1,6 +1,6 @@
 interface:
-  display_name: Shared Memory
+  display_name: Memspace
   short_description: Remember context across assistants
-  default_prompt: Use Shared Memory to retrieve relevant context and remember useful explicit statements, acknowledging successful saves naturally.
+  default_prompt: Use Memspace to retrieve relevant context and remember useful explicit statements, acknowledging successful saves naturally.
 policy:
   allow_implicit_invocation: true

@@ -1,28 +1,75 @@
-/** Connection setup only. The operating skill is installed separately. */
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+/** Connection setup only. The operating skill is installed separately.
+ *  Source of truth: Project store internal/shared-memory-agent-setup-prompt.md
+ *  Served text substitutes this deployment's MCP resource for the template ENDPOINT.
+ */
 export function mcpInstallPrompt(resource: string): string {
-  const origin = new URL(resource).origin;
-  return `Install and connect the Shared Memory MCP server in this assistant.
+  const endpoint = new URL(resource).href.replace(/\/$/, "");
+  const origin = new URL(endpoint).origin;
+  const host = new URL(endpoint).host;
+  const prmBase = `${origin}/.well-known/oauth-protected-resource`;
+  return `Install and connect the Memspace MCP server, then verify the connection actually works.
 
-Server name: Shared Memory
-MCP endpoint: ${resource}
-Transport: Streamable HTTP
-Authentication: OAuth
-Required scopes: profile email
-Protected resource metadata: ${origin}/.well-known/oauth-protected-resource/mcp
+ENDPOINT: ${endpoint}
+(This prompt works for any Memspace deployment. Change only the ENDPOINT line; every URL below is derived from it.)
 
-Scope: configure the MCP connection and verify it works. Do not install skills, download SKILL.md, change agent or memory instructions, save example memories, share data, or start background monitoring. Skill installation is a separate step.
+Transport: Streamable HTTP. Authentication: OAuth 2.0 authorization code via the server's Clerk instance, with Dynamic Client Registration.
 
-1. Identify the assistant host and its supported MCP configuration method. Inspect existing connections first. Reuse a Shared Memory entry pointing to this endpoint instead of creating duplicates. Preserve unrelated servers and settings. If you can configure MCP connections through a supported tool or local configuration, do so using the host's required permissions. If you cannot, give me the exact manual steps and state that installation is still pending. Do not invent a settings tool or claim that pasting this prompt installs anything by itself.
+Success is one thing only: an authenticated get_connection_status call that returns the account I signed in with. A saved configuration, a completed sign-in, or a registered connector is not success. Do not report the connection as working until step 6 passes.
 
-2. Configure a remote Streamable HTTP connection with OAuth. Read the published protected-resource and authorization-server metadata rather than guessing OAuth endpoints. Use automatic client registration via the host's supported DCR or CIMD flow when advertised. Leave manually entered client ID and client secret blank for that flow. Do not request public_metadata or private_metadata scopes. Request openid or offline_access only when supported and needed by the host. If the host supports only stdio, or blocks custom MCPs through workspace policy, report the limitation rather than silently changing transport or bypassing it.
+1. Inspect existing connections first. If a Memspace connection for this exact ENDPOINT already exists, reuse it and skip to step 6 instead of creating a duplicate. Preserve all unrelated servers and settings.
 
-3. Start the normal OAuth sign-in flow. I will sign in to my own Shared Memory account and approve the connection in the browser. Do not ask me to paste passwords, OTPs, access tokens, refresh tokens, or client secrets into chat or configuration. Never print or persist those credentials in plaintext; let the host handle its normal credential storage.
+2. Discover the auth configuration from the server, in this order. Do not guess endpoints and do not rely on OIDC discovery alone, because it can omit the registration endpoint:
+   - Read the protected-resource metadata from the endpoint host: ${prmBase} (if that returns nothing, try the same path with /mcp appended). Take \`authorization_servers\` and \`scopes_supported\` from it.
+   - From the authorization server in that metadata, read its oauth-authorization-server metadata (…/.well-known/oauth-authorization-server). Take \`authorization_endpoint\`, \`token_endpoint\`, \`registration_endpoint\`, and \`revocation_endpoint\` from there.
 
-4. The OAuth resource must be exactly ${resource}. Send resource=${resource} in BOTH the authorization request and token exchange, and retain the intended resource during refresh. A token intended for another audience must be rejected. If this host cannot pass the resource parameter, explain that compatibility blocker; do not turn off audience checks or authentication. Wider scopes do not fix a missing resource or audience.
+3. Register the connection through the host's custom connector / API access setup flow, using the values from step 2:
+   - auth scheme: oauth2_code
+   - registration: Dynamic Client Registration using the \`registration_endpoint\` from step 2. Public client, token_endpoint_auth_method = none, PKCE S256. Leave any manually entered client ID and client secret blank.
+   - scopes: openid profile email offline_access. Never request public_metadata or private_metadata.
+   - api hosts: only the endpoint host, ${host}.
+   - CRITICAL, the step everything hinges on: append ?resource=<ENDPOINT> to BOTH the authorization URL and the token URL you register, i.e. authorization_url = <authorization_endpoint>?resource=${endpoint} and token_url = <token_endpoint>?resource=${endpoint}. There is no separate resource field in the setup flow and none is needed; the parameter travels inside those two URL values, and the flow passes them through unchanged. Without it, the issued token has no audience for this server and every call fails with 401 invalid_token. This exact registration is proven working on Muse (production server connected 2026-10-14, this sandbox server connected 2026-10-15, both verified live in step 6's terms).
 
-5. Reload the MCP connection if the host requires it, discover its tools, and call get_connection_status. Confirm the account identity returned by the service with me; if it is unexpected, stop and help reconnect to the intended account. Do not infer successful connection from a config file, plugin installation, or completed sign-in alone. If approval or a host reload still needs my action, state that clearly.
+4. Start the sign-in flow the setup returns and let me sign in to my own Memspace account and approve it in the browser. Never ask me to paste a password, one-time code, access token, refresh token, or client secret into chat or into a configuration file. Never print or persist a credential anywhere; the host's credential storage handles it.
 
-6. Handle errors specifically: on 401 invalid_token, check resource/audience, token expiry, issuer and required scopes, then reconnect the existing entry if needed; do not loop through new client registrations. On revoked access or 403, direct me to re-enable the intended connection in the Shared Memory dashboard or contact the relevant administrator. For an invalid_scope error, request only the advertised supported scopes. For network or discovery errors, report the failing endpoint and status without credentials. Use bounded retries and do not weaken security settings to make a test pass.
+5. Build the MCP client from the host's Streamable HTTP MCP client template, pointed at ENDPOINT, and wire it to the registered connection through the host's dynamic credentials helper. That helper supplies a surrogate and the real credential is exchanged only on approved requests to the registered host. Never read, extract, log, or work around the stored token; the client is supposed to work without ever seeing it, and it does.
 
-Finish with a short report: where the MCP connection was configured, whether tool discovery and get_connection_status succeeded, the account returned, and any exact action I still need to take. End with "MCP connected; skill installation is separate" only if the authenticated connection check actually succeeded.`;
+6. Verify, in this order:
+   - List the server's tools. The list must include get_connection_status. (The tool count varies by deployment; use the actual discovery result. What matters is that authenticated discovery succeeds.)
+   - Call get_connection_status with no arguments. Read the account identity it returns and confirm it with me. If the identity is not the account I intended, stop and help me reconnect to the right one.
+
+7. Failure rules. Bounded retries; never loop registrations, never widen scopes to fix an auth error, never weaken audience checks or turn off authentication.
+   - On 401 or 403, check in order: (a) the registration used DCR with a public client, (b) resource=<ENDPOINT> is present on BOTH the authorization and token URLs, (c) scopes are exactly the advertised ones from step 3, (d) the token audience matches ENDPOINT. A missing resource parameter or a skipped DCR produces a credential that looks exactly like a host policy failure; do not diagnose a policy, admin, or workspace block until (a) to (d) are confirmed correct. On an audience mismatch, reconnect once with the same details plus resource on both URLs.
+   - On invalid_scope, request only the scopes the metadata advertises.
+   - On a discovery or network error, report the exact endpoint and status that failed, without credentials.
+   - Do not conclude the host cannot do this from tool schemas or documentation. If a step genuinely fails, attempt it first, then report the exact error you got back.
+
+Scope of this task: configure and verify the MCP connection only. Do not install skills or download any SKILL.md, do not change agent or memory instructions, do not save example memories, do not share data, and do not start background monitoring. Skill installation is a separate step.
+
+Finish with a short report: where the connection was configured, whether tool discovery succeeded and how many tools it returned, the get_connection_status result and the account it returned, and any exact action I still need to take. End with "MCP connected; skill installation is separate" only if the authenticated get_connection_status check actually succeeded.`;
+}
+
+export const agentHosts = ["dot", "muse", "grok-bot"] as const;
+export type AgentHost = (typeof agentHosts)[number];
+export const agentSkillDirs: Record<AgentHost, string> = {
+  dot: "shared-space-watch-dot",
+  muse: "shared-space-watch-muse",
+  "grok-bot": "shared-space-watch-grok",
+};
+
+/** Clipboard bundle for Connections step 2: the selected host's skill plus its operating guide and tick. */
+export function hostSkillInstructions(host: AgentHost): string | null {
+  const dir = resolve("skills", agentSkillDirs[host]);
+  const skillPath = join(dir, "SKILL.md");
+  const operatingPath = join(dir, "references", "operating-guide.md");
+  const tickPath = join(dir, "references", "tick.md");
+  if (![skillPath, operatingPath, tickPath].every((p) => existsSync(p)))
+    return null;
+  return [
+    readFileSync(skillPath, "utf8").trim(),
+    readFileSync(operatingPath, "utf8").trim(),
+    readFileSync(tickPath, "utf8").trim(),
+  ].join("\n\n---\n\n");
 }

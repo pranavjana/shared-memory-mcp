@@ -1,5 +1,108 @@
 @import "tailwindcss";
 
+@layer components {
+  .space-card-name {
+    @apply flex w-full items-center justify-between gap-4 text-left;
+  }
+  .space-heading {
+    @apply mb-6 flex flex-wrap items-center justify-between gap-4;
+  }
+  .space-heading h2 {
+    @apply mt-3 text-xl font-medium tracking-tight;
+  }
+  .space-layout {
+    @apply grid items-start gap-6;
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+  .space-layout > section {
+    @apply min-w-0;
+  }
+  .space-feed {
+    @apply grid gap-4;
+  }
+  .space-feed .memory-card {
+    @apply min-h-0;
+  }
+  .space-memory-open {
+    @apply w-full text-left;
+  }
+  .space-feed .memory-card-bottom {
+    @apply pt-3;
+  }
+  .space-people h3 {
+    @apply text-sm font-medium;
+  }
+  .space-people select {
+    @apply my-3 w-full;
+  }
+  .space-people .record-row {
+    @apply gap-2;
+  }
+  .space-people .record-row > button {
+    @apply text-xs;
+  }
+  .space-invite-result {
+    @apply mt-5;
+  }
+  .space-invite-result label {
+    @apply text-xs text-secondary;
+  }
+  .space-invite-result input {
+    @apply my-2 w-full;
+  }
+  .space-invite-result p {
+    @apply mt-2 text-xs leading-5;
+  }
+  .space-notice {
+    @apply mb-4 text-sm text-secondary;
+  }
+  .space-load-more {
+    @apply mt-5;
+  }
+  .space-picker {
+    @apply m-auto w-[calc(100%-2rem)] max-w-xl overflow-y-auto rounded-xl border-0 bg-white p-6 text-ink shadow-lg;
+    max-height: 85vh;
+  }
+  .space-picker::backdrop {
+    background: #0006;
+  }
+  .space-picker > p {
+    @apply mb-4 text-sm;
+  }
+  .space-picker .form-inline input {
+    @apply min-w-0 flex-1;
+  }
+  .space-picker-list {
+    @apply my-4 grid max-h-80 gap-2 overflow-y-auto;
+  }
+  .space-picker-option {
+    @apply flex cursor-pointer items-start gap-3 rounded-lg p-3 shadow-line;
+  }
+  .space-picker-option > input {
+    @apply mt-1 shrink-0;
+  }
+  .space-picker-option > span {
+    @apply grid min-w-0 gap-2 text-sm leading-6;
+    overflow-wrap: anywhere;
+  }
+  .space-picker-option small {
+    @apply font-mono text-[10px] text-secondary;
+  }
+  @media (max-width: 1000px) {
+    .space-layout {
+      @apply grid-cols-1;
+    }
+  }
+  @media (max-width: 600px) {
+    .space-picker .button-row {
+      @apply flex-col items-stretch;
+    }
+    .space-heading .button-row {
+      @apply w-full justify-between;
+    }
+  }
+}
+
 @theme {
   --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, monospace;
@@ -103,9 +206,6 @@
   }
   .icon-button:hover {
     @apply bg-[#f2f2f2] text-ink;
-  }
-  .status-dot {
-    @apply inline-block size-1.5 shrink-0 rounded-full bg-[#398e4a];
   }
   .subtle,
   .muted {
@@ -223,6 +323,19 @@
   .memory-card-top .subtle {
     @apply text-[10px];
   }
+  .memory-card-top .ontology-gap {
+    @apply mr-auto rounded px-2 py-1 font-mono text-[10px];
+    background: #fbf3e4;
+    color: #9a6b1f;
+  }
+  .ontology-gap-note {
+    @apply my-4 rounded-md p-4 text-[13px];
+    background: #fbf3e4;
+    color: #6f4f19;
+  }
+  .ontology-gap-note p {
+    @apply mb-3;
+  }
   .kind-badge {
     @apply inline-flex items-center gap-2 rounded bg-canvas px-2 py-1 font-mono text-[10px] text-secondary;
   }
@@ -335,8 +448,11 @@
   .assistant-logo {
     @apply flex size-9 shrink-0 items-center justify-center text-secondary;
   }
-  .assistant-logo img {
+  .assistant-logo img.mono {
     filter: brightness(0);
+  }
+  .assistant-logo img.app-logo {
+    @apply rounded-md object-cover;
   }
   .connection-identity strong {
     @apply truncate text-sm font-medium;
@@ -375,35 +491,110 @@
   .setup-content h2 {
     @apply mt-0.5 mb-2 text-sm leading-6 font-medium;
   }
-  .setup-content p,
-  .connection-help p {
+  .setup-content p {
     @apply my-2 text-sm leading-6 text-secondary;
   }
   .setup-content p.setup-note {
     @apply text-xs;
   }
-  .setup-help {
-    @apply mt-5 text-xs text-secondary;
+  .agent-setup {
+    @apply mt-10;
   }
-  .setup-help summary,
-  .connection-help summary {
-    @apply w-fit cursor-pointer rounded-sm leading-6 hover:text-ink;
+  .agent-setup-header h2 {
+    @apply m-0 text-base font-medium tracking-[-0.3px];
   }
-  .setup-help blockquote {
-    @apply mx-0 my-3 border-l-2 border-[#e5e5e5] pl-4 text-sm leading-6;
+  .agent-setup-header p {
+    @apply mt-1.5 mb-0 text-sm leading-6 text-secondary;
   }
-  .setup-prompt pre {
-    @apply my-3 max-h-[360px] overflow-y-auto rounded-md bg-white p-4 text-xs leading-6 whitespace-pre-wrap shadow-line;
+  .agent-tabs {
+    @apply mt-5 grid grid-cols-3 gap-1 rounded-xl bg-[#f2f2f2] p-1;
+  }
+  .agent-tab {
+    @apply flex min-w-0 cursor-pointer items-center gap-3 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-secondary transition-[background-color,box-shadow,color] duration-150;
+  }
+  .agent-tab:hover {
+    @apply text-ink;
+  }
+  .agent-tab[aria-selected="true"] {
+    @apply bg-white text-ink;
+    box-shadow:
+      0 0 0 1px #00000014,
+      0 1px 2px #0000000d;
+  }
+  .agent-tab:focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+  .agent-tab-label {
+    @apply flex min-w-0 flex-col;
+  }
+  .agent-tab-label strong {
+    @apply truncate text-sm leading-5 font-medium;
+  }
+  .agent-tab-label small {
+    @apply truncate text-[11px] leading-4 text-secondary;
+  }
+  .agent-logo {
+    @apply flex shrink-0 items-center justify-center overflow-hidden;
+  }
+  .agent-logo.sm {
+    @apply size-8 rounded-[9px];
+  }
+  .agent-logo.lg {
+    @apply size-11 rounded-xl;
+  }
+  .agent-logo.dark {
+    @apply bg-black;
+  }
+  .agent-logo.light {
+    @apply bg-white shadow-line;
+  }
+  .agent-logo img {
+    @apply size-full object-cover;
+  }
+  .agent-logo.light img {
+    @apply size-[62%] object-contain;
+  }
+  .agent-tab:not([aria-selected="true"]) .agent-logo {
+    @apply opacity-70 grayscale-[35%] transition-[opacity,filter] duration-150;
+  }
+  .agent-tab:hover .agent-logo {
+    @apply opacity-100 grayscale-0;
+  }
+  .agent-panel {
+    @apply mt-6 rounded-xl bg-white p-6 shadow-line;
+  }
+  .agent-panel-heading {
+    @apply mb-7 flex items-center gap-4;
+  }
+  .agent-panel-heading h3 {
+    @apply m-0 text-base leading-6 font-medium tracking-[-0.3px];
+  }
+  .agent-panel-heading p {
+    @apply m-0 text-xs leading-5 text-secondary;
+  }
+  .agent-panel .setup-steps {
+    @apply mt-0;
+  }
+  .agent-steps {
+    @apply my-3 list-decimal space-y-2 pl-4 text-sm leading-6 text-secondary marker:text-[#b3b3b3];
+  }
+  .agent-steps strong {
+    @apply font-medium text-ink;
+  }
+  .agent-steps q {
+    @apply text-ink;
     overflow-wrap: anywhere;
   }
-  .chatgpt-setup ol {
-    @apply my-3 list-decimal space-y-3 pl-4 text-sm leading-6;
-  }
-  .chatgpt-setup li a {
-    @apply inline-flex items-center gap-1 text-ink underline underline-offset-4;
-  }
-  .connection-help {
-    @apply mt-8 ml-11 text-xs text-secondary;
+  @media (max-width: 560px) {
+    .agent-tab {
+      @apply flex-col gap-1.5 px-2 text-center;
+    }
+    .agent-tab-label small {
+      @apply hidden;
+    }
+    .agent-panel {
+      @apply p-4;
+    }
   }
   .panel {
     @apply min-w-0 rounded-lg bg-white p-6 shadow-line;
@@ -483,16 +674,6 @@
   }
   .form-inline input {
     @apply min-w-0 flex-1 text-xs;
-  }
-  .status-dot {
-    background: #ff990a;
-  }
-  .status-dot.accepted {
-    background: #398e4a;
-  }
-  .status-dot.failed,
-  .status-dot.revoked {
-    background: #e5484d;
   }
   .error-banner,
   .invite-banner {
@@ -620,7 +801,7 @@
   }
   .sidebar nav {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     padding-right: 88px;
     gap: 4px;
   }

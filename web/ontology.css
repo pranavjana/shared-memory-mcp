@@ -1,0 +1,553 @@
+@layer components {
+  .knowledge-graph-page {
+    width: 100%;
+    min-width: 0;
+  }
+  .kg-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding-bottom: 18px;
+  }
+  .kg-search {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex: 1;
+    min-width: 130px;
+  }
+  .kg-search > span {
+    font-size: 24px;
+    color: #888;
+  }
+  .kg-search input {
+    width: 100%;
+    min-width: 0;
+    font-size: 13px;
+    background: transparent;
+    box-shadow: none;
+    padding: 6px 0;
+  }
+  .kg-search button,
+  .kg-close,
+  .kg-modal-heading > button {
+    border: 0;
+    background: transparent;
+    color: #888;
+    font-size: 22px;
+    padding: 4px 8px;
+  }
+  .kg-toolbar select,
+  .kg-inspector select {
+    font-size: 11px;
+    color: #555;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    padding: 7px 10px;
+    background: white;
+    max-width: 190px;
+  }
+  .kg-schema-button {
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    background: white;
+    font-size: 11px;
+    padding: 8px 12px;
+    color: #555;
+    white-space: nowrap;
+  }
+  .kg-schema-button span {
+    margin-left: 10px;
+    color: #999;
+  }
+  .kg-workspace {
+    display: flex;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fafafa;
+    min-height: 540px;
+    height: calc(100dvh - 200px);
+    max-height: 900px;
+  }
+  .kg-canvas {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    height: 100%;
+  }
+  .kg-count {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    font: 10px var(--font-mono);
+    color: #888;
+    pointer-events: none;
+  }
+  .knowledge-graph-page .react-flow__node.kg-node {
+    width: 180px;
+    padding: 12px 14px;
+    border: 1px solid #dedede;
+    border-radius: 7px;
+    background: white;
+    text-align: left;
+    box-shadow: 0 2px 5px #00000004;
+  }
+  .knowledge-graph-page .react-flow__node.kg-node.selected {
+    border-color: #777;
+    box-shadow: 0 0 0 2px #00000008;
+  }
+  .kg-node-type {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #999;
+    font: 9px var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .kg-node-type i,
+  .kg-schema-modal summary i {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .kg-node strong {
+    display: block;
+    color: #333;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+  .knowledge-graph-page .react-flow__handle {
+    width: 4px;
+    height: 4px;
+    min-width: 4px;
+    min-height: 4px;
+    background: #bbb;
+    border: 0;
+  }
+  .knowledge-graph-page .react-flow__controls {
+    box-shadow: none;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .knowledge-graph-page .react-flow__controls-button {
+    background: white;
+    width: 28px;
+    height: 28px;
+    border-bottom-color: #eee;
+  }
+  .knowledge-graph-page .react-flow__edge.selected .react-flow__edge-path {
+    stroke: #555;
+    stroke-width: 1.8;
+  }
+  .kg-inspector {
+    position: relative;
+    width: 305px;
+    flex-shrink: 0;
+    border-left: 1px solid #e5e5e5;
+    background: white;
+    padding: 27px 23px;
+    overflow-y: auto;
+  }
+  .kg-close {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+  }
+  .kg-eyebrow {
+    color: #999;
+    font: 9px var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .kg-inspector h2 {
+    font-size: 17px;
+    font-weight: 500;
+    margin: 17px 0;
+    overflow-wrap: anywhere;
+    letter-spacing: -0.3px;
+  }
+  .kg-assertion {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    align-items: center;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .kg-assertion code {
+    font-size: 9px;
+    background: #f4f4f4;
+    border-radius: 3px;
+    padding: 3px 5px;
+  }
+  .kg-assertion strong {
+    font-weight: 500;
+  }
+  .kg-inspector blockquote {
+    margin: 24px 0;
+    border-left: 2px solid #ddd;
+    padding-left: 12px;
+    color: #666;
+    font-size: 12px;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+  }
+  .kg-inspector dl,
+  .kg-schema-modal dl {
+    display: grid;
+    grid-template-columns: 95px minmax(0, 1fr);
+    gap: 10px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .kg-inspector dt,
+  .kg-schema-modal dt {
+    color: #999;
+  }
+  .kg-inspector dd,
+  .kg-schema-modal dd {
+    color: #555;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .kg-inspector form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 25px;
+  }
+  .kg-neighbor {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    text-align: left;
+    width: 100%;
+    padding: 15px 0;
+    border: 0;
+    border-bottom: 1px solid #eee;
+    background: transparent;
+    font-size: 11px;
+  }
+  .kg-neighbor strong {
+    color: #444;
+    font-weight: 500;
+  }
+  .kg-neighbor span {
+    color: #888;
+    line-height: 1.5;
+  }
+  .kg-empty {
+    position: absolute;
+    left: 50%;
+    top: 45%;
+    transform: translate(-50%, -50%);
+    width: min(300px, 90%);
+    text-align: center;
+    pointer-events: none;
+  }
+  .kg-empty > span {
+    display: block;
+    font-size: 32px;
+    color: #aaa;
+    margin-bottom: 20px;
+  }
+  .kg-empty strong {
+    font-size: 14px;
+    font-weight: 500;
+    color: #555;
+  }
+  .kg-empty p {
+    font-size: 12px;
+    color: #999;
+    line-height: 1.7;
+  }
+  .kg-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    color: #999;
+    font-size: 10px;
+    line-height: 1.6;
+    padding: 12px 1px;
+  }
+  .kg-message {
+    color: #666;
+    font-size: 12px;
+  }
+  .kg-modal-backdrop {
+    position: fixed;
+    z-index: 100;
+    inset: 0;
+    background: #0005;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .kg-schema-modal {
+    width: 580px;
+    max-width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    background: white;
+    padding: 32px;
+    box-shadow: -10px 0 50px #0001;
+  }
+  .kg-modal-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .kg-modal-heading h2 {
+    margin: 0 0 10px;
+    font-size: 19px;
+    font-weight: 500;
+    letter-spacing: -0.4px;
+  }
+  .kg-schema-modal p {
+    font-size: 12px;
+    color: #888;
+    line-height: 1.8;
+  }
+  .kg-schema-modal h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 1px;
+    color: #999;
+    margin: 32px 0 14px;
+  }
+  .kg-schema-modal details {
+    border-bottom: 1px solid #eee;
+    padding: 12px 0;
+  }
+  .kg-schema-modal summary {
+    font-size: 12px;
+    color: #444;
+    cursor: pointer;
+  }
+  .kg-schema-modal summary i {
+    margin: 0 10px;
+  }
+  .kg-schema-modal code {
+    font-size: 10px;
+    color: #777;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+  @media (max-width: 760px) {
+    .kg-toolbar {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .kg-search {
+      flex-basis: 100%;
+    }
+    .kg-toolbar select {
+      flex: 1;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .kg-workspace {
+      min-height: 500px;
+      height: 70dvh;
+      position: relative;
+    }
+    .kg-inspector {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      top: 0;
+      width: min(305px, 90%);
+      z-index: 10;
+      box-shadow: -6px 0 20px #0001;
+    }
+    .kg-footer {
+      flex-direction: column;
+      gap: 4px;
+    }
+    .kg-schema-modal {
+      padding: 24px;
+    }
+  }
+}
+
+/* React Flow ships unlayered defaults; keep node/handle overrides in the same layer. */
+.knowledge-graph-page .react-flow__node.kg-node {
+  width: 180px;
+  padding: 12px 14px;
+  border: 1px solid #dedede;
+  border-radius: 7px;
+  background: white;
+  text-align: left;
+  box-shadow: 0 2px 5px #00000004;
+}
+.knowledge-graph-page .react-flow__node.kg-node.selected {
+  border-color: #777;
+  box-shadow: 0 0 0 2px #00000008;
+}
+.knowledge-graph-page .react-flow__handle {
+  width: 4px;
+  height: 4px;
+  min-width: 4px;
+  min-height: 4px;
+  background: #bbb;
+  border: 0;
+}
+.knowledge-graph-page .react-flow__controls {
+  box-shadow: none;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.knowledge-graph-page .react-flow__controls-button {
+  background: white;
+  width: 28px;
+  height: 28px;
+  border-bottom-color: #eee;
+}
+.knowledge-graph-page .react-flow__edge.selected .react-flow__edge-path {
+  stroke: #555;
+  stroke-width: 1.8;
+}
+
+/* Class-style compartments keep literal attributes inside their owning entity. */
+.knowledge-graph-page .react-flow__node.kg-class-node {
+  width: 248px;
+  padding: 0;
+  border-radius: 6px;
+  overflow: visible;
+}
+.kg-class-heading {
+  padding: 14px 16px;
+}
+.kg-class-heading .kg-node-type {
+  justify-content: center;
+  margin-bottom: 8px;
+}
+.kg-class-heading > strong {
+  text-align: center;
+  font-size: 13px;
+  line-height: 18px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.kg-class-attributes {
+  border-top: 1px solid #e5e5e5;
+  padding: 3px 0;
+}
+.kg-class-attribute {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  width: 100%;
+  padding: 10px 16px;
+  min-height: 72px;
+  height: 72px;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: #444;
+  cursor: pointer;
+}
+.kg-class-attribute + .kg-class-attribute {
+  border-top: 1px solid #f1f1f1;
+}
+.kg-class-attribute:hover,
+.kg-class-attribute:focus-visible {
+  background: #f7f7f7;
+}
+.kg-class-attribute:focus-visible {
+  outline: 1px solid #999;
+  outline-offset: -2px;
+}
+.kg-attribute-key {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.kg-attribute-key code {
+  font: 10px var(--font-mono);
+  color: #777;
+}
+.kg-attribute-key small {
+  font: 9px var(--font-mono);
+  color: #aaa;
+}
+.kg-attribute-value {
+  font-size: 12px;
+  line-height: 17px;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.kg-class-attribute.inferred .kg-attribute-value {
+  font-style: italic;
+  color: #8d729a;
+}
+.kg-more-attributes {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-top: 1px solid #eee;
+  padding: 8px 16px;
+  background: transparent;
+  color: #888;
+  text-align: left;
+  font-size: 10px;
+  cursor: pointer;
+}
+.kg-schema-modal .kg-status {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f1f1f1;
+  color: #777;
+  font-size: 10px;
+}
+.kg-schema-modal .kg-status.provisional {
+  background: #fbf3e4;
+  color: #9a6b1f;
+}
+.kg-schema-modal .kg-status.approved {
+  background: #eaf4ec;
+  color: #3f7a4c;
+}
+.kg-review {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.kg-review button,
+.kg-review select {
+  font: inherit;
+  font-size: 11px;
+  padding: 5px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  color: #444;
+  cursor: pointer;
+}
+.kg-review button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.kg-review button.danger {
+  color: #b5483c;
+}

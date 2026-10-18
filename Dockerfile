@@ -17,6 +17,7 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/skills ./skills
 COPY --from=build --chown=node:node /app/package*.json ./
+COPY --chown=node:node scripts ./scripts
 USER node
 EXPOSE 3000
 CMD ["node", "dist/index.js"]

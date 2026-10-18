@@ -1,11 +1,23 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { ClerkProvider, useAuth, SignInButton, UserButton } from "@clerk/react";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import codexLogo from "./assets/codex.png";
 import museLogo from "./assets/muse.svg";
+import { AgentSetup } from "./AgentSetup";
+import { SpaceView } from "./SpaceView";
+import { invitationRedirect } from "./invitation";
+import {
+  displayAssistant,
+  sourceLabel,
+  type ResolvedAssistant,
+} from "./assistant-identity";
+const OntologyView = React.lazy(() =>
+  import("./OntologyView").then((m) => ({ default: m.OntologyView })),
+);
 import "./style.css";
+import "./ontology.css";
 type Config = {
   publishableKey: string;
   mcpUrl: string;
@@ -45,11 +57,14 @@ type Overview = {
     entityName: string;
     entityType: string;
   }[];
-  deliveries: any[];
-  subscriptions: any[];
   connections?: Connection[];
+  assistants?: Record<string, ResolvedAssistant>;
   rules?: any[];
+  ontologyStatus?: Record<string, string>;
 };
+// Saved memories whose text produced no claims are kept, but missing from the ontology graph.
+const outsideOntology = (status?: string) =>
+  status === "no_supported_claims" || status === "failed";
 const kinds = [
   "fact",
   "preference",
@@ -67,30 +82,13 @@ const date = (n: number) =>
     minute: "2-digit",
   });
 const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-// Muse registrations in our Clerk instance; opaque IDs carry no app name.
-const museClientIds = new Set([
-  "Mz1lRFME372kmUIB",
-  "AxgqrHF5QB08oV37",
-  "nGyKi3rPUIuFKH76",
-  "AqmpDhak10k9TtSl",
-]);
-function assistantIdentity(clientId: string) {
-  // Identity and logo published by Codex's OAuth client metadata.
-  if (clientId === "https://chatgpt.com/oauth/codex/client.json") {
-    return { name: "Codex", logo: codexLogo };
-  }
-  if (museClientIds.has(clientId)) {
-    return { name: "Muse", logo: museLogo };
-  }
-  try {
-    const url = new URL(clientId);
-    if (url.protocol === "https:" || url.protocol === "http:") {
-      return { name: url.hostname, logo: undefined };
-    }
-  } catch {
-    // Opaque OAuth IDs do not provide a verified assistant name.
-  }
-  return { name: "Assistant", logo: undefined };
+const brandLogos = { openai: codexLogo, muse: museLogo };
+function assistantIdentity(clientId: string, resolved?: ResolvedAssistant) {
+  const a = displayAssistant(clientId, resolved);
+  // Bundled marks are monochrome glyphs; app-registered logos are full-colour images.
+  return a.brand
+    ? { ...a, logo: brandLogos[a.brand], mono: true }
+    : { ...a, logo: a.logo ?? undefined, mono: false };
 }
 function Icon({ name, size = 20 }: { name: string; size?: number }) {
   const paths: Record<string, React.ReactNode> = {
@@ -120,7 +118,6 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
         <path d="m9 11 6-4m-6 6 6 4" />
       </>
     ),
-    activity: <path d="M3 12h4l3-8 4 16 3-8h4" />,
     arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
     plus: <path d="M12 5v14M5 12h14" />,
     refresh: (
@@ -164,12 +161,12 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
   );
 }
 function Brand() {
-  return <div className="brand">shared memory.</div>;
+  return <div className="brand">Memspace</div>;
 }
 function Landing() {
   return (
     <main className="landing">
-      <h1 className="landing-title">shared memory.</h1>
+      <h1 className="landing-title">Memspace</h1>
       <SignInButton mode="modal">
         <button className="button">Log in</button>
       </SignInButton>
@@ -327,8 +324,8 @@ function Dashboard({ config }: { config: Config }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
-    [setupPromptText, setSetupPromptText] = useState(""),
     [spaceName, setSpaceName] = useState(""),
+    [selectedSpace, setSelectedSpace] = useState<Space | null>(null),
     [invite, setInvite] = useState(""),
     [memberList, setMemberList] = useState<{
       space: Space;
@@ -355,31 +352,25 @@ function Dashboard({ config }: { config: Config }) {
   const reload = useCallback(async () => {
     setData(await request("overview"));
   }, [request]);
+  const initialSpaceLink = useRef(false);
+  useEffect(() => {
+    if (!data || initialSpaceLink.current) return;
+    initialSpaceLink.current = true;
+    const id = new URLSearchParams(location.search).get("space");
+    const space = data.spaces.find((s) => s.id === id);
+    if (space) {
+      setSelectedSpace(space);
+      setSection("spaces");
+    }
+  }, [data]);
   useEffect(() => {
     reload().catch((e) => setError(e.message));
   }, [reload]);
-  const loadSetupPrompt = useCallback(async () => {
-    const response = await fetch("/setup/prompt");
-    if (!response.ok)
-      throw new Error("Could not load the MCP install prompt. Try again.");
-    return response.text();
-  }, []);
-  useEffect(() => {
-    if (section !== "connections" || setupPromptText) return;
-    let current = true;
-    loadSetupPrompt()
-      .then((text) => {
-        if (current) setSetupPromptText(text);
-      })
-      .catch((e) => {
-        if (current) setError(e.message);
-      });
-    return () => {
-      current = false;
-    };
-  }, [section, setupPromptText, loadSetupPrompt]);
-  const action = async (name: string, input: unknown) =>
-    request("action", { action: name, input });
+  const action = useCallback(
+    async (name: string, input: unknown) =>
+      request("action", { action: name, input }),
+    [request],
+  );
   const perform = async (fn: () => Promise<unknown>, message?: string) => {
     setBusy(true);
     setError("");
@@ -463,6 +454,10 @@ function Dashboard({ config }: { config: Config }) {
       previous?.focus();
     };
   }, [detail, editing, memberList]);
+  // History is newest first and only available to the author.
+  const firstSource: string | undefined = detail?.history?.find(
+    (r: any) => r.revision === 1,
+  )?.sourceClient;
   return (
     <div className="app-shell">
       <a className="skip-link" href="#workspace-content">
@@ -474,7 +469,7 @@ function Dashboard({ config }: { config: Config }) {
             ["memories", "memory", "Memories"],
             ["connections", "graph", "Connections"],
             ["spaces", "share", "Shared spaces"],
-            ["activity", "activity", "Activity"],
+            ["ontology", "graph", "Ontology"],
           ].map(([id, icon, label]) => (
             <button
               key={id}
@@ -543,7 +538,14 @@ function Dashboard({ config }: { config: Config }) {
                 disabled={busy}
                 onClick={() =>
                   perform(async () => {
-                    await action("accept_invitation", { token: invite });
+                    const joined = await action("accept_invitation", {
+                      token: invite,
+                    });
+                    const page = await action("space_memories", {
+                      spaceId: joined.id,
+                    });
+                    setSelectedSpace(page.space);
+                    setSection("spaces");
                     setInvite("");
                     history.replaceState({}, "", "/dashboard");
                   }, "Joined shared space")
@@ -647,6 +649,9 @@ function Dashboard({ config }: { config: Config }) {
                         <span className={"kind-badge " + m.kind}>
                           {title(m.kind)}
                         </span>
+                        {outsideOntology(data.ontologyStatus?.[m.id]) && (
+                          <span className="ontology-gap">Not in ontology</span>
+                        )}
                         <span className="subtle">{date(m.updatedAt)}</span>
                       </div>
                       <p>{m.text}</p>
@@ -690,13 +695,20 @@ function Dashboard({ config }: { config: Config }) {
               >
                 {data?.connections?.length ? (
                   data.connections.map((c) => {
-                    const assistant = assistantIdentity(c.clientId);
+                    const assistant = assistantIdentity(
+                      c.clientId,
+                      data.assistants?.[c.clientId],
+                    );
                     return (
                       <div className="connection-row" key={c.id}>
-                        <div className="connection-identity" title={c.clientId}>
+                        <div
+                          className="connection-identity"
+                          title={assistant.title}
+                        >
                           <span className="assistant-logo" aria-hidden="true">
                             {assistant.logo ? (
                               <img
+                                className={assistant.mono ? "mono" : "app-logo"}
                                 src={assistant.logo}
                                 alt=""
                                 width="24"
@@ -726,7 +738,7 @@ function Dashboard({ config }: { config: Config }) {
                           aria-label={`${c.enabled ? "Revoke" : "Enable"} ${assistant.name}`}
                           title={
                             c.enabled
-                              ? "Stop memory access and event subscriptions"
+                              ? "Stop memory access"
                               : "Allow memory access"
                           }
                           onClick={() =>
@@ -754,439 +766,240 @@ function Dashboard({ config }: { config: Config }) {
                 )}
               </section>
 
-              <ol className="setup-steps" aria-label="Assistant setup">
-                <li>
-                  <span className="setup-node" aria-hidden="true">
-                    1
-                  </span>
-                  <div className="setup-content">
-                    <h2>Connect your assistant</h2>
-                    <p>
-                      Give your agent this prompt to install and verify the MCP
-                      connection.
-                    </p>
-                    <div className="button-row">
-                      <button
-                        className="button small"
-                        disabled={busy}
-                        onClick={() =>
-                          perform(async () => {
-                            const text =
-                              setupPromptText || (await loadSetupPrompt());
-                            setSetupPromptText(text);
-                            await navigator.clipboard.writeText(text);
-                          }, "MCP install prompt copied")
-                        }
-                      >
-                        <Icon name="copy" size={15} />
-                        Copy MCP install prompt
-                      </button>
-                    </div>
-                    <details className="setup-help setup-prompt">
-                      <summary>View install prompt</summary>
-                      {setupPromptText ? (
-                        <pre tabIndex={0} aria-label="MCP install prompt">
-                          {setupPromptText}
-                        </pre>
-                      ) : (
-                        <p>
-                          Use Copy MCP install prompt to load it and try again.
-                        </p>
-                      )}
-                    </details>
-                    <div className="code-copy">
-                      <code>{config.mcpUrl}</code>
-                      <button
-                        className="icon-button"
-                        disabled={busy}
-                        aria-label="Copy MCP URL"
-                        onClick={() =>
-                          perform(async () => {
-                            await navigator.clipboard.writeText(config.mcpUrl);
-                          }, "MCP URL copied")
-                        }
-                      >
-                        <Icon name="copy" size={17} />
-                      </button>
-                    </div>
-                    <p className="setup-note">
-                      Leave client ID and client secret blank.
-                    </p>
-                    <details className="setup-help chatgpt-setup">
-                      <summary>Using ChatGPT?</summary>
-                      <ol>
-                        <li>
-                          Open{" "}
-                          <a
-                            href="https://chatgpt.com/plugins"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            ChatGPT Plugins <Icon name="arrow" size={13} />
-                          </a>
-                          , select +, then Add custom MCP server.
-                        </li>
-                        <li>
-                          Name it Shared Memory, paste the URL above, and choose
-                          OAuth. Leave client credentials blank for automatic
-                          registration.
-                        </li>
-                        <li>
-                          Create and install the plugin, then sign in with your
-                          Shared Memory account. Select it with @ in your chat.
-                          Install the memory skill separately in step 2.
-                        </li>
-                      </ol>
-                      <p className="setup-note">
-                        A bundled plugin includes the guide. Our current bundle
-                        is private; public installation requires directory
-                        review.
-                      </p>
-                      <a
-                        className="text-button"
-                        href="https://developers.openai.com/api/docs/guides/custom-mcp-server#how-to-use"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        ChatGPT setup docs <Icon name="arrow" size={13} />
-                      </a>
-                    </details>
-                  </div>
-                </li>
-                <li>
-                  <span className="setup-node" aria-hidden="true">
-                    2
-                  </span>
-                  <div className="setup-content">
-                    <h2>Install the memory skill</h2>
-                    <p>
-                      Add the skill separately to teach your assistant when to
-                      save, recall, correct, and share memories.
-                    </p>
-                    <div className="button-row">
-                      <a className="button small" href="/skill/SKILL.md">
-                        Download skill
-                      </a>
-                      <button
-                        className="text-button"
-                        disabled={busy}
-                        onClick={() =>
-                          perform(async () => {
-                            const response = await fetch("/skill");
-                            if (!response.ok)
-                              throw new Error(
-                                "Could not load the memory skill. Try again.",
-                              );
-                            await navigator.clipboard.writeText(
-                              await response.text(),
-                            );
-                          }, "Memory skill instructions copied")
-                        }
-                      >
-                        Copy skill instructions
-                      </button>
-                    </div>
-                    <p className="setup-note">
-                      Install it through your assistant’s skill support, or save
-                      the guide in persistent instructions. A chat paste applies
-                      to that chat only.
-                    </p>
-                    <details className="setup-help">
-                      <summary>Try a memory</summary>
-                      <blockquote>
-                        Remember that I prefer concise project updates. Use
-                        Shared Memory to save this preference.
-                      </blockquote>
-                      <p>Ask another connected assistant to recall it.</p>
-                    </details>
-                  </div>
-                </li>
-              </ol>
-
-              <details className="connection-help">
-                <summary>Shared-space notifications</summary>
-                <p>
-                  After joining a shared space, ask your dot to monitor{" "}
-                  <code>memory.changed</code> for that space ID and notify you
-                  about shared updates.
-                </p>
-                <p>
-                  A connection alone does not start monitoring. Activity shows
-                  webhook receipt; it does not confirm that your dot sent a
-                  message.
-                </p>
-              </details>
-              {!!data?.subscriptions.length && (
-                <section className="panel spaced">
-                  <h2>Active event subscriptions</h2>
-                  {data.subscriptions.map((s) => (
-                    <div className="record-row" key={s.id}>
-                      <div>
-                        <strong>
-                          {data.spaces.find((p) => p.id === s.spaceId)?.name ??
-                            s.spaceId}
-                        </strong>
-                        <small>Expires {date(s.expiresAt)}</small>
-                      </div>
-                      <button
-                        className="text-button danger"
-                        disabled={busy}
-                        onClick={() =>
-                          perform(
-                            () => action("unsubscribe", { id: s.id }),
-                            "Subscription stopped",
-                          )
-                        }
-                      >
-                        Stop
-                      </button>
-                    </div>
-                  ))}
-                </section>
-              )}
+              <AgentSetup
+                mcpUrl={config.mcpUrl}
+                busy={busy}
+                perform={perform}
+              />
             </div>
           )}
           {section === "spaces" && (
             <>
-              <section className="panel create-space">
-                <h2>Create a shared space</h2>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    perform(async () => {
-                      await action("create_space", { name: spaceName });
-                      setSpaceName("");
-                    }, "Shared space created");
-                  }}
-                >
-                  <input
-                    required
-                    maxLength={100}
-                    value={spaceName}
-                    onChange={(e) => setSpaceName(e.target.value)}
-                    placeholder="A project, a plan, a shared interest…"
-                    aria-label="Space name"
-                  />
-                  <button className="button small" disabled={busy}>
-                    Create space
-                  </button>
-                </form>
-              </section>
-              <div className="setup-grid">
-                {data?.spaces.map((s) => (
-                  <section className="panel" key={s.id}>
-                    <div className="panel-title">
-                      <Icon name="share" />
-                      <span className="chip">{s.role}</span>
-                    </div>
-                    <h2>{s.name}</h2>
-                    <div className="space-id">
-                      <code>{s.id}</code>
-                      <button
-                        className="icon-button"
-                        aria-label="Copy space ID"
-                        onClick={() => {
-                          navigator.clipboard.writeText(s.id);
-                          setNotice("Space ID copied");
-                        }}
-                      >
-                        <Icon name="copy" size={14} />
-                      </button>
-                    </div>
-                    <button
-                      className="text-button"
-                      onClick={() =>
-                        perform(async () =>
-                          setMemberList({
-                            space: s,
-                            members: await action("members", { spaceId: s.id }),
-                          }),
-                        )
-                      }
+              {selectedSpace && data ? (
+                <SpaceView
+                  key={selectedSpace.id}
+                  space={selectedSpace}
+                  actorId={data.actor.id}
+                  action={action}
+                  refreshKey={data}
+                  onBack={() => setSelectedSpace(null)}
+                  onChanged={reload}
+                  onSelect={(id) => void select(id)}
+                  onAdd={() => setEditing(null)}
+                />
+              ) : (
+                <>
+                  <section className="panel create-space">
+                    <h2>Create a shared space</h2>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        perform(async () => {
+                          const created = await action("create_space", {
+                            name: spaceName,
+                          });
+                          setSpaceName("");
+                          setSelectedSpace(created);
+                        }, "Shared space created");
+                      }}
                     >
-                      View members <Icon name="arrow" size={14} />
-                    </button>
-                    {s.role === "owner" && (
-                      <form
-                        className="invite-form"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          const f = new FormData(e.currentTarget);
-                          perform(async () => {
-                            const r = await action("invite", {
-                              spaceId: s.id,
-                              email: f.get("email"),
-                              role: f.get("role"),
-                            });
-                            await navigator.clipboard.writeText(r.url);
-                          }, "Invitation link copied. Share it with the invited person.");
-                        }}
-                      >
-                        <label>
-                          Invite by verified account email
-                          <input
-                            type="email"
-                            name="email"
-                            required
-                            placeholder="friend@example.com"
-                          />
-                        </label>
-                        <div className="form-inline">
-                          <select name="role" aria-label="Invitation role">
-                            <option value="reader">Can read</option>
-                            <option value="contributor">
-                              Can read and share
+                      <input
+                        required
+                        maxLength={100}
+                        value={spaceName}
+                        onChange={(e) => setSpaceName(e.target.value)}
+                        placeholder="A project, a plan, a shared interest…"
+                        aria-label="Space name"
+                      />
+                      <button className="button small" disabled={busy}>
+                        Create space
+                      </button>
+                    </form>
+                  </section>
+                  <div className="setup-grid">
+                    {data?.spaces.map((s) => (
+                      <section className="panel" key={s.id}>
+                        <div className="panel-title">
+                          <Icon name="share" />
+                          <span className="chip">{s.role}</span>
+                        </div>
+                        <h2>
+                          <button
+                            className="space-card-name"
+                            onClick={() => setSelectedSpace(s)}
+                          >
+                            {s.name} <Icon name="arrow" size={16} />
+                          </button>
+                        </h2>
+                        <button
+                          className="text-button"
+                          onClick={() =>
+                            perform(async () =>
+                              setMemberList({
+                                space: s,
+                                members: await action("members", {
+                                  spaceId: s.id,
+                                }),
+                              }),
+                            )
+                          }
+                        >
+                          View members <Icon name="arrow" size={14} />
+                        </button>
+                        {s.role === "owner" && (
+                          <form
+                            className="invite-form"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              const f = new FormData(e.currentTarget);
+                              perform(async () => {
+                                const r = await action("invite", {
+                                  spaceId: s.id,
+                                  email: f.get("email"),
+                                  role: f.get("role"),
+                                });
+                                await navigator.clipboard.writeText(r.url);
+                              }, "Invitation link copied. Share it with the invited person.");
+                            }}
+                          >
+                            <label>
+                              Invite by verified account email
+                              <input
+                                type="email"
+                                name="email"
+                                required
+                                placeholder="friend@example.com"
+                              />
+                            </label>
+                            <div className="form-inline">
+                              <select name="role" aria-label="Invitation role">
+                                <option value="reader">Can read</option>
+                                <option value="contributor">
+                                  Can read and share
+                                </option>
+                              </select>
+                              <button className="button small" disabled={busy}>
+                                Create invite link
+                              </button>
+                            </div>
+                          </form>
+                        )}
+                      </section>
+                    ))}
+                  </div>
+                  <details className="panel spaced">
+                    <summary>Advanced sharing rules</summary>
+                    <p>
+                      Explicitly enable a rule to share future matching memories
+                      into a space. Existing memories are not backfilled.
+                      Stopping a rule stops future automatic shares; retract
+                      existing references separately.
+                    </p>
+                    <form
+                      className="invite-form"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const f = new FormData(e.currentTarget);
+                        perform(
+                          () =>
+                            action("add_sharing_rule", {
+                              spaceId: f.get("spaceId"),
+                              kind: f.get("kind"),
+                              entityName: f.get("entityName"),
+                            }),
+                          "Automatic sharing rule enabled",
+                        );
+                      }}
+                    >
+                      <div className="form-inline">
+                        <select
+                          name="spaceId"
+                          required
+                          aria-label="Rule shared space"
+                        >
+                          {data?.spaces
+                            .filter((s) => s.role !== "reader")
+                            .map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                        </select>
+                        <select name="kind" aria-label="Rule memory type">
+                          {kinds.map((k) => (
+                            <option key={k} value={k}>
+                              {title(k)}
                             </option>
-                          </select>
-                          <button className="button small" disabled={busy}>
-                            Create invite link
+                          ))}
+                        </select>
+                        <input
+                          name="entityName"
+                          placeholder="Entity name filter (optional)"
+                          maxLength={120}
+                          aria-label="Rule entity name filter"
+                        />
+                        <button
+                          className="button small"
+                          disabled={
+                            busy ||
+                            !data?.spaces.some((s) => s.role !== "reader")
+                          }
+                        >
+                          Enable rule
+                        </button>
+                      </div>
+                    </form>
+                    {data?.rules
+                      ?.filter((r) => r.active)
+                      .map((r) => (
+                        <div className="record-row" key={r.id}>
+                          <div>
+                            <strong>
+                              {title(r.kind)} →{" "}
+                              {data.spaces.find((s) => s.id === r.spaceId)
+                                ?.name ?? r.spaceId}
+                            </strong>
+                            <small>
+                              {r.entityName
+                                ? "Connected to " + r.entityName
+                                : "All future memories of this type"}
+                            </small>
+                          </div>
+                          <button
+                            className="text-button danger"
+                            onClick={() =>
+                              perform(
+                                () =>
+                                  action("disable_sharing_rule", { id: r.id }),
+                                "Sharing rule stopped",
+                              )
+                            }
+                          >
+                            Stop rule
                           </button>
                         </div>
-                      </form>
-                    )}
-                  </section>
-                ))}
-              </div>
-              <section className="panel spaced">
-                <h2>Automatic sharing rules</h2>
-                <p>
-                  Explicitly enable a rule to share future matching memories
-                  into a space. Existing memories are not backfilled. Stopping a
-                  rule stops future automatic shares; retract existing
-                  references separately.
-                </p>
-                <form
-                  className="invite-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const f = new FormData(e.currentTarget);
-                    perform(
-                      () =>
-                        action("add_sharing_rule", {
-                          spaceId: f.get("spaceId"),
-                          kind: f.get("kind"),
-                          entityName: f.get("entityName"),
-                        }),
-                      "Automatic sharing rule enabled",
-                    );
-                  }}
-                >
-                  <div className="form-inline">
-                    <select
-                      name="spaceId"
-                      required
-                      aria-label="Rule shared space"
-                    >
-                      {data?.spaces
-                        .filter((s) => s.role !== "reader")
-                        .map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                    </select>
-                    <select name="kind" aria-label="Rule memory type">
-                      {kinds.map((k) => (
-                        <option key={k} value={k}>
-                          {title(k)}
-                        </option>
                       ))}
-                    </select>
-                    <input
-                      name="entityName"
-                      placeholder="Entity name filter (optional)"
-                      maxLength={120}
-                      aria-label="Rule entity name filter"
-                    />
-                    <button
-                      className="button small"
-                      disabled={
-                        busy || !data?.spaces.some((s) => s.role !== "reader")
-                      }
-                    >
-                      Enable rule
-                    </button>
-                  </div>
-                </form>
-                {data?.rules
-                  ?.filter((r) => r.active)
-                  .map((r) => (
-                    <div className="record-row" key={r.id}>
-                      <div>
-                        <strong>
-                          {title(r.kind)} →{" "}
-                          {data.spaces.find((s) => s.id === r.spaceId)?.name ??
-                            r.spaceId}
-                        </strong>
-                        <small>
-                          {r.entityName
-                            ? "Connected to " + r.entityName
-                            : "All future memories of this type"}
-                        </small>
-                      </div>
-                      <button
-                        className="text-button danger"
-                        onClick={() =>
-                          perform(
-                            () => action("disable_sharing_rule", { id: r.id }),
-                            "Sharing rule stopped",
-                          )
-                        }
-                      >
-                        Stop rule
-                      </button>
+                  </details>
+                  {data?.spaces.length === 0 && (
+                    <div className="empty-state">
+                      <Icon name="share" size={32} />
+                      <h2>No shared spaces</h2>
+                      <p>Create a space to invite someone.</p>
                     </div>
-                  ))}
-              </section>
-              {data?.spaces.length === 0 && (
-                <div className="empty-state">
-                  <Icon name="share" size={32} />
-                  <h2>No shared spaces</h2>
-                  <p>Create a space to invite someone.</p>
-                </div>
+                  )}
+                </>
               )}
             </>
           )}
-          {section === "activity" && (
-            <>
-              <section className="panel">
-                <h2>Delivery activity</h2>
-                {data?.deliveries.length ? (
-                  <div className="activity-list">
-                    {data.deliveries.map((d) => (
-                      <div className="record-row" key={d.id}>
-                        <span className={"status-dot " + d.status} />
-                        <div>
-                          <strong>
-                            {d.status === "accepted"
-                              ? "Webhook received"
-                              : title(d.status)}
-                          </strong>
-                          <small>
-                            {d.memoryId} · {d.attempts} attempt
-                            {d.attempts === 1 ? "" : "s"} · HTTP{" "}
-                            {d.httpStatus ?? "—"}
-                          </small>
-                        </div>
-                        <span className="subtle">
-                          {date(d.updatedAt ?? d.createdAt)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state compact">
-                    <Icon name="activity" size={28} />
-                    <h2>No deliveries yet.</h2>
-                    <p>
-                      When someone shares a memory in a subscribed space,
-                      <br />
-                      its delivery trace appears here.
-                    </p>
-                  </div>
-                )}
-              </section>
-            </>
+          {section === "ontology" && (
+            <React.Suspense fallback={<p className="empty">Loading graph…</p>}>
+              <OntologyView
+                request={request}
+                action={action}
+                spaces={data?.spaces ?? []}
+                userId={data?.actor.id ?? ""}
+              />
+            </React.Suspense>
           )}
         </div>
       </main>
@@ -1223,12 +1036,21 @@ function Dashboard({ config }: { config: Config }) {
             <dl>
               <dt>Recorded by</dt>
               <dd>{detail.memory.authorName}</dd>
-              <dt>Source</dt>
-              <dd>
-                {detail.memory.sourceClient === "dashboard"
-                  ? "Added in dashboard"
-                  : detail.memory.sourceClient}
+              <dt>Last saved via</dt>
+              <dd title={detail.memory.sourceClient}>
+                {sourceLabel(
+                  detail.memory.sourceClient,
+                  detail.assistants?.[detail.memory.sourceClient],
+                )}
               </dd>
+              {firstSource && firstSource !== detail.memory.sourceClient && (
+                <>
+                  <dt>First saved via</dt>
+                  <dd title={firstSource}>
+                    {sourceLabel(firstSource, detail.assistants?.[firstSource])}
+                  </dd>
+                </>
+              )}
               <dt>Basis</dt>
               <dd>
                 {detail.memory.basis === "user_statement"
@@ -1248,6 +1070,28 @@ function Dashboard({ config }: { config: Config }) {
             </dl>
             <h3>Source evidence</h3>
             <blockquote>{detail.memory.evidence}</blockquote>
+            {outsideOntology(data?.ontologyStatus?.[detail.memory.id]) && (
+              <div className="ontology-gap-note">
+                <p>
+                  {data?.ontologyStatus?.[detail.memory.id] === "failed"
+                    ? "Structuring this memory failed, so it is not in the ontology graph."
+                    : "No ontology relationship fit this memory, so it is not in the ontology graph."}{" "}
+                  Retrying can use relationships added since it was saved.
+                </p>
+                <button
+                  className="button small"
+                  disabled={busy}
+                  onClick={() =>
+                    perform(
+                      () => action("retry_ontology", { id: detail.memory.id }),
+                      "Queued for another try",
+                    )
+                  }
+                >
+                  Retry ontology
+                </button>
+              </div>
+            )}
             {detail.memory.owner === data?.actor.id && (
               <>
                 <div className="button-row">
@@ -1570,8 +1414,8 @@ fetch("/api/config")
               },
             },
           }}
-          signInFallbackRedirectUrl="/dashboard"
-          signUpFallbackRedirectUrl="/dashboard"
+          signInFallbackRedirectUrl={invitationRedirect(location.search)}
+          signUpFallbackRedirectUrl={invitationRedirect(location.search)}
         >
           <App config={config} />
         </ClerkProvider>
