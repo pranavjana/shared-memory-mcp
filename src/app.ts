@@ -409,7 +409,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
               {
                 name: "get_connection_status",
                 description:
-                  "Verify authorized identity and current memory capabilities",
+                  "Verify authorized identity, this assistant's client ID (the sourceClient it writes), and current memory capabilities",
                 inputSchema: { type: "object", properties: {} },
               },
               ...tools.map((t) => ({
@@ -434,6 +434,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
               ? {
                   connected: true,
                   user: profile,
+                  client: { id: actor.clientId },
                   capabilities: {
                     authentication: true,
                     userManagement: !!dependencies.users,
@@ -487,7 +488,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
       {
         title: "Check Shared Memory connection",
         description:
-          "Verify the Shared Memory MCP connection and return the profile of the user who authorized it. Personal memory is available when configured.",
+          "Verify the Shared Memory MCP connection and return the profile of the user who authorized it, plus this assistant's client ID (the sourceClient it writes). Personal memory is available when configured.",
         inputSchema: {},
         annotations: {
           readOnlyHint: true,
@@ -504,6 +505,7 @@ export function createApp(config: Config, dependencies: Dependencies = {}) {
         const result = {
           connected: true,
           user,
+          client: { id: auth.clientId },
           capabilities: {
             authentication: true,
             userManagement: Boolean(dependencies.users),

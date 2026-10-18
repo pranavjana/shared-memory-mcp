@@ -2,7 +2,8 @@
 name: shared-space-watch-dot
 description: >-
   ChatGPT Dot skill for Shared Memory: remember and recall, share into spaces,
-  and a Scheduled recurring task that checks a space every X minutes. Use only
+  and a Scheduled recurring task that checks a space, or the user's own
+  memories saved by their other assistants, every X minutes. Use only
   when this assistant is an OpenAI ChatGPT Dot (or Cloud Work as that dot),
   including Watch-tick wakes. Do not use on Muse, Grok Bot, or Cursor.
 ---
@@ -27,14 +28,16 @@ Examples, ontology, sharing, evals: [references/examples.md](references/examples
 
 ```
 - [ ] get_connection_status
-- [ ] list_spaces → which space
+- [ ] Scope: a space (list_spaces → which space) or personal
 - [ ] Interval X minutes + time zone
 - [ ] Recurring task saved
 - [ ] User can see it in Scheduled
 - [ ] First tick now
 ```
 
-Ask space if ambiguous. Ask X if missing (default **15**). Floor **5** (Free/Go may only allow daily — save the coarsest allowed). Cap **1440**. Deliver in **this Dot / ChatGPT conversation**. Notify only on new other-member updates.
+Ask scope/space if ambiguous. Ask X if missing (default **15**). Floor **5** (Free/Go may only allow daily — save the coarsest allowed). Cap **1440**. Deliver in **this Dot / ChatGPT conversation**. Notify only on new other-member updates (personal: new writes by other assistants).
+
+**Personal watch** (no space): use when the user wants to know when their *other* assistants (or the dashboard) save or revise their own memories. Record `client.id` from `get_connection_status` as `selfClientId` so this assistant's own saves are skipped. Nobody else is involved; private memories stay private.
 
 Watch settings live only in the schedule's payload. Never `remember`, `revise_memory`, or share watch settings, schedules, or seen lists — Shared Memory holds the user's knowledge, not watch state. Connecting the plugin is not a watch.
 
@@ -42,17 +45,28 @@ Watch settings live only in the schedule's payload. Never `remember`, `revise_me
 
 Save a recurring Scheduled task: payload below; every X minutes; named zone; optional end date. No MCP Events, `events/subscribe`, `notification_setup`, Slack/GitHub event tasks, or proactive-research as a substitute.
 
-Confirm what was saved. Pausing the Dot does **not** cancel schedules — turn the task off in Scheduled. Run the tick **once now**. One task per `spaceId`. Change = cancel old, then create new.
+Confirm what was saved. Pausing the Dot does **not** cancel schedules — turn the task off in Scheduled. Run the tick **once now**. One task per `spaceId`, and at most one personal watch. Change = cancel old, then create new.
 
-If this session cannot save a schedule: say so; on-demand `get_shared_update` only.
+If this session cannot save a schedule: say so; on-demand `get_shared_update` (space) or `recall` (personal) only.
 
 ## Tick payload
 
 ```
 Watch tick. Use skill shared-space-watch-dot.
 host: dot
+scope: space
 spaceId: <id>
 spaceName: <name>
+intervalMinutes: <X>
+```
+
+Personal watch:
+
+```
+Watch tick. Use skill shared-space-watch-dot.
+host: dot
+scope: personal
+selfClientId: <client.id from get_connection_status>
 intervalMinutes: <X>
 ```
 

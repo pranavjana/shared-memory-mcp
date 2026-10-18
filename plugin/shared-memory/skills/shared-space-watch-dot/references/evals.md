@@ -13,3 +13,19 @@
   ]
 }
 ```
+
+Personal watch:
+
+```json
+{
+  "skills": ["shared-space-watch-dot"],
+  "query": "Also tell me every 30 minutes if Codex or my other assistants save anything to my memory.",
+  "expected_behavior": [
+    "Calls get_connection_status and puts client.id in the payload as selfClientId",
+    "Uses scope: personal with no spaceId and does not ask which space",
+    "Saves a Dot recurring scheduled task, not a Grok routine or Muse /loop",
+    "Each tick uses recall with an empty query, keeps only memories owned by user.id, and skips ones whose sourceClient is this assistant",
+    "Reports which assistant saved each new memory using sourceClient, and never shares, revises, or saves watch state"
+  ]
+}
+```

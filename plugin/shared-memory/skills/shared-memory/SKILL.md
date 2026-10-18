@@ -17,7 +17,7 @@ description: >-
 - The user states a durable preference, fact, event, goal, task, decision, or relationship worth keeping across chats or assistants.
 - An answer or plan depends on prior preferences, projects, people, commitments, or decisions — call recall (and structured knowledge tools when useful) first.
 - The user asks to share, retract, correct, or forget Shared Memory content, or asks what changed in a shared space (one-off).
-- The user wants recurring space notifications — Muse `shared-space-watch-muse`, Grok Bot `shared-space-watch-grok`, ChatGPT Dot `shared-space-watch-dot` (those skills also contain this operating guide).
+- The user wants recurring notifications for a space, or for their own memories saved by their other assistants — Muse `shared-space-watch-muse`, Grok Bot `shared-space-watch-grok`, ChatGPT Dot `shared-space-watch-dot` (those skills also contain this operating guide).
 - Tools are connected but behavior is unclear — call `memory_instructions` (or reload this skill) before improvising.
 
 Do **not** treat installing this skill as connecting MCP, or connecting MCP as installing this skill. They are separate host steps.
@@ -66,7 +66,7 @@ The MCP `memory_instructions` tool returns **this SKILL.md only**. Critical safe
 
 ## Recall
 
-Call `recall` before an answer or plan that depends on prior preferences, projects, people, commitments, or decisions. Query the relevant topic rather than downloading everything. Read evidence, attribution, revision, and event time. No result means no relevant memory was found — not that the event never happened. Use `get_memory` for a current record and `explain_memory` for source and relationships. Prefer `recall_knowledge` for structured filters when those tools exist.
+Call `recall` before an answer or plan that depends on prior preferences, projects, people, commitments, or decisions. Query the relevant topic rather than downloading everything. Read evidence, attribution, revision, and event time. No result means no relevant memory was found — not that the event never happened. Use `get_memory` for a current record and `explain_memory` for source and relationships. `sourceClient` is the client ID of the assistant that made the latest revision (`dashboard` = added in the dashboard); `get_connection_status` returns this assistant's own `client.id`. Prefer `recall_knowledge` for structured filters when those tools exist.
 
 ## Save (with evidence)
 

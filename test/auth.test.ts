@@ -264,6 +264,10 @@ test("OAuth discovery, access checks, and concurrent users stay isolated", async
         i % 2 ? "user_a" : "user_b",
       );
       assert.equal(result.result.structuredContent.capabilities.memory, false);
+      assert.equal(
+        result.result.structuredContent.client.id,
+        "chatgpt-test",
+      );
     }
     const getResponse = await fetch(`${base}/mcp`, {
       headers: { Authorization: "Bearer valid-a" },

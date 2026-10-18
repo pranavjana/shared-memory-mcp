@@ -1,6 +1,6 @@
 # Shared Memory operating guide
 
-This file lives inside the Muse / Grok Bot / Dot skill. For remember, recall, share, and one-off reads, follow it. For a timed space watch, use the parent `SKILL.md` (Arm) and [tick.md](tick.md).
+This file lives inside the Muse / Grok Bot / Dot skill. For remember, recall, share, and one-off reads, follow it. For a timed watch (a shared space, or the user's own memories saved by other assistants), use the parent `SKILL.md` (Arm) and [tick.md](tick.md).
 
 
 ## When to use
@@ -8,7 +8,7 @@ This file lives inside the Muse / Grok Bot / Dot skill. For remember, recall, sh
 - The user states a durable preference, fact, event, goal, task, decision, or relationship worth keeping across chats or assistants.
 - An answer or plan depends on prior preferences, projects, people, commitments, or decisions — call recall (and structured knowledge tools when useful) first.
 - The user asks to share, retract, correct, or forget Shared Memory content, or asks what changed in a shared space (one-off).
-- The user wants recurring space notifications — stay in this host skill (Arm + [tick.md](tick.md)).
+- The user wants recurring notifications for a space, or for their own memories saved by their other assistants — stay in this host skill (Arm + [tick.md](tick.md)).
 - Tools are connected but behavior is unclear — call `memory_instructions` (or reload this skill) before improvising.
 
 Do **not** treat installing this skill as connecting MCP, or connecting MCP as installing this skill. They are separate host steps.
@@ -57,7 +57,7 @@ The MCP `memory_instructions` tool returns **this SKILL.md only**. Critical safe
 
 ## Recall
 
-Call `recall` before an answer or plan that depends on prior preferences, projects, people, commitments, or decisions. Query the relevant topic rather than downloading everything. Read evidence, attribution, revision, and event time. No result means no relevant memory was found — not that the event never happened. Use `get_memory` for a current record and `explain_memory` for source and relationships. Prefer `recall_knowledge` for structured filters when those tools exist.
+Call `recall` before an answer or plan that depends on prior preferences, projects, people, commitments, or decisions. Query the relevant topic rather than downloading everything. Read evidence, attribution, revision, and event time. No result means no relevant memory was found — not that the event never happened. Use `get_memory` for a current record and `explain_memory` for source and relationships. `sourceClient` is the client ID of the assistant that made the latest revision (`dashboard` = added in the dashboard); `get_connection_status` returns this assistant's own `client.id`. Prefer `recall_knowledge` for structured filters when those tools exist.
 
 ## Save (with evidence)
 
@@ -125,7 +125,7 @@ Readers can retrieve; contributors and owners can share their own memories. Do n
 Shared Memory does not push into hosts. Do not invent webhooks or `notification_setup`.
 
 - **One-off:** `get_shared_update` with `spaceId` and memory or publication `id` → tell **your own** user. Never auto-reply to the sender or save the update as their fact. Do not retrieve a private source ID for a selected claim. A share receipt ≠ “your friend was notified.”
-- **Every X minutes:** this host skill’s Arm section; each wake follows [tick.md](tick.md).
+- **Every X minutes:** this host skill’s Arm section; each wake follows [tick.md](tick.md). A personal watch covers the user's own memories written by their other assistants or the dashboard; it is not a space and nobody else is involved.
 
 Details → [sharing-and-events.md](sharing-and-events.md).
 

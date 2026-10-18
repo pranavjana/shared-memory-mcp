@@ -8,6 +8,7 @@ import museLogo from "./assets/muse.svg";
 import { AgentSetup } from "./AgentSetup";
 import { SpaceView } from "./SpaceView";
 import { invitationRedirect } from "./invitation";
+import { assistantName, sourceLabel } from "./assistant-identity";
 const OntologyView = React.lazy(() =>
   import("./OntologyView").then((m) => ({ default: m.OntologyView })),
 );
@@ -76,30 +77,10 @@ const date = (n: number) =>
     minute: "2-digit",
   });
 const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-// Muse registrations in our Clerk instance; opaque IDs carry no app name.
-const museClientIds = new Set([
-  "Mz1lRFME372kmUIB",
-  "AxgqrHF5QB08oV37",
-  "nGyKi3rPUIuFKH76",
-  "AqmpDhak10k9TtSl",
-]);
+const assistantLogos = { codex: codexLogo, muse: museLogo, other: undefined };
 function assistantIdentity(clientId: string) {
-  // Identity and logo published by Codex's OAuth client metadata.
-  if (clientId === "https://chatgpt.com/oauth/codex/client.json") {
-    return { name: "Codex", logo: codexLogo };
-  }
-  if (museClientIds.has(clientId)) {
-    return { name: "Muse", logo: museLogo };
-  }
-  try {
-    const url = new URL(clientId);
-    if (url.protocol === "https:" || url.protocol === "http:") {
-      return { name: url.hostname, logo: undefined };
-    }
-  } catch {
-    // Opaque OAuth IDs do not provide a verified assistant name.
-  }
-  return { name: "Assistant", logo: undefined };
+  const { name, kind } = assistantName(clientId);
+  return { name, logo: assistantLogos[kind] };
 }
 function Icon({ name, size = 20 }: { name: string; size?: number }) {
   const paths: Record<string, React.ReactNode> = {
@@ -1036,11 +1017,9 @@ function Dashboard({ config }: { config: Config }) {
             <dl>
               <dt>Recorded by</dt>
               <dd>{detail.memory.authorName}</dd>
-              <dt>Source</dt>
-              <dd>
-                {detail.memory.sourceClient === "dashboard"
-                  ? "Added in dashboard"
-                  : detail.memory.sourceClient}
+              <dt>Last saved via</dt>
+              <dd title={detail.memory.sourceClient}>
+                {sourceLabel(detail.memory.sourceClient)}
               </dd>
               <dt>Basis</dt>
               <dd>
