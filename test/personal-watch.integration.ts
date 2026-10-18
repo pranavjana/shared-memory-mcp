@@ -39,7 +39,11 @@ test("personal watch tick reports the user's own memories written by other assis
       // Stands in for Clerk's dynamic client registrations.
       assistants: new AssistantDirectory(async (id) =>
         id === "muse-client"
-          ? { name: "Muse", clientImageUrl: "https://img.clerk.com/muse" }
+          ? {
+              name: "Muse",
+              clientImageUrl: "https://img.clerk.com/muse",
+              clientUri: "https://agent.meta.ai/",
+            }
           : null,
       ),
       verifyToken: async (token) => {
@@ -310,6 +314,7 @@ test("personal watch tick reports the user's own memories written by other assis
       name: "Muse",
       logo: "https://img.clerk.com/muse",
       source: "registration",
+      brand: "muse",
     });
     const byId = Object.fromEntries(
       listed.assistants.map((x: any) => [x.clientId, x]),
@@ -339,6 +344,7 @@ test("personal watch tick reports the user's own memories written by other assis
         name: "Dashboard",
         logo: null,
         source: "dashboard",
+        brand: null,
         memories: 1,
       },
     ]);

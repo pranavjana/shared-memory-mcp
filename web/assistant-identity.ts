@@ -4,6 +4,7 @@ export type ResolvedAssistant = {
   name: string;
   logo: string | null;
   source: "metadata" | "registration" | "dashboard" | "unknown";
+  brand?: "openai" | "muse" | null;
 };
 const publishedNames: Record<string, string> = {
   "https://chatgpt.com/oauth/client.json": "ChatGPT",
@@ -24,8 +25,9 @@ export function displayAssistant(
     name: known ?? "Assistant",
     known: !!known,
     logo: resolved?.logo ?? null,
-    // OpenAI clients have no Clerk-hosted logo; the dashboard bundles one.
-    openai: url?.hostname === "chatgpt.com",
+    // Known products use the dashboard's bundled monochrome marks.
+    brand:
+      resolved?.brand ?? (url?.hostname === "chatgpt.com" ? "openai" : null),
     title:
       clientId +
       (resolved?.source === "registration"

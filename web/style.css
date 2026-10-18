@@ -448,8 +448,11 @@
   .assistant-logo {
     @apply flex size-9 shrink-0 items-center justify-center text-secondary;
   }
-  .assistant-logo img {
+  .assistant-logo img.mono {
     filter: brightness(0);
+  }
+  .assistant-logo img.app-logo {
+    @apply rounded-md object-cover;
   }
   .connection-identity strong {
     @apply truncate text-sm font-medium;
