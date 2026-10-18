@@ -1,4 +1,4 @@
-# Shared Memory development instructions
+# Memspace development instructions
 
 These repository-wide defaults apply to Pranav, Roshan, and coding agents working in this checkout. Develop and test against the sandbox unless the user explicitly authorizes a production task. Detailed setup and operator commands are in [docs/development.md](docs/development.md); read it before changing deployment, authentication, storage, or shared-space behavior.
 
@@ -41,7 +41,7 @@ These repository-wide defaults apply to Pranav, Roshan, and coding agents workin
 ## Build, validate, and deploy development changes
 
 1. Implement and review the feature on its feature branch. Run checks appropriate to the changed behavior; documentation-only edits do not require inventing tests.
-2. For code changes, use `npm run build`, `npm run check:web`, and `npm test`. For memory, permission, database, or auth/API changes, also run `npm run test:graph` and `node --import tsx --test test/api.integration.ts` against the isolated local test DB described in `docs/development.md`. Do not point integration tests at either hosted database.
+2. For code changes, use `npm run build`, `npm run check:web`, and `npm test`. For memory, permission, database, or auth/API changes, also run `npm run test:graph` and `node --import tsx --test test/api.integration.ts` against the isolated local test DB described in `docs/development.md`. Do not point integration tests at either hosted database. `npm run test:graph` also runs the documented queries in `cypher/`; when a change alters one of them, update `cypher/` and `docs/cypher.md` in the same PR.
 3. Keep `skills/shared-memory/SKILL.md` and the production plugin's bundled copy identical when editing the operating guide (MCP `memory_instructions` returns that file). Keep `skills/shared-space-watch-muse|grok|dot/` identical to the plugin copies; those three are the only host watch skills. Review the sandbox plugin's reference copy if the same behavior changes.
 4. Push the feature branch and open a PR targeting `codex/development`. Review before integration. Feature branches do not deploy automatically. The current CI workflow runs on pushes to `codex/development`/`main` and PRs targeting `main`; it does not currently run on feature PRs targeting development.
 5. Once the feature is integrated into `codex/development`, GitHub CI runs and Railway waits for passing checks before deploying the sandbox. Verify the deployment's commit/status and `/health`, then exercise the changed behavior. A push, green build, or authenticated connection alone does not prove the feature works.
@@ -51,13 +51,13 @@ These repository-wide defaults apply to Pranav, Roshan, and coding agents workin
 
 - Pranav tests as `pranavjana2003@gmail.com` in the sandbox; Roshan uses his own verified sandbox login. Do not ask them to switch to Alice, Bob, or a demo account for normal testing. Sandbox and production identities are separate even when their emails match.
 - `scripts/sandbox-seed.mjs` creates an owner-specific synthetic Demo Teammate and a `Sandbox collaboration` space owned by the real user, with shared demo updates and private denial-test records. It requires an existing verified owner account; another developer supplies `--owner-email <their-email>`. See the [test checklist](plugin/shared-spaces-sandbox/skills/shared-spaces-sandbox-testing/references/test-checklist.md).
-- Use the Shared Spaces Sandbox plugin/endpoint. The original Shared Memory plugin connects to production. Do not substitute its tools when sandbox tools are missing.
+- Use the Shared Spaces Sandbox plugin/endpoint. The production Memspace plugin (formerly Shared Memory) connects to production. Do not substitute its tools when sandbox tools are missing.
 - Verify the authenticated email with the sandbox `get_connection_status`, keeping the user signed in as themselves. A second chat or a name in a prompt does not change an OAuth identity. Do not impersonate the demo account through the user's MCP connection.
 - Test allowed and denied paths: the user reads demo-shared updates but cannot read/edit the teammate's private/source records; the teammate cannot read the user's private note. Automated graph/API tests exercise the recipient/outsider/revocation side without requiring demo logins. Use actual receipts/errors as evidence.
 - Membership is not permission to share all memories. Keep memories private unless explicitly selected for sharing or covered by a user-enabled rule. OAuth/account and space boundaries must remain enforced; do not add development auth bypasses or accept tokens for the wrong resource.
 - The guarded hosted fixture script defaults to a dry run. For requested incoming demo activity, use `--demo-update <stable-operation-key> --apply` inside the sandbox service, reusing the key on retries. This simulates a teammate write server-side, not an actual external agent or notification. Ordinary reruns preserve retractions and changed/revoked membership; restoring demo membership requires the explicit `--restore-demo-membership` option. It has no database reset operation.
 - The sandbox plugin is private to its owning ChatGPT account. Roshan needs his own authorized sandbox MCP connection or plugin; cloning the repo does not install or authenticate a plugin.
-- A share receipt is not an agent notification; proactive delivery is not currently available. The sandbox Clerk lifecycle webhook subscription is not yet configured; check `docs/development.md` for that remaining parity gap.
+- Members' agents receive shared updates through their scheduled watch (`shared-space-watch-*` skills) or an on-demand read. A share receipt is not itself a notification and the server does not push, so describe delivery as arriving at the next watch check, and confirm a watch exists from the agent's own report. The sandbox Clerk lifecycle webhook subscription is not yet configured; check `docs/development.md` for that remaining parity gap.
 
 ## Production release boundary
 

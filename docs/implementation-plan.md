@@ -1,4 +1,6 @@
-# Shared Memory implementation plan
+# Memspace implementation plan
+
+This is the original approved scope, written when the product was called Shared Memory. Notes in *italics* record what changed since.
 
 Approved scope: personal ontology memory across assistants and permissioned sharing between people. Assistants save explicit statements and observed outcomes without repetitive approvals, acknowledge successful saves naturally, and use a provided operating skill. The dashboard provides source details, revisions, connections, and access controls.
 
@@ -12,7 +14,7 @@ A private graph stores account profiles. The application graph stores Memory, Re
 
 A space owner invites a registered user's verified primary email. An invitation is accepted by that signed-in user and grants reader or contributor access. The owner can revoke membership. Sharing requires a contributor grant and explicit intent from the user or a matching enabled rule. New shares and source revisions record durable Change entries; members retrieve shared updates on demand with permission checks on every read.
 
-There is no automatic reply to the sender. Connecting as friends does not reveal private memory. Webhook-based proactive delivery (MCP Events) was removed; a replacement mechanism is still being designed.
+There is no automatic reply to the sender. Connecting as friends does not reveal private memory. Webhook-based proactive delivery (MCP Events) was removed. *Members' agents now pick up updates automatically through a scheduled watch in each host (the `shared-space-watch-*` skills).*
 
 ## Host integration
 
@@ -26,4 +28,4 @@ The private personal plugin is `plugins_6ad00b37b7148191a76953dc3d1bcad0`, relea
 
 ## Later proactive memory management
 
-Background reconciliation, inferred patterns, contradiction detection, confidence calibration, and memory aging follow V1. V1 does not promote model guesses into facts or silently widen sharing permissions.
+Background reconciliation, inferred patterns, contradiction detection, confidence calibration, and memory aging follow V1. V1 does not promote model guesses into facts or silently widen sharing permissions. *Server-side claim extraction on save has since been added (see [ontology.md](ontology.md#automatic-structuring-on-save)); the other items here are not built.*

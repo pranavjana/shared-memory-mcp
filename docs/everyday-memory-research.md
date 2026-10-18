@@ -16,7 +16,9 @@ The recurring pattern is hybrid retrieval: semantic relevance plus exact words p
 
 This is an evidence-backed property graph in FalkorDB, with a versioned JSON/Zod contract. It is not RDF, OWL, an OWL reasoner, or SHACL. [OWL 2](https://www.w3.org/TR/owl2-overview/) provides formal classes/properties and logical semantics. Such reasoning does not replace natural-language semantic retrieval. Explicitly scoped claims, provenance and privacy are more immediately useful here; a future RDF/OWL export would need a real mapping and tested semantics. No automatic symmetric relations, transitive access, inferred commitments or conflict resolution are implied.
 
-## Implemented schema 1.1.0
+## Implemented schema 1.2.0
+
+Version 1.2.0 keeps the 1.1 catalog below and adds negated claims and provisional relationships for facts the catalog does not cover; see [ontology.md](ontology.md#relationships-outside-the-catalog).
 
 Thirteen domain types:
 
@@ -55,7 +57,7 @@ Examples independent of any real user's facts:
 
 System types remain Account, Memory, Revision, Claim, Space and Publication. A claim has subject, predicate, object OR literal value, evidence, basis, author, exact source revision, status, capture time and optional validity bounds. Claims remain individually attributed assertions, not automatically established truth. Shared publications are selected, frozen projections with separate IDs and scope.
 
-Unsupported negatives, hypotheticals and ambiguity remain in source text; agents must not convert them to affirmative claims. There is no automatic source re-interpretation, entity resolution across authors, age inference, clinical diagnosis, or acceptance of obligations.
+An explicit negation is stored as a claim with `negated: true`, never as the affirmative fact. Hypotheticals and ambiguity remain in source text; agents must not convert them to affirmative claims. There is no automatic source re-interpretation, age inference, clinical diagnosis, or acceptance of obligations. Private graphs are never merged across authors; the only cross-author link is a space snapshot resolving a person mention to the one member it names.
 
 ## Storage and retrieval
 
